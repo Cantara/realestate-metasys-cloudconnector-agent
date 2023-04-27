@@ -17,7 +17,7 @@ public class MetasysCloudconnectorApplicationFactory implements StingrayApplicat
 
     @Override
     public String alias() {
-        return "metasys-cloudconnector";
+        return "MetasysCloudconnector";
     }
 
     @Override
