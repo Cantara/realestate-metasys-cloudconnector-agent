@@ -31,26 +31,41 @@
     <logback.version>1.2.6</logback.version>
     <slf4j.version>2.0.7</slf4j.version>
     <logback.version>1.4.7</logback.version>
+    <stingray.version>1.7.0</stingray.version>
   </properties>
 
   <dependencies>
-    <!-- Cantara configuration lib -->
     <dependency>
-      <groupId>no.cantara.config</groupId>
-      <artifactId>property-config</artifactId>
-      <version>0.8.17</version>
+      <groupId>no.cantara.stingray</groupId>
+      <artifactId>stingray-application</artifactId>
+      <version>${stingray.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>no.cantara.stingray</groupId>
+      <artifactId>stingray-application-security</artifactId>
+      <version>${stingray.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>no.cantara.stingray</groupId>
+      <artifactId>stingray-security</artifactId>
+      <version>${stingray.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-classic</artifactId>
+      <version>1.4.7</version>
+    </dependency>
+    <dependency>
+      <groupId>no.cantara.realestate</groupId>
+      <artifactId>mappingtable-lib</artifactId>
+      <version>0.1.0</version>
     </dependency>
     <dependency>
       <groupId>org.yaml</groupId>
       <artifactId>snakeyaml</artifactId>
       <version>2.0</version>
     </dependency>
-    <dependency>
-      <groupId>io.netty</groupId>
-      <artifactId>netty-codec</artifactId>
-      <version>4.1.92.Final</version>
-    </dependency>
-
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-csv</artifactId>
@@ -84,6 +99,18 @@
     </dependency>
     <!-- Test -->
     <dependency>
+      <groupId>no.cantara.stingray</groupId>
+      <artifactId>stingray-application-test</artifactId>
+      <version>${stingray.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>no.cantara.stingray</groupId>
+      <artifactId>stingray-security-test</artifactId>
+      <version>${stingray.version}</version>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-api</artifactId>
       <version>5.9.2</version>
@@ -95,6 +122,7 @@
       <version>5.3.1</version>
       <scope>test</scope>
     </dependency>
+
     <dependency>
       <groupId>org.skyscreamer</groupId>
       <artifactId>jsonassert</artifactId>

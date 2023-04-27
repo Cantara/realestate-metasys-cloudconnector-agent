@@ -1,0 +1,22 @@
+<configuration>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n
+            </pattern>
+        </encoder>
+    </appender>
+
+    <logger name="no.cantara.realestate" level="trace"></logger>
+    <logger name="no.cantara" level="trace"></logger>
+    <logger name="org.eclipse.jetty" level="info"></logger>
+
+    <!-- Suppress Jersey warnings -->
+    <logger name="org.glassfish.jersey.internal.inject.Providers" level="error"></logger>
+    <logger name="org.glassfish.jersey.message.internal.MessagingBinders" level="error"></logger>
+    <logger name="org.glassfish.jersey.server.wadl.WadlFeature" level="error"></logger>
+
+    <root level="info">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+</configuration>
