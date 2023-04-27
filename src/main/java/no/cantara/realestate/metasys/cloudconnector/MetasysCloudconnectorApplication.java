@@ -1,6 +1,9 @@
 package no.cantara.realestate.metasys.cloudconnector;
 
 import no.cantara.config.ApplicationProperties;
+import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
+import no.cantara.realestate.mappingtable.repository.MappedIdRepositoryImpl;
+import no.cantara.realestate.metasys.cloudconnector.sensors.MetasysConfigImporter;
 import no.cantara.stingray.application.AbstractStingrayApplication;
 import no.cantara.stingray.application.health.StingrayHealthService;
 import no.cantara.stingray.security.StingraySecurity;
@@ -30,9 +33,20 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
     protected void doInit() {
         initBuiltinDefaults();
         StingraySecurity.initSecurity(this);
+        MappedIdRepository mappedIdRepository = init(MappedIdRepository.class, () -> createMappedIdRepository(true));
         init(Random.class, this::createRandom);
         RandomizerResource randomizerResource = initAndRegisterJaxRsWsComponent(RandomizerResource.class, this::createRandomizerResource);
         get(StingrayHealthService.class).registerHealthProbe("randomizer.request.count", randomizerResource::getRequestCount);
+        get(StingrayHealthService.class).registerHealthProbe("mappedIdRepository.size", mappedIdRepository::size);
+    }
+
+    protected MappedIdRepository createMappedIdRepository(boolean doLoadFromConfig) {
+        MappedIdRepository mappedIdRepository = new MappedIdRepositoryImpl();
+        if (doLoadFromConfig) {
+            String configDirectory = config.get("config.directory");
+            new MetasysConfigImporter().importMetasysConfig(configDirectory, mappedIdRepository);
+        }
+        return mappedIdRepository;
     }
 
     private Random createRandom() {
