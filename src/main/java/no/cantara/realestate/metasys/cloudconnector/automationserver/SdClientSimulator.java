@@ -104,8 +104,8 @@ public class SdClientSimulator implements SdClient {
     private void initializeMapAndStartSimulation() {
         simulatedTrendIds.add("208540b1-ab8a-566a-8a41-8b4cee515baf");
         simulatedTrendIds.add("2a15fea2-a196-566b-9d69-d2abcd86a1d8");
-        simulatedTrendIds.add("2a15fea2-a196-566b-9d69-d2abcd86a1d9");
-        simulatedTrendIds.add("2a15fea2-a196-566b-9d69-d2abcd86a110");
+        simulatedTrendIds.add("42061ba5-0f0a-5892-aa28-d33b96e8bed5");
+        simulatedTrendIds.add("8413788b-b8b5-5f23-afde-b659740c74b6");
         /*
         log.info("Initializing TrendValue dataset");
         for (int n = 0; n < 500; n++) {
