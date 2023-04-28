@@ -35,5 +35,5 @@ local_config.properties
 local_override.properties
 
 # Runtime config to be ignored
-config/
+import-data/
 

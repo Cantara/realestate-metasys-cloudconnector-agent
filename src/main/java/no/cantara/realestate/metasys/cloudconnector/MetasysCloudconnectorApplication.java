@@ -9,6 +9,7 @@ import no.cantara.stingray.application.health.StingrayHealthService;
 import no.cantara.stingray.security.StingraySecurity;
 import org.slf4j.Logger;
 
+import java.nio.file.Paths;
 import java.util.Random;
 
 import static org.slf4j.LoggerFactory.getLogger;
@@ -33,17 +34,21 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
     protected void doInit() {
         initBuiltinDefaults();
         StingraySecurity.initSecurity(this);
-        MappedIdRepository mappedIdRepository = init(MappedIdRepository.class, () -> createMappedIdRepository(true));
+        boolean doImportData = Boolean.parseBoolean(config.get("import.data"));
+        MappedIdRepository mappedIdRepository = init(MappedIdRepository.class, () -> createMappedIdRepository(doImportData));
         init(Random.class, this::createRandom);
         RandomizerResource randomizerResource = initAndRegisterJaxRsWsComponent(RandomizerResource.class, this::createRandomizerResource);
         get(StingrayHealthService.class).registerHealthProbe("randomizer.request.count", randomizerResource::getRequestCount);
         get(StingrayHealthService.class).registerHealthProbe("mappedIdRepository.size", mappedIdRepository::size);
     }
 
-    protected MappedIdRepository createMappedIdRepository(boolean doLoadFromConfig) {
+    protected MappedIdRepository createMappedIdRepository(boolean doImportData) {
         MappedIdRepository mappedIdRepository = new MappedIdRepositoryImpl();
-        if (doLoadFromConfig) {
+        if (doImportData) {
             String configDirectory = config.get("config.directory");
+            if (!Paths.get(configDirectory).toFile().exists()) {
+                throw new MetasysCloudConnectorException("Import of data from " + configDirectory + " failed. Directory does not exist.");
+            }
             new MetasysConfigImporter().importMetasysConfig(configDirectory, mappedIdRepository);
         }
         return mappedIdRepository;
