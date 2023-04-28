@@ -6,6 +6,7 @@ import java.util.UUID;
 
 public class MetasysCloudConnectorException extends RuntimeException {
     private final UUID uuid;
+    private Enum<StatusType> statusType = null;
 
     public MetasysCloudConnectorException(String message) {
         super(message);
@@ -21,6 +22,21 @@ public class MetasysCloudConnectorException extends RuntimeException {
         this(MessageFormatter.format(message, parameters).getMessage(),throwable);
 
     }
+
+    public MetasysCloudConnectorException(String msg, StatusType statusType) {
+        this(msg);
+        this.statusType = statusType;
+    }
+    public MetasysCloudConnectorException(String msg, Throwable t, StatusType statusType) {
+        this(msg,t);
+        this.statusType = statusType;
+    }
+
+    public MetasysCloudConnectorException(String msg, Exception e, StatusType statusType) {
+        this(msg, e);
+        this.statusType = statusType;
+    }
+
 
     @Override
     public String getMessage() {

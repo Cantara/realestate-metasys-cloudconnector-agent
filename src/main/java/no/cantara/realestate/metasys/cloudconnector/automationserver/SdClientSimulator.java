@@ -1,0 +1,179 @@
+package no.cantara.realestate.metasys.cloudconnector.automationserver;
+
+import org.apache.commons.lang.NotImplementedException;
+import org.slf4j.Logger;
+
+import java.net.URISyntaxException;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.*;
+
+import static no.cantara.realestate.metasys.cloudconnector.utils.UrlEncoder.urlEncode;
+import static org.slf4j.LoggerFactory.getLogger;
+
+public class SdClientSimulator implements SdClient {
+
+    private static final Logger log = getLogger(SdClientSimulator.class);
+    private Map<String, Map<Instant, MetasysTrendSample>> simulatedSDApiData = new ConcurrentHashMap();
+    boolean scheduled_simulator_started = true;
+    private final int SECONDS_BETWEEN_SCHEDULED_IMPORT_RUNS = 3;
+
+    private Set<String> simulatedTrendIds = new HashSet<>();
+
+
+    public SdClientSimulator() {
+        log.info("SD Rest API Simulator started");
+        scheduled_simulator_started = false;
+        initializeMapAndStartSimulation();
+    }
+
+    @Override
+    public Set<MetasysTrendSample> findTrendSamples(String bearerToken, String trendId) throws URISyntaxException {
+        String prefixedUrlEncodedTrendId = encodeAndPrefix(trendId);
+        Instant i = Instant.now().minus(1, ChronoUnit.DAYS);
+        Set<MetasysTrendSample> trendSamples = new HashSet<>();
+        Map<Instant, MetasysTrendSample> trendTimeSamples = simulatedSDApiData.get(prefixedUrlEncodedTrendId);
+        for (Instant t : trendTimeSamples.keySet()) {
+            if (t.isAfter(i)) {
+                trendSamples.add(trendTimeSamples.get(t));
+            }
+        }
+        log.info("findTrendSamples returned:{} trendSamples", trendSamples.size());
+        return trendSamples;
+    }
+
+    @Override
+    public Set<MetasysTrendSample> findTrendSamples(String trendId, int take, int skip) throws URISyntaxException {
+        String prefixedUrlEncodedTrendId = encodeAndPrefix(trendId);
+        Instant i = Instant.now().minus(1, ChronoUnit.DAYS);
+        Set<MetasysTrendSample> trendSamples = new HashSet<>();
+        Map<Instant, MetasysTrendSample> trendTimeSamples = simulatedSDApiData.get(prefixedUrlEncodedTrendId);
+        int count = 0;
+        for (Instant t : trendTimeSamples.keySet()) {
+            if (t.isAfter(i)) {
+                trendSamples.add(trendTimeSamples.get(t));
+                count++;
+                if (count > take) {
+                    break;
+                }
+            }
+        }
+        log.info("findTrendSamples returned:{} trendSamples", trendSamples.size());
+
+        return trendSamples;
+    }
+
+    @Override
+    public Set<MetasysTrendSample> findTrendSamplesByDate(String trendId, int take, int skip, Instant onAndAfterDateTime) throws URISyntaxException {
+        String prefixedUrlEncodedTrendId = encodeAndPrefix(trendId);
+        Instant i = onAndAfterDateTime;
+        Set<MetasysTrendSample> trendSamples = new HashSet<>();
+        Map<Instant, MetasysTrendSample> trendTimeSamples = simulatedSDApiData.get(prefixedUrlEncodedTrendId);
+        int count = 0;
+        if (trendTimeSamples != null) {
+            for (Instant t : trendTimeSamples.keySet()) {
+                if (t.isAfter(i)) {
+                    trendSamples.add(trendTimeSamples.get(t));
+                    count++;
+                    if (count > take) {
+                        break;
+                    }
+                }
+            }
+        }
+        log.info("findTrendSamples returned:{} trendSamples", trendSamples.size());
+        return trendSamples;
+    }
+
+
+    @Override
+    public void logon() throws SdLogonFailedException {
+        return;
+    }
+
+    String encodeAndPrefix(String trendId) {
+        if (trendId != null) {
+            return urlEncode(trendId);
+        } else {
+            return null;
+        }
+    }
+
+    private void initializeMapAndStartSimulation() {
+        throw new NotImplementedException("Simulator for Metasys API is not implemented yet.");
+        /*
+        TrendId AGGREGATE_FLOOR1 = new TrendId("/SDSERVER03/Cantara/RE1/360/002/Ekstended Trendlogg/RT402 Trendlogg - Extended Trend Log_2");
+        TrendId AGGREGATE_FLOOR9_EAST = new TrendId("/SDSERVER03/Cantara/RE1/360/017/Ekstended Trendlogg/RT402 Trendlogg - Extended Trend Log");
+        TrendId AGGREGATE_FLOOR10_WEST = new TrendId("/SDSERVER03/Cantara/RE1/360/018/Ekstended Trendlogg/RT402 Trendlogg - Extended Trend Log_2");
+        TrendId AGGREGATE_FLOOR9_OPEN_FLOOR = new TrendId("/SDSERVER03/Cantara/RE1/360/021/Ekstended Trendlogg/RT402 Trendlogg - Extended Trend Log_2");
+        TrendId BAARD_TRENDID = new TrendId("/SDSERVER03/Cantara/RE1/360/010/Ekstended Trendlogg/SB410_R Trendlogg - Extended Trend Log_2");
+        simulatedTrendIds.add(encodeAndPrefix(AGGREGATE_FLOOR1));
+        simulatedTrendIds.add(encodeAndPrefix(AGGREGATE_FLOOR9_EAST));
+        simulatedTrendIds.add(encodeAndPrefix(AGGREGATE_FLOOR10_WEST));
+        simulatedTrendIds.add(encodeAndPrefix(AGGREGATE_FLOOR9_OPEN_FLOOR));
+        simulatedTrendIds.add(encodeAndPrefix(BAARD_TRENDID));
+        log.info("Initializing TrendValue dataset");
+        for (int n = 0; n < 500; n++) {
+            simulateSensorReadings();
+        }
+        startScheduledSimulationOfTrendValues();
+
+         */
+    }
+
+    private void startScheduledSimulationOfTrendValues() {
+        if (!scheduled_simulator_started) {
+            scheduled_simulator_started = true;
+            ScheduledExecutorService ses = Executors.newScheduledThreadPool(1);
+            log.info("Initializing TrendValue simulator");
+
+            Runnable task1 = () -> {
+                try {
+                    simulateSensorReadings();
+                } catch (Exception e) {
+                    log.info("Exception trying to run simulated generation of trendvalues");
+                }
+            };
+
+            // init Delay = 5, repeat the task every 60 second
+            ScheduledFuture<?> scheduledFuture = ses.scheduleAtFixedRate(task1, 5, SECONDS_BETWEEN_SCHEDULED_IMPORT_RUNS, TimeUnit.SECONDS);
+        }
+    }
+
+    private void addTrendIdToSimulation(String trendId) {
+        simulatedTrendIds.add(trendId);
+    }
+
+    private void simulateSensorReadings() {
+//        log.info("starting SD Sensor simulator run");
+
+        for (String trendid : simulatedTrendIds) {
+            //  We generate trensValues for 20% for each run
+            log.trace("Running SD Sensor simulator for: {}", trendid);
+            Integer randomValue = ThreadLocalRandom.current().nextInt(100);
+            //  We generate trensValues for 20% for each run
+            if (randomValue < 90) {
+                addSimulatedSDTrendSample(trendid);
+            }
+        }
+    }
+
+    private void addSimulatedSDTrendSample(String trendId) {
+        MetasysTrendSample ts = new MetasysTrendSample();
+        ts.setTrendId(trendId);
+        Instant ti = Instant.now();
+        ts.setTimestamp(ti.toString());
+        Integer randomValue = ThreadLocalRandom.current().nextInt(50);
+        ts.setValueDeep(randomValue);
+        Map<Instant, MetasysTrendSample> tsMap = simulatedSDApiData.get(trendId);
+        if (tsMap == null) {
+            tsMap = new ConcurrentHashMap<>();
+        }
+        simulatedSDApiData.put(trendId.toString(), tsMap);
+        tsMap.put(ti, ts);
+//        log.info("   - added trendSample for {} - new size: {}", trendId, tsMap.size());
+    }
+}
