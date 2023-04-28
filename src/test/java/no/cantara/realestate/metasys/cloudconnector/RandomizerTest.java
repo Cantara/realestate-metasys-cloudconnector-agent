@@ -14,6 +14,8 @@ import org.slf4j.LoggerFactory;
 @ExtendWith(StingrayTestExtension.class)
 public class RandomizerTest {
 
+
+
     static {
         StingrayLogging.init();
     }

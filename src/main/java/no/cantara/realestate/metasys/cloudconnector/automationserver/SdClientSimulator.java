@@ -1,6 +1,5 @@
 package no.cantara.realestate.metasys.cloudconnector.automationserver;
 
-import org.apache.commons.lang.NotImplementedException;
 import org.slf4j.Logger;
 
 import java.net.URISyntaxException;
@@ -103,25 +102,17 @@ public class SdClientSimulator implements SdClient {
     }
 
     private void initializeMapAndStartSimulation() {
-        throw new NotImplementedException("Simulator for Metasys API is not implemented yet.");
+        simulatedTrendIds.add("208540b1-ab8a-566a-8a41-8b4cee515baf");
+        simulatedTrendIds.add("2a15fea2-a196-566b-9d69-d2abcd86a1d8");
+        simulatedTrendIds.add("2a15fea2-a196-566b-9d69-d2abcd86a1d9");
+        simulatedTrendIds.add("2a15fea2-a196-566b-9d69-d2abcd86a110");
         /*
-        TrendId AGGREGATE_FLOOR1 = new TrendId("/SDSERVER03/Cantara/RE1/360/002/Ekstended Trendlogg/RT402 Trendlogg - Extended Trend Log_2");
-        TrendId AGGREGATE_FLOOR9_EAST = new TrendId("/SDSERVER03/Cantara/RE1/360/017/Ekstended Trendlogg/RT402 Trendlogg - Extended Trend Log");
-        TrendId AGGREGATE_FLOOR10_WEST = new TrendId("/SDSERVER03/Cantara/RE1/360/018/Ekstended Trendlogg/RT402 Trendlogg - Extended Trend Log_2");
-        TrendId AGGREGATE_FLOOR9_OPEN_FLOOR = new TrendId("/SDSERVER03/Cantara/RE1/360/021/Ekstended Trendlogg/RT402 Trendlogg - Extended Trend Log_2");
-        TrendId BAARD_TRENDID = new TrendId("/SDSERVER03/Cantara/RE1/360/010/Ekstended Trendlogg/SB410_R Trendlogg - Extended Trend Log_2");
-        simulatedTrendIds.add(encodeAndPrefix(AGGREGATE_FLOOR1));
-        simulatedTrendIds.add(encodeAndPrefix(AGGREGATE_FLOOR9_EAST));
-        simulatedTrendIds.add(encodeAndPrefix(AGGREGATE_FLOOR10_WEST));
-        simulatedTrendIds.add(encodeAndPrefix(AGGREGATE_FLOOR9_OPEN_FLOOR));
-        simulatedTrendIds.add(encodeAndPrefix(BAARD_TRENDID));
         log.info("Initializing TrendValue dataset");
         for (int n = 0; n < 500; n++) {
             simulateSensorReadings();
         }
+        */
         startScheduledSimulationOfTrendValues();
-
-         */
     }
 
     private void startScheduledSimulationOfTrendValues() {
@@ -152,7 +143,7 @@ public class SdClientSimulator implements SdClient {
 
         for (String trendid : simulatedTrendIds) {
             //  We generate trensValues for 20% for each run
-            log.trace("Running SD Sensor simulator for: {}", trendid);
+//            log.trace("Running SD Sensor simulator for: {}", trendid);
             Integer randomValue = ThreadLocalRandom.current().nextInt(100);
             //  We generate trensValues for 20% for each run
             if (randomValue < 90) {

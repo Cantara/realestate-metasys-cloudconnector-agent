@@ -1,5 +1,6 @@
 package no.cantara.realestate.metasys.cloudconnector.observations;
 
+import no.cantara.config.ApplicationProperties;
 import org.slf4j.Logger;
 
 import java.time.Instant;
@@ -10,7 +11,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-import static no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnectorApplication.getConfigValue;
 import static org.slf4j.LoggerFactory.getLogger;
 
 public class ScheduledImportManager {
@@ -23,10 +23,10 @@ public class ScheduledImportManager {
 
     private final List<TrendLogsImporter> trendLogsImporters;
 
-    public ScheduledImportManager(TrendLogsImporter trendLogsImporter) {
+    public ScheduledImportManager(TrendLogsImporter trendLogsImporter, ApplicationProperties config) {
         trendLogsImporters = new ArrayList<>();
         trendLogsImporters.add(trendLogsImporter);
-        Integer scheduleMinutes = findScheduledMinutes();
+        Integer scheduleMinutes = findScheduledMinutes(config);
         if (scheduleMinutes != null) {
             SECONDS_BETWEEN_SCHEDULED_IMPORT_RUNS = scheduleMinutes * 60;
         } else {
@@ -38,9 +38,9 @@ public class ScheduledImportManager {
         trendLogsImporters.add(trendLogsImporter);
     }
 
-    private Integer findScheduledMinutes() {
+    private Integer findScheduledMinutes(ApplicationProperties config) {
         Integer scheduleMinutes = null;
-        String scheduleMinutesValue = getConfigValue(IMPORT_SCHEDULE_MINUTES_KEY);
+        String scheduleMinutesValue = config.get(IMPORT_SCHEDULE_MINUTES_KEY);
         if (scheduleMinutesValue != null) {
             try {
                 scheduleMinutes = Integer.valueOf(scheduleMinutesValue);

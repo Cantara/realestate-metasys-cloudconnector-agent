@@ -9,7 +9,9 @@ import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysApiC
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClientSimulator;
 import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionClient;
+import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionServiceStub;
 import no.cantara.realestate.metasys.cloudconnector.distribution.ObservationDistributionClient;
+import no.cantara.realestate.metasys.cloudconnector.distribution.ObservationDistributionServiceStub;
 import no.cantara.realestate.metasys.cloudconnector.observations.MappedIdBasedImporter;
 import no.cantara.realestate.metasys.cloudconnector.observations.MetasysMappedIdQueryBuilder;
 import no.cantara.realestate.metasys.cloudconnector.observations.ScheduledImportManager;
@@ -34,7 +36,7 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
     public static void main(String[] args) {
         ApplicationProperties config = new MetasysCloudconnectorApplicationFactory()
                 .conventions(ApplicationProperties.builder())
-                .build();
+                .buildAndSetStaticSingleton();
         new MetasysCloudconnectorApplication(config).init().start();
         log.info("Server started. See status on {}:{}{}/health", "http://localhost", config.get("server.port"), config.get("server.context-path"));
     }
@@ -51,17 +53,44 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         initBuiltinDefaults();
         StingraySecurity.initSecurity(this);
         boolean doImportData = config.asBoolean("import.data");
+        SdClient sdClient = createSdClient(config);
+        ObservationDistributionClient observationDistributionClient = new ObservationDistributionServiceStub();
+        String mesurementsName = config.get("measurements.name");
+        MetricsDistributionClient metricsDistributionClient = new MetricsDistributionServiceStub(mesurementsName);
         MappedIdRepository mappedIdRepository = init(MappedIdRepository.class, () -> createMappedIdRepository(doImportData));
+        ScheduledImportManager scheduledImportManager = init(ScheduledImportManager.class, () -> wireScheduledImportManager(sdClient, observationDistributionClient, metricsDistributionClient, mappedIdRepository));
         init(Random.class, this::createRandom);
         RandomizerResource randomizerResource = initAndRegisterJaxRsWsComponent(RandomizerResource.class, this::createRandomizerResource);
         get(StingrayHealthService.class).registerHealthProbe("randomizer.request.count", randomizerResource::getRequestCount);
         get(StingrayHealthService.class).registerHealthProbe("mappedIdRepository.size", mappedIdRepository::size);
+        scheduledImportManager.startScheduledImportOfTrendIds();
+    }
+
+    private SdClient createSdClient(ApplicationProperties config) {
+        SdClient sdClient;
+        String useSDProdValue = config.get("sd_api_prod");
+
+        if (Boolean.valueOf(useSDProdValue)) {
+            String apiUrl = config.get("sd_api_url");
+            try {
+                URI apiUri = new URI(apiUrl);
+                sdClient = new MetasysApiClientRest(apiUri);
+                log.info("Running with a live REST SD.");
+            } catch (URISyntaxException e) {
+                throw new MetasysCloudConnectorException("Failed to connect SD Client to URL: " + apiUrl, e);
+            }
+        } else {
+            URI simulatorUri = URI.create("https://simulator.totto.org:8080/SD");
+            sdClient = new SdClientSimulator();
+            log.info("Running with a simulator of SD.");
+        }
+        return sdClient;
     }
 
     protected MappedIdRepository createMappedIdRepository(boolean doImportData) {
         MappedIdRepository mappedIdRepository = new MappedIdRepositoryImpl();
         if (doImportData) {
-            String configDirectory = config.get("config.directory");
+            String configDirectory = config.get("importdata.directory");
             if (!Paths.get(configDirectory).toFile().exists()) {
                 throw new MetasysCloudConnectorException("Import of data from " + configDirectory + " failed. Directory does not exist.");
             }
@@ -70,46 +99,16 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         return mappedIdRepository;
     }
 
-    private ScheduledImportManager wireScheduledImportManager(ObservationDistributionClient distributionClient, MetricsDistributionClient metricsClient, MappedIdRepository mappedIdRepository) throws URISyntaxException {
-
-        String useSDProdValue = getConfigValue("influxdb.prod");
-
-        SdClient sdClient;
-        if (Boolean.valueOf(useSDProdValue)) {
-            String apiUrl = getConfigValue("sd.api.url");
-            URI apiUri = new URI(apiUrl);
-            sdClient = new MetasysApiClientRest(apiUri);
-            log.info("Running with a live REST SD.");
-        } else {
-            URI simulatorUri = URI.create("https://simulator.totto.org:8080/SD");
-            sdClient = new SdClientSimulator();
-            log.info("Running with a simulator of SD.");
-        }
-
-        /*
-        String measurementName = getConfigValue("MEASUREMENT_NAME");
-        InfluxClient influxClient;
-        String useInfluxProdValue = getConfigValue("influxdb.prod");
-        if (Boolean.valueOf(useInfluxProdValue)) {
-            log.info("Using live InfluxDb.");
-            influxClient = new InfluxClient(measurementName);
-        } else {
-            log.info("Running with a simulator of InfluxDb.");
-            InfluxDbSimulator simulator = new InfluxDbSimulator();
-            influxClient = new InfluxClient(measurementName, simulator);
-        }
-
-         */
+    private ScheduledImportManager wireScheduledImportManager(SdClient sdClient, ObservationDistributionClient distributionClient, MetricsDistributionClient metricsClient, MappedIdRepository mappedIdRepository) {
 
         ScheduledImportManager scheduledImportManager = null;
 
-        MappedIdQuery mappedIdQuery = new MetasysMappedIdQueryBuilder().realEstate("RE1").build();
+        MappedIdQuery mappedIdQuery = new MetasysMappedIdQueryBuilder().realEstate("REstate1").build();
 
+        TrendLogsImporter trendLogsImporter = new MappedIdBasedImporter(mappedIdQuery, sdClient, distributionClient, metricsClient, mappedIdRepository);
+        scheduledImportManager = new ScheduledImportManager(trendLogsImporter, config);
 
-        TrendLogsImporter kjorboEnergyImporter = new MappedIdBasedImporter(mappedIdQuery, sdClient, distributionClient, metricsClient, mappedIdRepository);
-        scheduledImportManager = new ScheduledImportManager(kjorboEnergyImporter);
-
-        MappedIdQuery energyOnlyQuery = new MappedIdQueryBuilder().realEstate("RE1")
+        MappedIdQuery energyOnlyQuery = new MappedIdQueryBuilder().realEstate("RealEst2")
                 .sensorType(SensorType.energy.name())
                 .build();
 
@@ -137,7 +136,4 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         return new RandomizerResource(random);
     }
 
-    public static String getConfigValue(String key) {
-        return ApplicationProperties.getInstance().get(key);
-    }
 }

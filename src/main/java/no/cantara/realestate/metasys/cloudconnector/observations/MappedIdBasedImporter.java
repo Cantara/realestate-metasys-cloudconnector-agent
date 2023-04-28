@@ -25,7 +25,6 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.*;
 
-import static no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnectorApplication.getConfigValue;
 import static no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealthResource.lastImportedObservationTypes;
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -118,36 +117,43 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
             int skip = 0;
             if (mappedSensorId.getSensorId() != null && mappedSensorId.getSensorId() instanceof MetasysSensorId) {
 
-            MetasysSensorId sensorId = (MetasysSensorId)mappedSensorId.getSensorId();
-            String trendId = sensorId.getMetasysDbId();
-            Instant importFrom = lastSuccessfulImportAt.get(trendId);
-            if (importFrom == null) {
-                importFrom = fromDateTime;
-            }
-            log.trace("Try import of trendId: {} from: {}", trendId, importFrom);
-            try {
-                Set<MetasysTrendSample> trendSamples = basClient.findTrendSamplesByDate(trendId, take, skip, importFrom);
-                log.trace("Found {} samples for trendId: {}", trendSamples.size(), trendId);
-                if (trendSamples.size() > 0) {
-                    lastSuccessfulImportAt.put(trendId, Instant.now());
+                MetasysSensorId sensorId = (MetasysSensorId) mappedSensorId.getSensorId();
+                String trendId = sensorId.getMetasysDbId();
+                if (trendId == null) {
+                    log.warn("TrendId is null for sensorId: {}", sensorId);
+                } else {
+                    log.trace("****");
+                    Instant importFrom = lastSuccessfulImportAt.get(trendId);
+                    if (importFrom == null) {
+                        importFrom = fromDateTime;
+                    }
+
+
+                    log.trace("Try import of trendId: {} from: {}", trendId, importFrom);
+                    try {
+                        Set<MetasysTrendSample> trendSamples = basClient.findTrendSamplesByDate(trendId, take, skip, importFrom);
+                        log.trace("Found {} samples for trendId: {}", trendSamples.size(), trendId);
+                        if (trendSamples.size() > 0) {
+                            lastSuccessfulImportAt.put(trendId, Instant.now());
+                        }
+                        successfulImport++;
+                        distributionClient.publishAll(trendSamples, mappedSensorId);
+                        metricsClient.populate(trendSamples, mappedSensorId);
+                        reportSuccessfulImport(trendId);
+                    } catch (URISyntaxException e) {
+                        MetasysCloudConnectorException se = new MetasysCloudConnectorException("Import of trend: {} is not possible now. Reason: {}", e, StatusType.RETRY_NOT_POSSIBLE);
+                        log.warn("Import of trend: {} is not possible now. URI to SD server is misconfigured. Reason: {} ", trendId, e.getMessage());
+                        throw se;
+                    } catch (SdLogonFailedException e) {
+                        MetasysCloudConnectorException se = new MetasysCloudConnectorException("Failed to logon to SD server.", e, StatusType.RETRY_NOT_POSSIBLE);
+                        log.warn("Import of trend: {} is not possible now. Reason: {} ", trendId, e.getMessage());
+                        throw se;
+                    } catch (Exception e) {
+                        MetasysCloudConnectorException se = new MetasysCloudConnectorException("Failed to import trendId " + trendId, e, StatusType.RETRY_MAY_FIX_ISSUE);
+                        log.trace("Failed to import trendId {} for tfm2rec: {}. Reason: {}", trendId, mappedSensorId, se.getMessage());
+                        failedImport++;
+                    }
                 }
-                successfulImport ++;
-                distributionClient.publishAll(trendSamples, mappedSensorId);
-                metricsClient.populate(trendSamples, mappedSensorId);
-                reportSuccessfulImport(trendId);
-            } catch (URISyntaxException e) {
-                MetasysCloudConnectorException se = new MetasysCloudConnectorException("Import of trend: {} is not possible now. Reason: {}", e, StatusType.RETRY_NOT_POSSIBLE);
-                log.warn("Import of trend: {} is not possible now. URI to SD server is misconfigured. Reason: {} ",trendId, e.getMessage());
-                throw se;
-            } catch (SdLogonFailedException e) {
-                MetasysCloudConnectorException se = new MetasysCloudConnectorException("Failed to logon to SD server.", e, StatusType.RETRY_NOT_POSSIBLE);
-                log.warn("Import of trend: {} is not possible now. Reason: {} ",trendId, e.getMessage());
-                throw se;
-            } catch (Exception e) {
-                MetasysCloudConnectorException se = new MetasysCloudConnectorException("Failed to import trendId " + trendId, e, StatusType.RETRY_MAY_FIX_ISSUE);
-                log.trace("Failed to import trendId {} for tfm2rec: {}. Reason: {}", trendId, mappedSensorId, se.getMessage());
-                failedImport ++;
-            }
             } else {
                 log.warn("SensorId is not a MetasysSensorId. Skipping import of sensorId: {}", mappedSensorId.getSensorId());
                 continue;
@@ -190,18 +196,19 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
         ApplicationProperties config = new MetasysCloudconnectorApplicationFactory()
                 .conventions(ApplicationProperties.builder())
                 .build();
-        String apiUrl = getConfigValue("sd_api_url");
+        String apiUrl = config.get("sd_api_url");
         URI apiUri = new URI(apiUrl);
         SdClient sdClient = new MetasysApiClientRest(apiUri);
 
-        String measurementName = getConfigValue("MEASUREMENT_NAME");
+        String measurementName = config.get("MEASUREMENT_NAME");
         ObservationDistributionClient observationClient = new ObservationDistributionServiceStub();//Simulator
         MetricsDistributionClient metricsClient = new MetricsDistributionServiceStub(measurementName);//Simulator
 
         MappedIdQuery tfm2RecQuery = new MetasysMappedIdQueryBuilder().realEstate("RE1")
                 .sensorType(SensorType.co2.name())
                 .build();
-        MappedIdRepository mappedIdRepository = createMappedIdRepository(true);
+        String configDirectory = config.get("importdata.directory");
+        MappedIdRepository mappedIdRepository = createMappedIdRepository(true, configDirectory);
         MappedIdBasedImporter importer = new MappedIdBasedImporter(tfm2RecQuery, sdClient, observationClient, metricsClient, mappedIdRepository);
         importer.startup();
         log.info("Startup finished.");
@@ -214,22 +221,22 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
         System.exit(0);
     }
 
-    /*
-    Primarily used for testing
-     */
-    protected void addImportableTrendId(MappedSensorId mappedSensorId) {
-        importableTrendIds.add(mappedSensorId);
-    }
 
-    private static MappedIdRepository createMappedIdRepository(boolean doImportData) {
+
+    private static MappedIdRepository createMappedIdRepository(boolean doImportData, String configDirectory) {
         MappedIdRepository mappedIdRepository = new MappedIdRepositoryImpl();
         if (doImportData) {
-            String configDirectory = getConfigValue("config.directory");
             if (!Paths.get(configDirectory).toFile().exists()) {
                 throw new MetasysCloudConnectorException("Import of data from " + configDirectory + " failed. Directory does not exist.");
             }
             new MetasysConfigImporter().importMetasysConfig(configDirectory, mappedIdRepository);
         }
         return mappedIdRepository;
+    }
+    /*
+   Primarily used for testing
+    */
+    protected void addImportableTrendId(MappedSensorId mappedSensorId) {
+        importableTrendIds.add(mappedSensorId);
     }
 }
