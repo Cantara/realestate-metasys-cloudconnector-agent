@@ -118,7 +118,7 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
             if (mappedSensorId.getSensorId() != null && mappedSensorId.getSensorId() instanceof MetasysSensorId) {
 
                 MetasysSensorId sensorId = (MetasysSensorId) mappedSensorId.getSensorId();
-                String trendId = sensorId.getMetasysDbId();
+                String trendId = sensorId.getMetasysObjectId();
                 if (trendId == null) {
                     log.warn("TrendId is null for sensorId: {}", sensorId);
                 } else {

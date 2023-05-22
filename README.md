@@ -1,2 +1,18 @@
 # realestate-metasys-cloudconnector-app
 Read sensordata from Johnson Controls Metasys. Distribute these to the clud eg by MQTT or Azure Digital Twin
+
+
+
+## Testing with Metasys Mock
+### Start Mock server
+````
+mvn -Dmockserver.serverPort=1080 -Dmockserver.logLevel=INFO org.mock-server:mockserver-maven-plugin:5.15.0:runForked
+`````
+### Stop Mock server
+````
+mvn -Dmockserver.serverPort=80 org.mock-server:mockserver-maven-plugin:5.15.0:stopForked
+````
+
+### Add Login mock
+
+Run  [MockServerSetup.java](src/test/java/no/cantara/realestate/metasys/cloudconnector/MockServerSetup.java)
