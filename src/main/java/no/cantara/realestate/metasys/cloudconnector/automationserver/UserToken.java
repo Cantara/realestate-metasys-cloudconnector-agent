@@ -49,4 +49,14 @@ public class UserToken {
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
     }
+
+    @Override
+    public String toString() {
+        return "UserToken{" +
+                "accessToken='" + accessToken + '\'' +
+                ", expires=" + expires +
+                ", validSeconds=" + validSeconds +
+                ", createdAt=" + createdAt +
+                '}';
+    }
 }

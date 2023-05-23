@@ -39,4 +39,8 @@ public class TemporaryHealthResource {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy hh:mm:ss");
         latestErrors.add(LocalDateTime.now().format(formatter) + " - " + errorString);
     }
+
+    public static boolean getStatus() {
+        return status;
+    }
 }

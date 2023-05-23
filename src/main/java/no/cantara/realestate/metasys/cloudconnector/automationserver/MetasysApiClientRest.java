@@ -1,6 +1,8 @@
 package no.cantara.realestate.metasys.cloudconnector.automationserver;
 
 import jakarta.ws.rs.core.HttpHeaders;
+import no.cantara.realestate.metasys.cloudconnector.CloudConnectorObjectMapper;
+import no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealthResource;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
@@ -20,6 +22,8 @@ import java.util.List;
 import java.util.Set;
 
 import static no.cantara.realestate.mappingtable.Main.getConfigValue;
+import static no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealthResource.setHealthy;
+import static no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealthResource.setUnhealthy;
 import static no.cantara.realestate.metasys.cloudconnector.utils.UrlEncoder.urlEncode;
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -224,10 +228,11 @@ public class MetasysApiClientRest implements SdClient {
         log.trace("Logon: {}", username);
         String jsonBody = "{ \"username\": \"" + username + "\",\"password\": \"" + password + "\"}";
         CloseableHttpClient httpClient = HttpClients.createDefault();
-
+        String loginUri = apiUri + "login";
+        HttpPost request = null;
         try {
 
-            HttpPost request = new HttpPost(apiUri + "login");
+            request = new HttpPost(loginUri);
             request.addHeader(HttpHeaders.CONTENT_TYPE, "application/json");
             request.setEntity(new StringEntity(jsonBody));
 
@@ -237,16 +242,18 @@ public class MetasysApiClientRest implements SdClient {
                 if (httpCode == 200) {
                     HttpEntity entity = response.getEntity();
                     if (entity != null) {
-                        //FIXME UserToken
-                        // return it as a String
-                        String result = EntityUtils.toString(entity);
-                        System.out.println(result);
+                        String body = EntityUtils.toString(entity);
+                        log.trace("Received body: {}", body);
+                        userToken = CloudConnectorObjectMapper.getInstance().getObjectMapper().readValue(body, UserToken.class);
+                        log.trace("Converted to userToken: {}", userToken);
+                        setHealthy();
                     }
                 } else {
                     String msg = "Failed to logon to Metasys at uri: " + request.getRequestUri() +
                             ". ResponseCode: " + httpCode + ". ReasonPhrase: " + response.getReasonPhrase();
                     SdLogonFailedException logonFailedException = new SdLogonFailedException(msg);
                     log.warn("Failed to logon to Metasys. Reason {}", logonFailedException.getMessage());
+                    setUnhealthy();
                     throw logonFailedException;
                 }
 
@@ -254,15 +261,26 @@ public class MetasysApiClientRest implements SdClient {
                 response.close();
             }
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            String msg = "Failed to logon to Metasys at uri: " + loginUri + ", with request: " + request;
+            SdLogonFailedException logonFailedException = new SdLogonFailedException(msg, e);
+            log.warn(msg);
+            throw logonFailedException;
         } catch (ParseException e) {
-            throw new RuntimeException(e);
+            String msg = "Failed to logon to Metasys at uri: " + loginUri + ", with request: " + request +
+                    ". Failure parsing the response.";
+            SdLogonFailedException logonFailedException = new SdLogonFailedException(msg, e);
+            log.warn(msg);
+            throw logonFailedException;
         } finally {
             try {
                 httpClient.close();
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                //Do nothing
             }
         }
+    }
+
+    public boolean isHealthy() {
+        return TemporaryHealthResource.getStatus();
     }
 }
