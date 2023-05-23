@@ -167,4 +167,9 @@ public class SdClientSimulator implements SdClient {
         tsMap.put(ti, ts);
 //        log.info("   - added trendSample for {} - new size: {}", trendId, tsMap.size());
     }
+
+    @Override
+    public boolean isLoggedIn() {
+        return true;
+    }
 }

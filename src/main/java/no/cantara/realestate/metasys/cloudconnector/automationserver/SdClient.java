@@ -12,4 +12,6 @@ public interface SdClient {
     Set<MetasysTrendSample> findTrendSamplesByDate(String trendId, int take, int skip, Instant onAndAfterDateTime) throws URISyntaxException, SdLogonFailedException;
 
     void logon() throws SdLogonFailedException;
+
+    boolean isLoggedIn();
 }

@@ -240,6 +240,11 @@ public class MetasysApiClientRest implements SdClient {
         }
     }
 
+    @Override
+    public boolean isLoggedIn() {
+        return userToken != null;
+    }
+
     public boolean isHealthy() {
         return TemporaryHealthResource.getStatus();
     }

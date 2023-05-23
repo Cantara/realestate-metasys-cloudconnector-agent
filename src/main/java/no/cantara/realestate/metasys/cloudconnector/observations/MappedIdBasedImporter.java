@@ -55,7 +55,9 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
     public void startup() {
         try {
             importableTrendIds = mappedIdRepository.find(mappedIdQuery);
-            basClient.logon();
+            if (!basClient.isLoggedIn()) {
+                basClient.logon();
+            }
             metricsClient.openDb();
             lastImportedObservationTypes.loadLastUpdatedStatus();
             TemporaryHealthResource.lastImportedObservationTypes = lastImportedObservationTypes;
