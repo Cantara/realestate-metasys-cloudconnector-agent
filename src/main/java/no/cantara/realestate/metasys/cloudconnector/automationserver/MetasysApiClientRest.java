@@ -1,20 +1,25 @@
 package no.cantara.realestate.metasys.cloudconnector.automationserver;
 
-import jakarta.ws.rs.ProcessingException;
-import jakarta.ws.rs.WebApplicationException;
-import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.HttpHeaders;
+import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.slf4j.Logger;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.UnknownHostException;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import static no.cantara.realestate.mappingtable.Main.getConfigValue;
-import static no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealthResource.*;
 import static no.cantara.realestate.metasys.cloudconnector.utils.UrlEncoder.urlEncode;
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -167,6 +172,7 @@ public class MetasysApiClientRest implements SdClient {
         return willSoonExpire;
     }
 
+    /*
     @Override
     public void logon() throws SdLogonFailedException {
         String username = getConfigValue("sd.api.username");
@@ -204,6 +210,59 @@ public class MetasysApiClientRest implements SdClient {
             e.printStackTrace();
             log.warn("Failed to logon to {}. Using username: {}. . Reason: {}", apiUri, username, e.getMessage());
             throw new SdLogonFailedException("Failed to logon to " + apiUri + ", username: " + username, e );
+        }
+
+     */
+
+    @Override
+    public void logon() throws SdLogonFailedException {
+        String username = getConfigValue("sd.api.username");
+        String password = getConfigValue("sd.api.password");
+        logon(username, password);
+    }
+    protected void logon(String username, String password) throws SdLogonFailedException {
+        log.trace("Logon: {}", username);
+        String jsonBody = "{ \"username\": \"" + username + "\",\"password\": \"" + password + "\"}";
+        CloseableHttpClient httpClient = HttpClients.createDefault();
+
+        try {
+
+            HttpPost request = new HttpPost(apiUri + "login");
+            request.addHeader(HttpHeaders.CONTENT_TYPE, "application/json");
+            request.setEntity(new StringEntity(jsonBody));
+
+            CloseableHttpResponse response = httpClient.execute(request);
+            try {
+                int httpCode = response.getCode();
+                if (httpCode == 200) {
+                    HttpEntity entity = response.getEntity();
+                    if (entity != null) {
+                        //FIXME UserToken
+                        // return it as a String
+                        String result = EntityUtils.toString(entity);
+                        System.out.println(result);
+                    }
+                } else {
+                    String msg = "Failed to logon to Metasys at uri: " + request.getRequestUri() +
+                            ". ResponseCode: " + httpCode + ". ReasonPhrase: " + response.getReasonPhrase();
+                    SdLogonFailedException logonFailedException = new SdLogonFailedException(msg);
+                    log.warn("Failed to logon to Metasys. Reason {}", logonFailedException.getMessage());
+                    throw logonFailedException;
+                }
+
+            } finally {
+                response.close();
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        } finally {
+            try {
+                httpClient.close();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 }

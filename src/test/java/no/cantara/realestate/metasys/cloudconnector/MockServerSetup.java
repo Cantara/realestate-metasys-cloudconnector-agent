@@ -12,6 +12,10 @@ import static org.mockserver.model.JsonBody.json;
 public class MockServerSetup {
 
     public static void main(String[] args) {
+        clearAndSetLoginMock();
+    }
+
+    public static void clearAndSetLoginMock() {
         new MockServerClient("localhost", 1080)
                 .clear(request().withPath("/api/v4/login"));
         new MockServerClient("localhost", 1080)
