@@ -176,48 +176,6 @@ public class MetasysApiClientRest implements SdClient {
         return willSoonExpire;
     }
 
-    /*
-    @Override
-    public void logon() throws SdLogonFailedException {
-        String username = getConfigValue("sd.api.username");
-        String password = getConfigValue("sd.api.password");
-        log.trace("Logon: {}", username);
-        try {
-            String jsonBody = "{ \"username\": \"" + username + "\",\"password\": \"" + password + "\"}";
-            userToken = logonService.logon(jsonBody);
-            log.info("UserToken: {}", userToken);
-            setHealthy();
-        } catch (ProcessingException e) {
-            setUnhealthy();
-            if (e.getCause() != null && e.getCause() instanceof UnknownHostException) {
-                UnknownHostException uhe = (UnknownHostException) e.getCause();
-                throw new SdLogonFailedException("Failed to logon to " + uhe.getMessage() + ". Host is unknown.");
-            } else {
-                log.warn("Failed to logon to {}. Using username: {}. . Reason: {}", apiUri, username, e.getMessage());
-                throw new SdLogonFailedException("Failed to logon to " + apiUri + ", username: " + username, e );
-            }
-
-        } catch (WebApplicationException e) {
-            setUnhealthy();
-            if (e != null) {
-                Response failedResponse = e.getResponse();
-                log.warn("Failed to logon to {}. Using username: {}. Response: {}. Reason: {}", apiUri,username, failedResponse, e.getMessage());
-                addRegisteredError("Failed to logon to "+apiUri+". Using username: "+username+". Response: "+failedResponse+". Reason: "+e.getMessage());
-                throw new SdLogonFailedException("Failed to logon to " + apiUri + ", username: " + username + ". FailedResponse: " + failedResponse);
-            } else {
-                log.warn("Failed to logon to {}. Using username: {}. Reason: {}", apiUri,username, e);
-                addRegisteredError("Failed to logon to "+apiUri+". Using username: "+username);
-                throw new SdLogonFailedException("Failed to logon to " + apiUri + ", username: " + username );
-            }
-        } catch (Exception e) {
-            setUnhealthy();
-            e.printStackTrace();
-            log.warn("Failed to logon to {}. Using username: {}. . Reason: {}", apiUri, username, e.getMessage());
-            throw new SdLogonFailedException("Failed to logon to " + apiUri + ", username: " + username, e );
-        }
-
-     */
-
     @Override
     public void logon() throws SdLogonFailedException {
         String username = getConfigValue("sd.api.username");
@@ -250,7 +208,9 @@ public class MetasysApiClientRest implements SdClient {
                     }
                 } else {
                     String msg = "Failed to logon to Metasys at uri: " + request.getRequestUri() +
-                            ". ResponseCode: " + httpCode + ". ReasonPhrase: " + response.getReasonPhrase();
+                            ". Username: " + username +
+                            ". ResponseCode: " + httpCode +
+                            ". ReasonPhrase: " + response.getReasonPhrase();
                     SdLogonFailedException logonFailedException = new SdLogonFailedException(msg);
                     log.warn("Failed to logon to Metasys. Reason {}", logonFailedException.getMessage());
                     setUnhealthy();
@@ -261,12 +221,12 @@ public class MetasysApiClientRest implements SdClient {
                 response.close();
             }
         } catch (IOException e) {
-            String msg = "Failed to logon to Metasys at uri: " + loginUri + ", with request: " + request;
+            String msg = "Failed to logon to Metasys at uri: " + loginUri + ", with username: " + username;
             SdLogonFailedException logonFailedException = new SdLogonFailedException(msg, e);
             log.warn(msg);
             throw logonFailedException;
         } catch (ParseException e) {
-            String msg = "Failed to logon to Metasys at uri: " + loginUri + ", with request: " + request +
+            String msg = "Failed to logon to Metasys at uri: " + loginUri + ", with username: " + username +
                     ". Failure parsing the response.";
             SdLogonFailedException logonFailedException = new SdLogonFailedException(msg, e);
             log.warn(msg);

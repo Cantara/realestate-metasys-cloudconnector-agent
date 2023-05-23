@@ -17,7 +17,7 @@ public class MetasysApiClientManualTest {
         ApplicationProperties config = new MetasysCloudconnectorApplicationFactory()
                 .conventions(ApplicationProperties.builder())
                 .buildAndSetStaticSingleton();
-        String apiUrl = config.get("sd_api_url");
+        String apiUrl = config.get("sd.api.url");
         MockServerSetup.clearAndSetLoginMock();
         MetasysApiClientRest apiClient = new MetasysApiClientRest(URI.create(apiUrl));
         apiClient.logon("jane-doe","strongPassword");
