@@ -16,3 +16,14 @@ mvn -Dmockserver.serverPort=80 org.mock-server:mockserver-maven-plugin:5.15.0:st
 ### Add Login mock
 
 Run  [MockServerSetup.java](src/test/java/no/cantara/realestate/metasys/cloudconnector/MockServerSetup.java)
+
+### Add config
+Rename local_override.properties_template to local_override.properties.
+``` 
+sd.api.prod=true
+sd.api.username=jane-doe
+sd.api.password=strongPassword
+```
+
+Move MetasysTfmRec.csv_template to import-data/MetasysTfmRec.csv
+

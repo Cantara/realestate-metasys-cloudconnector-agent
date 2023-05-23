@@ -68,10 +68,10 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
 
     private SdClient createSdClient(ApplicationProperties config) {
         SdClient sdClient;
-        String useSDProdValue = config.get("sd_api_prod");
+        String useSDProdValue = config.get("sd.api.prod");
 
         if (Boolean.valueOf(useSDProdValue)) {
-            String apiUrl = config.get("sd_api_url");
+            String apiUrl = config.get("sd.api.url");
             try {
                 URI apiUri = new URI(apiUrl);
                 sdClient = new MetasysApiClientRest(apiUri);

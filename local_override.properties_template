@@ -1,0 +1,3 @@
+sd.api.prod=true
+sd.api.username=jane-doe
+sd.api.password=strongPassword
