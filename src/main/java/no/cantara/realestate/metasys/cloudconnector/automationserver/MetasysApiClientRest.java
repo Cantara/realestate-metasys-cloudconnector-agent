@@ -3,20 +3,25 @@ package no.cantara.realestate.metasys.cloudconnector.automationserver;
 import jakarta.ws.rs.core.HttpHeaders;
 import no.cantara.realestate.metasys.cloudconnector.CloudConnectorObjectMapper;
 import no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealthResource;
+import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.NameValuePair;
 import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.StringEntity;
+import org.apache.hc.core5.http.message.BasicNameValuePair;
+import org.apache.hc.core5.net.URIBuilder;
 import org.slf4j.Logger;
 
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -97,33 +102,94 @@ public class MetasysApiClientRest implements SdClient {
     }
 
     @Override
-    public Set<MetasysTrendSample> findTrendSamplesByDate(String trendId, int take, int skip, Instant onAndAfterDateTime) throws URISyntaxException, SdLogonFailedException {
+    public Set<MetasysTrendSample> findTrendSamplesByDate(String objectId, int take, int skip, Instant onAndAfterDateTime) throws URISyntaxException, SdLogonFailedException {
 
         String apiUrl = getConfigValue("sd.api.url");
-        String prefixedUrlEncodedTrendId = encodeAndPrefix(trendId);
+        String prefixedUrlEncodedTrendId = encodeAndPrefix(objectId);
         String bearerToken = findAccessToken();
-        URI apiUri = new URI(apiUrl);
-        TrendSampleService trendSampleService = RestClientBuilder.newBuilder()
-                .baseUri(apiUri)
-                .build(TrendSampleService.class);
+        URI samplesUri = new URI(apiUrl + "/objects/" + objectId+"/trendedAttributes/presentValue/samples");
+        CloseableHttpClient httpClient = HttpClients.createDefault();
+        String loginUri = apiUri + "login";
+        HttpGet request = null;
+        List<MetasysTrendSample> trendSamples = null;
+        try {
+
+            String startTime = onAndAfterDateTime.toString();
+            int page=1;
+            int pageSize=1000;
+            String endTime = Instant.now().plusSeconds(60).toString();
+
+//        MetasysTrendSampleResult trendSampleResult = trendSampleService.findTrendSamplesByDate("Bearer " + bearerToken, prefixedUrlEncodedTrendId, pageSize, page, startTime, endTime);
+            log.trace("findTrendSamplesByDate. trendId: {}. From date: {}. To date: {}. Page: {}. PageSize: {}. Take: {}. Skip: {}",
+                    objectId, onAndAfterDateTime, endTime, page, pageSize, take, skip);
+            List<NameValuePair> nvps = new ArrayList<>();
+            // GET Query Parameters
+            nvps.add(new BasicNameValuePair("startTime", startTime));
+            nvps.add(new BasicNameValuePair("endTime", endTime));
+            nvps.add(new BasicNameValuePair("page", "1"));
+            nvps.add(new BasicNameValuePair("pageSize", "1000"));
+            nvps.add(new BasicNameValuePair("skip", "0"));
+
+            URI uri = new URIBuilder(samplesUri)
+                    .addParameters(nvps)
+                    .build();
+            request = new HttpGet(uri);
+            request.addHeader(HttpHeaders.CONTENT_TYPE, "application/json");
+            request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);
+            CloseableHttpResponse response = httpClient.execute(request);
+            try {
+                int httpCode = response.getCode();
+                if (httpCode == 200) {
+                    HttpEntity entity = response.getEntity();
+                    if (entity != null) {
+                        String body = EntityUtils.toString(entity);
+                        log.trace("Received body: {}", body);
+                        MetasysTrendSampleResult trendSampleResult = TrendSamplesMapper.mapFromJson(body);
+                        log.trace("Found: {} trends from trendId: {}", trendSampleResult.getTotal(), objectId);
+                         trendSamples = trendSampleResult.getItems();
+                        if (trendSamples != null) {
+                            for (MetasysTrendSample trendSample : trendSamples) {
+                                trendSample.setTrendId(objectId);
+                                log.trace("imported trendSample: {}", trendSample);
+                            }
+                        }
+
+                    }
+                }
+            } catch (Exception e) {
+
+            }
+        } catch (Exception e) {
+
+        }
+
+        /*
         String startTime = onAndAfterDateTime.toString();
         //FIXME make dynamic
         int page=1;
         int pageSize=1000;
         String endTime = Instant.now().plusSeconds(60).toString();
+
+
+
 //        MetasysTrendSampleResult trendSampleResult = trendSampleService.findTrendSamplesByDate("Bearer " + bearerToken, prefixedUrlEncodedTrendId, pageSize, page, startTime, endTime);
         log.trace("findTrendSamplesByDate. trendId: {}. From date: {}. To date: {}. Page: {}. PageSize: {}. Take: {}. Skip: {}",
-                trendId, onAndAfterDateTime, endTime, page, pageSize, take, skip);
+                objectId, onAndAfterDateTime, endTime, page, pageSize, take, skip);
         String trendSamplesJson = trendSampleService.findTrendSamplesByDateJson("Bearer " + bearerToken, prefixedUrlEncodedTrendId, pageSize, page, startTime, endTime);
+
+
         MetasysTrendSampleResult trendSampleResult = TrendSamplesMapper.mapFromJson(trendSamplesJson);
-        log.trace("Found: {} trends from trendId: {}", trendSampleResult.getTotal(), trendId);
+        log.trace("Found: {} trends from trendId: {}", trendSampleResult.getTotal(), objectId);
         List<MetasysTrendSample> trendSamples = trendSampleResult.getItems();
         if (trendSamples != null) {
             for (MetasysTrendSample trendSample : trendSamples) {
-                trendSample.setTrendId(trendId);
+                trendSample.setTrendId(objectId);
                 log.trace("imported trendSample: {}", trendSample);
             }
         }
+
+         */
+
         return new HashSet<>(trendSamples);
     }
 
