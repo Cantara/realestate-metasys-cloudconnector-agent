@@ -107,9 +107,8 @@ public class MetasysApiClientRest implements SdClient {
         String apiUrl = getConfigValue("sd.api.url");
         String prefixedUrlEncodedTrendId = encodeAndPrefix(objectId);
         String bearerToken = findAccessToken();
-        URI samplesUri = new URI(apiUrl + "/objects/" + objectId+"/trendedAttributes/presentValue/samples");
+        URI samplesUri = new URI(apiUrl + "objects/" + objectId+"/trendedAttributes/presentValue/samples");
         CloseableHttpClient httpClient = HttpClients.createDefault();
-        String loginUri = apiUri + "login";
         HttpGet request = null;
         List<MetasysTrendSample> trendSamples = null;
         try {

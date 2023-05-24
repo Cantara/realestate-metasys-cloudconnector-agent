@@ -4,6 +4,8 @@ import no.cantara.realestate.mappingtable.MappedSensorId;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysTrendSample;
 import org.slf4j.Logger;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 import static org.slf4j.LoggerFactory.getLogger;
@@ -20,5 +22,10 @@ public class DistributionService implements ObservationDistributionClient {
     @Override
     public void publishAll(Set<MetasysTrendSample> trendSamples, MappedSensorId mappedSensorId) {
 
+    }
+
+    @Override
+    public List<ObservationMessage> getObservedMessages() {
+        return new ArrayList<>();
     }
 }

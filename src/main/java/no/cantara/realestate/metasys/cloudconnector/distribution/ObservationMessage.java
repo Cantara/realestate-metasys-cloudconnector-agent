@@ -19,7 +19,7 @@ import java.time.Instant;
  */
 public class ObservationMessage implements Cloneable {
 
-    private String tfm2recId;
+    private String recId;
     private String tfm;
     private String realEstate;
     private String building;
@@ -39,8 +39,8 @@ public class ObservationMessage implements Cloneable {
     public ObservationMessage() {
     }
 
-    public ObservationMessage(String tfm2recId, String realEstate, String building, String floor, String section, String servesRoom, String placementRoom, String sensorType, String measurementUnit) {
-        this.tfm2recId = tfm2recId;
+    public ObservationMessage(String recId, String tfm, String realEstate, String building, String floor, String section, String servesRoom, String placementRoom, String climateZone, String electricityZone, String name, String sensorType, String measurementUnit) {
+        this.recId = recId;
         this.tfm = tfm;
         this.realEstate = realEstate;
         this.building = building;
@@ -55,12 +55,12 @@ public class ObservationMessage implements Cloneable {
         this.measurementUnit = measurementUnit;
     }
 
-    public String getTfm2recId() {
-        return tfm2recId;
+    public String getRecId() {
+        return recId;
     }
 
-    public void setTfm2recId(String tfm2recId) {
-        this.tfm2recId = tfm2recId;
+    public void setRecId(String recId) {
+        this.recId = recId;
     }
 
     public String getTfm() {

@@ -19,7 +19,7 @@ public class MetasysConfigImporter {
         File importDirectory = new File(configDirectory);
         CsvSensorImporter csvImporter = new MetasysCsvSensorImporter(importDirectory);
         List<MappedSensorId> mappedSensorIds = csvImporter.importMappedId("Metasys");
-        log.info("Imported {} Metasys Sensor configs.", mappedSensorIds.size());
+        log.info("Imported {} Metasys Sensor configs from directory {}", mappedSensorIds.size(), importDirectory);
         for (MappedSensorId mappedSensorId : mappedSensorIds) {
             mappedIdRepository.add(mappedSensorId);
         }

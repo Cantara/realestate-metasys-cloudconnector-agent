@@ -32,9 +32,12 @@ public class ObservationDistributionServiceStub implements ObservationDistributi
 
     @Override
     public void publish(ObservationMessage message) {
-        if (!observedMessages.add(message)) {
+        boolean added = observedMessages.add(message);
+        if (added) {
+            log.trace("Added 1 message");
+        } else {
             observedMessages.remove(0);
-            observedMessages.add(message);
+            publish(message);
         }
     }
 
@@ -43,16 +46,23 @@ public class ObservationDistributionServiceStub implements ObservationDistributi
         ObservationMessage messageTemplate;
         SensorRecObject sensorRecObject = mappedSensorId.getRec();
         String recId = sensorRecObject.getRecId();
+        String tfm = null;
+        if (sensorRecObject.getTfm() != null) {
+            tfm = sensorRecObject.getTfm().getTfm();
+        };
         String realEstate = sensorRecObject.getRealEstate();
         String building = sensorRecObject.getBuilding();
         String floor = sensorRecObject.getFloor();
         String section = sensorRecObject.getSection();
         String servesRoom = sensorRecObject.getServesRoom();
         String placementRoom = sensorRecObject.getPlacementRoom();
+        String climateZone = sensorRecObject.getClimateZone();
+        String electrcityZone = sensorRecObject.getElectricityZone();
+        String name = sensorRecObject.getName();
         String sensorTypeString = sensorRecObject.getSensorType();
         SensorType sensorType = SensorType.from(sensorTypeString);
         MeasurementUnit measurementUnit = MeasurementUnit.mapFromSensorType(sensorType);
-        messageTemplate = new ObservationMessage(recId, realEstate, building, floor, section, servesRoom, placementRoom, sensorType.name(), measurementUnit.name());
+        messageTemplate = new ObservationMessage(recId, tfm, realEstate, building, floor, section, servesRoom, placementRoom, climateZone, electrcityZone, name, sensorType.name(), measurementUnit.name());
         messageTemplate.setClimateZone(sensorRecObject.getClimateZone());
         messageTemplate.setElectricityZone(sensorRecObject.getElectricityZone());
         for (MetasysTrendSample trendSample : trendSamples) {
@@ -75,7 +85,8 @@ public class ObservationDistributionServiceStub implements ObservationDistributi
         }
     }
 
-    public List<ObservationMessage> getMessages() {
+    @Override
+    public List<ObservationMessage> getObservedMessages() {
         return observedMessages;
     }
 }

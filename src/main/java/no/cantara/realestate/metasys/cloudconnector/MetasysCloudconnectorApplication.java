@@ -8,10 +8,7 @@ import no.cantara.realestate.mappingtable.repository.MappedIdRepositoryImpl;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysApiClientRest;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClientSimulator;
-import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionClient;
-import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionServiceStub;
-import no.cantara.realestate.metasys.cloudconnector.distribution.ObservationDistributionClient;
-import no.cantara.realestate.metasys.cloudconnector.distribution.ObservationDistributionServiceStub;
+import no.cantara.realestate.metasys.cloudconnector.distribution.*;
 import no.cantara.realestate.metasys.cloudconnector.observations.MappedIdBasedImporter;
 import no.cantara.realestate.metasys.cloudconnector.observations.MetasysMappedIdQueryBuilder;
 import no.cantara.realestate.metasys.cloudconnector.observations.ScheduledImportManager;
@@ -59,6 +56,8 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         MetricsDistributionClient metricsDistributionClient = new MetricsDistributionServiceStub(mesurementsName);
         MappedIdRepository mappedIdRepository = init(MappedIdRepository.class, () -> createMappedIdRepository(doImportData));
         ScheduledImportManager scheduledImportManager = init(ScheduledImportManager.class, () -> wireScheduledImportManager(sdClient, observationDistributionClient, metricsDistributionClient, mappedIdRepository));
+        ObservationDistributionResource observationDistributionResource = initAndRegisterJaxRsWsComponent(ObservationDistributionResource.class, () -> createObservationDistributionResource(observationDistributionClient));
+        get(StingrayHealthService.class).registerHealthProbe("observationDistribution.message.count", observationDistributionResource::getDistributedCount);
         init(Random.class, this::createRandom);
         RandomizerResource randomizerResource = initAndRegisterJaxRsWsComponent(RandomizerResource.class, this::createRandomizerResource);
         get(StingrayHealthService.class).registerHealthProbe("randomizer.request.count", randomizerResource::getRequestCount);
@@ -112,8 +111,8 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
                 .sensorType(SensorType.energy.name())
                 .build();
 
-        TrendLogsImporter kjorboPowerImporter = new MappedIdBasedImporter(energyOnlyQuery, sdClient, distributionClient, metricsClient, mappedIdRepository);
-        scheduledImportManager.addTrendLogsImporter(kjorboPowerImporter);
+        TrendLogsImporter mappedIdBasedImporter = new MappedIdBasedImporter(energyOnlyQuery, sdClient, distributionClient, metricsClient, mappedIdRepository);
+        scheduledImportManager.addTrendLogsImporter(mappedIdBasedImporter);
 
         /*#15 TODO create a single file for reading import config from file
 
@@ -125,6 +124,10 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
 
 
         return scheduledImportManager;
+    }
+
+    private ObservationDistributionResource createObservationDistributionResource(ObservationDistributionClient observationDistributionClient) {
+        return new ObservationDistributionResource(observationDistributionClient);
     }
 
     private Random createRandom() {

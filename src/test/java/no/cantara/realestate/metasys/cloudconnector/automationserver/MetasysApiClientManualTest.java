@@ -19,6 +19,7 @@ public class MetasysApiClientManualTest {
                 .buildAndSetStaticSingleton();
         String apiUrl = config.get("sd.api.url");
         MockServerSetup.clearAndSetLoginMock();
+        MockServerSetup.clearAndSetSensorMockData("208540b1-ab8a-566a-8a41-8b4cee515baf");
         MetasysApiClientRest apiClient = new MetasysApiClientRest(URI.create(apiUrl));
         apiClient.logon("jane-doe","strongPassword");
         assertTrue(apiClient.isHealthy());
