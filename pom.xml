@@ -5,7 +5,7 @@
 
   <groupId>no.cantara.realestate</groupId>
   <artifactId>metasys-cloudconnector-app</artifactId>
-  <version>0.3.1-SNAPSHOT</version>
+  <version>0.3.1</version>
   <name>metasys-cloudconnector-app</name>
   <url>https://github.com/Cantara/realestate-mappingtable-lib</url>
 
@@ -18,7 +18,7 @@
     <developerConnection>scm:git:ssh://git@github.com/cantara/realestate-metasys-cloudconnector-app.git</developerConnection>
     <connection>scm:git:https://github.com/cantara/realestate-metasys-cloudconnector-app.git</connection>
     <url>https://github.com/cantara/realestate-metasys-cloudconnector-app</url>
-    <tag>HEAD</tag>
+    <tag>metasys-cloudconnector-app-0.3.1</tag>
   </scm>
 
   <properties>
