@@ -114,6 +114,11 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         TrendLogsImporter mappedIdBasedImporter = new MappedIdBasedImporter(energyOnlyQuery, sdClient, distributionClient, metricsClient, mappedIdRepository);
         scheduledImportManager.addTrendLogsImporter(mappedIdBasedImporter);
 
+        MappedIdQuery mysteryHouseQuery = new MappedIdQueryBuilder().realEstate("511")
+                .build();
+        TrendLogsImporter mysteryImporter = new MappedIdBasedImporter(mysteryHouseQuery, sdClient, distributionClient, metricsClient, mappedIdRepository);
+        scheduledImportManager.addTrendLogsImporter(mysteryImporter);
+
         /*#15 TODO create a single file for reading import config from file
 
         List<MappedIdBasedImporter> fileReadImports = MultipleREsConfig.buildConfig(sdClient, distributionClient, metricsClient, mappedIdRepository);
