@@ -25,7 +25,7 @@ public class ReadYamlconfigTest {
         try {
             mapper = new ObjectMapper(new YAMLFactory().disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER));
             mapper.enable(DeserializationFeature.ACCEPT_EMPTY_STRING_AS_NULL_OBJECT);
-            YamlMappedIdQuery yamlQuery = mapper.readValue(new File("mappedIdQuery.yaml"), YamlMappedIdQuery.class);
+            MappedIdQuery yamlQuery = mapper.readValue(new File("mappedIdQuery.yaml"), YamlMappedIdQueryBuilder.class).build();
             assertEquals(energyOnlyQuery, yamlQuery);
         } catch (IOException e) {
             throw new RuntimeException(e);
