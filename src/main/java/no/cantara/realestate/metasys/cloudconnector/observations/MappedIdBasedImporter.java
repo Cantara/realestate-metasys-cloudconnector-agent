@@ -78,7 +78,11 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
             TemporaryHealthResource.addRegisteredError("Logon to Metasys Failed");
             TemporaryHealthResource.setUnhealthy();
             metricsClient.sendMetrics(new MetasysLogonFailed());
-            log.warn("Failed to logon to ApiClient. Reason: {}", e.getMessage());
+            String message = "Failed to logon to ApiClient. Reason: " + e.getMessage();
+            if (e.getCause() != null) {
+                message += ". Cause is: " + e.getCause().getMessage();
+            }
+            log.warn(message);
             throw new RuntimeException("Failed to logon to ApiClient.", e);
         }
     }

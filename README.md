@@ -25,5 +25,12 @@ sd.api.username=jane-doe
 sd.api.password=strongPassword
 ```
 
+### Import of RealEstate sensor config
 Move MetasysTfmRec.csv_template to import-data/MetasysTfmRec.csv
+
+In local_override.properties add the RealEstate names identified in the file above.
+The intention is to support filtering of which sensors, from defined buildings the agent should import.
+``` 
+importsensorsQuery.realestates=realEstateName1,realEstateName2
+``` 
 

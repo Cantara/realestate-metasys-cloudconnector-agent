@@ -23,6 +23,8 @@ import org.slf4j.Logger;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
 
 import static org.slf4j.LoggerFactory.getLogger;
@@ -102,33 +104,51 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
 
         ScheduledImportManager scheduledImportManager = null;
 
-        MappedIdQuery mappedIdQuery = new MetasysMappedIdQueryBuilder().realEstate("REstate1").build();
+        List<String> importAllFromRealestates = findListOfRealestatesToImportFrom();
+        log.info("Importallres: {}", importAllFromRealestates);
+        if (importAllFromRealestates != null && importAllFromRealestates.size() > 0) {
+            for (String realestate : importAllFromRealestates) {
+                MappedIdQuery mappedIdQuery = new MetasysMappedIdQueryBuilder().realEstate(realestate).build();
+                TrendLogsImporter trendLogsImporter = new MappedIdBasedImporter(mappedIdQuery, sdClient, distributionClient, metricsClient, mappedIdRepository);
+                if (scheduledImportManager == null) {
+                    scheduledImportManager = new ScheduledImportManager(trendLogsImporter, config);
+                } else {
+                    scheduledImportManager.addTrendLogsImporter(trendLogsImporter);
+                }
+            }
+        } else {
+            log.warn("Using Template import config for RealEstates: REstate1 and RealEst2");
+            MappedIdQuery mappedIdQuery = new MetasysMappedIdQueryBuilder().realEstate("REstate1").build();
+            TrendLogsImporter trendLogsImporter = new MappedIdBasedImporter(mappedIdQuery, sdClient, distributionClient, metricsClient, mappedIdRepository);
+            scheduledImportManager = new ScheduledImportManager(trendLogsImporter, config);
 
-        TrendLogsImporter trendLogsImporter = new MappedIdBasedImporter(mappedIdQuery, sdClient, distributionClient, metricsClient, mappedIdRepository);
-        scheduledImportManager = new ScheduledImportManager(trendLogsImporter, config);
+            MappedIdQuery energyOnlyQuery = new MappedIdQueryBuilder().realEstate("RealEst2")
+                    .sensorType(SensorType.energy.name())
+                    .build();
 
-        MappedIdQuery energyOnlyQuery = new MappedIdQueryBuilder().realEstate("RealEst2")
-                .sensorType(SensorType.energy.name())
-                .build();
+            TrendLogsImporter mappedIdBasedImporter = new MappedIdBasedImporter(energyOnlyQuery, sdClient, distributionClient, metricsClient, mappedIdRepository);
+            scheduledImportManager.addTrendLogsImporter(mappedIdBasedImporter);
 
-        TrendLogsImporter mappedIdBasedImporter = new MappedIdBasedImporter(energyOnlyQuery, sdClient, distributionClient, metricsClient, mappedIdRepository);
-        scheduledImportManager.addTrendLogsImporter(mappedIdBasedImporter);
-
-        MappedIdQuery mysteryHouseQuery = new MappedIdQueryBuilder().realEstate("511")
-                .build();
-        TrendLogsImporter mysteryImporter = new MappedIdBasedImporter(mysteryHouseQuery, sdClient, distributionClient, metricsClient, mappedIdRepository);
-        scheduledImportManager.addTrendLogsImporter(mysteryImporter);
-
-        /*#15 TODO create a single file for reading import config from file
-
-        List<MappedIdBasedImporter> fileReadImports = MultipleREsConfig.buildConfig(sdClient, distributionClient, metricsClient, mappedIdRepository);
-        for (MappedIdBasedImporter fileReadImport : fileReadImports) {
-            scheduledImportManager.addTrendLogsImporter(fileReadImport);
+            MappedIdQuery mysteryHouseQuery = new MappedIdQueryBuilder().realEstate("511")
+                    .build();
+            TrendLogsImporter mysteryImporter = new MappedIdBasedImporter(mysteryHouseQuery, sdClient, distributionClient, metricsClient, mappedIdRepository);
+            scheduledImportManager.addTrendLogsImporter(mysteryImporter);
         }
-         */
-
 
         return scheduledImportManager;
+    }
+
+    private List<String> findListOfRealestatesToImportFrom() {
+        List<String> realEstates = null;
+        try {
+            String reCsvSplitted = config.get("importsensorsQuery.realestates");
+            if (reCsvSplitted != null) {
+                realEstates = Arrays.asList(reCsvSplitted.split(","));
+            }
+        } catch (Exception e) {
+            log.warn("Failed to read list of RealEstates used for import.", e);
+        }
+        return realEstates;
     }
 
     private ObservationDistributionResource createObservationDistributionResource(ObservationDistributionClient observationDistributionClient) {

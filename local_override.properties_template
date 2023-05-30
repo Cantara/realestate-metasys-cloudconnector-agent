@@ -1,3 +1,4 @@
 sd.api.prod=true
 sd.api.username=jane-doe
 sd.api.password=strongPassword
+importsensorsQuery.realestates=re1,re2
