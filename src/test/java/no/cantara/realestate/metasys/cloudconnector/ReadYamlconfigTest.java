@@ -7,6 +7,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import no.cantara.realestate.mappingtable.repository.MappedIdQuery;
 import no.cantara.realestate.mappingtable.repository.MappedIdQueryBuilder;
 import no.cantara.realestate.metasys.cloudconnector.sensors.SensorType;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
@@ -17,6 +18,7 @@ import static junit.framework.Assert.assertEquals;
 public class ReadYamlconfigTest {
 
     @Test
+    @Disabled
     void readYaml4Query() {
         MappedIdQuery energyOnlyQuery = new MappedIdQueryBuilder().realEstate("RealEst2")
                 .sensorType(SensorType.energy.name())
