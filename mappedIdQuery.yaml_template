@@ -1,0 +1,11 @@
+importSensorQueries:
+  realEstates:
+    - RealEst2
+      - sensorType: "energy"
+    - Test2
+#building: null
+#floor: null
+#placementRoom: null
+#servesRoom: null
+#climateZone: null
+#electricityZone: null
