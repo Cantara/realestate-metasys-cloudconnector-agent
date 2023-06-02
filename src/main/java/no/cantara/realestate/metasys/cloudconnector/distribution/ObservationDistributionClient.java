@@ -3,6 +3,7 @@ package no.cantara.realestate.metasys.cloudconnector.distribution;
 
 import no.cantara.realestate.mappingtable.MappedSensorId;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysTrendSample;
+import no.cantara.realestate.observations.ObservationMessage;
 
 import java.util.List;
 import java.util.Set;

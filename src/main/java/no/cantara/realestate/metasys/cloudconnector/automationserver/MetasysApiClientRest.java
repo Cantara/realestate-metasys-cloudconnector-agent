@@ -1,7 +1,7 @@
 package no.cantara.realestate.metasys.cloudconnector.automationserver;
 
 import jakarta.ws.rs.core.HttpHeaders;
-import no.cantara.realestate.metasys.cloudconnector.CloudConnectorObjectMapper;
+import no.cantara.realestate.json.RealEstateObjectMapper;
 import no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealthResource;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
@@ -267,7 +267,7 @@ public class MetasysApiClientRest implements SdClient {
                     if (entity != null) {
                         String body = EntityUtils.toString(entity);
                         log.trace("Received body: {}", body);
-                        userToken = CloudConnectorObjectMapper.getInstance().getObjectMapper().readValue(body, UserToken.class);
+                        userToken = RealEstateObjectMapper.getInstance().getObjectMapper().readValue(body, UserToken.class);
                         log.trace("Converted to userToken: {}", userToken);
                         setHealthy();
                     }

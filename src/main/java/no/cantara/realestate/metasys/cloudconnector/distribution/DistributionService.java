@@ -2,6 +2,7 @@ package no.cantara.realestate.metasys.cloudconnector.distribution;
 
 import no.cantara.realestate.mappingtable.MappedSensorId;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysTrendSample;
+import no.cantara.realestate.observations.ObservationMessage;
 import org.slf4j.Logger;
 
 import java.util.ArrayList;

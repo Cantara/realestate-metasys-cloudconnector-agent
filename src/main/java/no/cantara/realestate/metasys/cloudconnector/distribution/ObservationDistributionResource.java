@@ -6,8 +6,9 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import no.cantara.realestate.metasys.cloudconnector.CloudConnectorObjectMapper;
+import no.cantara.realestate.json.RealEstateObjectMapper;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorException;
+import no.cantara.realestate.observations.ObservationMessage;
 import no.cantara.stingray.security.application.StingrayAction;
 import no.cantara.stingray.security.application.StingraySecurityOverride;
 import org.slf4j.Logger;
@@ -38,7 +39,7 @@ public class ObservationDistributionResource {
         try {
             observationMessages = distributionClient.getObservedMessages();
             if (observationMessages != null) {
-                body = CloudConnectorObjectMapper.getInstance().getObjectMapper().writeValueAsString(observationMessages);
+                body = RealEstateObjectMapper.getInstance().getObjectMapper().writeValueAsString(observationMessages);
                 return Response.ok(body, MediaType.APPLICATION_JSON_TYPE).build();
             } else {
                 return Response.ok("[]", MediaType.APPLICATION_JSON_TYPE).build();
