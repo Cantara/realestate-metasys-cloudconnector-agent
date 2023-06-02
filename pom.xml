@@ -6,7 +6,7 @@
   <groupId>no.cantara.realestate</groupId>
   <artifactId>metasys-cloudconnector-app</artifactId>
   <version>0.4.1-SNAPSHOT</version>
-  <name>metasys-cloudconnector-app</name>
+  <name>metasys-cloudconnector-agent</name>
   <url>https://github.com/Cantara/realestate-metasys-cloudconnector-agent</url>
 
   <parent>
