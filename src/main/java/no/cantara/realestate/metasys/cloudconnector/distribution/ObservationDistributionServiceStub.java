@@ -5,8 +5,8 @@ import no.cantara.realestate.mappingtable.rec.SensorRecObject;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysTrendSample;
 import no.cantara.realestate.metasys.cloudconnector.sensors.MeasurementUnit;
 import no.cantara.realestate.metasys.cloudconnector.sensors.SensorType;
-import no.cantara.realestate.metasys.cloudconnector.utils.LimitedArrayList;
 import no.cantara.realestate.observations.ObservationMessage;
+import no.cantara.realestate.utils.LimitedArrayList;
 import org.slf4j.Logger;
 
 import java.math.BigDecimal;
