@@ -1,6 +1,7 @@
 package no.cantara.realestate.metasys.cloudconnector.observations;
 
 import no.cantara.config.ApplicationProperties;
+import no.cantara.realestate.distribution.ObservationDistributionClient;
 import no.cantara.realestate.mappingtable.MappedSensorId;
 import no.cantara.realestate.mappingtable.metasys.MetasysSensorId;
 import no.cantara.realestate.mappingtable.repository.MappedIdQuery;
@@ -17,6 +18,7 @@ import no.cantara.realestate.metasys.cloudconnector.distribution.*;
 import no.cantara.realestate.metasys.cloudconnector.sensors.MetasysConfigImporter;
 import no.cantara.realestate.metasys.cloudconnector.sensors.SensorType;
 import no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealthResource;
+import no.cantara.realestate.observations.ObservationMessage;
 import org.slf4j.Logger;
 
 import java.net.URI;
@@ -134,7 +136,6 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
                         importFrom = fromDateTime;
                     }
 
-
                     log.trace("Try import of trendId: {} from: {}", trendId, importFrom);
                     try {
                         Set<MetasysTrendSample> trendSamples = basClient.findTrendSamplesByDate(trendId, take, skip, importFrom);
@@ -143,7 +144,10 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
                             lastSuccessfulImportAt.put(trendId, Instant.now());
                         }
                         successfulImport++;
-                        distributionClient.publishAll(trendSamples, mappedSensorId);
+                        for (MetasysTrendSample trendSample : trendSamples) {
+                            ObservationMessage observationMessage = new MetasysObservationMessage(trendSample, mappedSensorId);
+                            distributionClient.publish(observationMessage);
+                        }
                         metricsClient.populate(trendSamples, mappedSensorId);
                         reportSuccessfulImport(trendId);
                     } catch (URISyntaxException e) {

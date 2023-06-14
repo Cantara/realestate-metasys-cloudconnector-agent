@@ -1,6 +1,8 @@
 package no.cantara.realestate.metasys.cloudconnector;
 
 import no.cantara.config.ApplicationProperties;
+import no.cantara.realestate.azure.AzureObservationDistributionClient;
+import no.cantara.realestate.distribution.ObservationDistributionClient;
 import no.cantara.realestate.mappingtable.repository.MappedIdQuery;
 import no.cantara.realestate.mappingtable.repository.MappedIdQueryBuilder;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
@@ -8,7 +10,9 @@ import no.cantara.realestate.mappingtable.repository.MappedIdRepositoryImpl;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysApiClientRest;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClientSimulator;
-import no.cantara.realestate.metasys.cloudconnector.distribution.*;
+import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionClient;
+import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionServiceStub;
+import no.cantara.realestate.metasys.cloudconnector.distribution.ObservationDistributionResource;
 import no.cantara.realestate.metasys.cloudconnector.observations.MappedIdBasedImporter;
 import no.cantara.realestate.metasys.cloudconnector.observations.MetasysMappedIdQueryBuilder;
 import no.cantara.realestate.metasys.cloudconnector.observations.ScheduledImportManager;
@@ -26,6 +30,7 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
+import java.util.ServiceLoader;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -53,12 +58,25 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         StingraySecurity.initSecurity(this);
         boolean doImportData = config.asBoolean("import.data");
         SdClient sdClient = createSdClient(config);
-        ObservationDistributionClient observationDistributionClient = new ObservationDistributionServiceStub();
+        //FIXME Use ObservationDistributionService based on plugin mechanisms.
+        //ObservationDistributionClient observationDistributionClient = new no.cantara.realestate.azure.AzureObservationDistributionClient(devicePrimaryConnectionString)
+        //Prefered new no.cantara.realestate.azure.AzureObservationDistributionClient() where devicePrimaryConnectionString is read from configuration.
+        ServiceLoader<ObservationDistributionClient> observationDistributionClients = ServiceLoader.load(ObservationDistributionClient.class);
+//        ObservationDistributionClient observationDistributionClient = new ObservationDistributionServiceStub();
+        ObservationDistributionClient observationDistributionClient = null;
+        for (ObservationDistributionClient distributionClient : observationDistributionClients) {
+            if (distributionClient != null && distributionClient instanceof AzureObservationDistributionClient) {
+                observationDistributionClient = distributionClient;
+            } else {
+                observationDistributionClient = null;
+            }
+        }
         String mesurementsName = config.get("measurements.name");
         MetricsDistributionClient metricsDistributionClient = new MetricsDistributionServiceStub(mesurementsName);
         MappedIdRepository mappedIdRepository = init(MappedIdRepository.class, () -> createMappedIdRepository(doImportData));
-        ScheduledImportManager scheduledImportManager = init(ScheduledImportManager.class, () -> wireScheduledImportManager(sdClient, observationDistributionClient, metricsDistributionClient, mappedIdRepository));
-        ObservationDistributionResource observationDistributionResource = initAndRegisterJaxRsWsComponent(ObservationDistributionResource.class, () -> createObservationDistributionResource(observationDistributionClient));
+        ObservationDistributionClient finalObservationDistributionClient = observationDistributionClient;
+        ScheduledImportManager scheduledImportManager = init(ScheduledImportManager.class, () -> wireScheduledImportManager(sdClient, finalObservationDistributionClient, metricsDistributionClient, mappedIdRepository));
+        ObservationDistributionResource observationDistributionResource = initAndRegisterJaxRsWsComponent(ObservationDistributionResource.class, () -> createObservationDistributionResource(finalObservationDistributionClient));
         get(StingrayHealthService.class).registerHealthProbe("observationDistribution.message.count", observationDistributionResource::getDistributedCount);
         init(Random.class, this::createRandom);
         RandomizerResource randomizerResource = initAndRegisterJaxRsWsComponent(RandomizerResource.class, this::createRandomizerResource);

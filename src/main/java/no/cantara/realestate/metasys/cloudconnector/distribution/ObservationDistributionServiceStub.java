@@ -1,5 +1,6 @@
 package no.cantara.realestate.metasys.cloudconnector.distribution;
 
+import no.cantara.realestate.distribution.ObservationDistributionClient;
 import no.cantara.realestate.mappingtable.MappedSensorId;
 import no.cantara.realestate.mappingtable.rec.SensorRecObject;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysTrendSample;
@@ -42,7 +43,7 @@ public class ObservationDistributionServiceStub implements ObservationDistributi
         }
     }
 
-    @Override
+
     public void publishAll(Set<MetasysTrendSample> trendSamples, MappedSensorId mappedSensorId) {
         ObservationMessage messageTemplate;
         SensorRecObject sensorRecObject = mappedSensorId.getRec();

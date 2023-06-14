@@ -43,6 +43,11 @@
       <version>0.2.0</version>
     </dependency>
     <dependency>
+      <groupId>no.cantara.realestate</groupId>
+      <artifactId>azure-client-java</artifactId>
+      <version>0.2.0</version>
+    </dependency>
+    <dependency>
       <groupId>no.cantara.stingray</groupId>
       <artifactId>stingray-application</artifactId>
       <version>${stingray.version}</version>
