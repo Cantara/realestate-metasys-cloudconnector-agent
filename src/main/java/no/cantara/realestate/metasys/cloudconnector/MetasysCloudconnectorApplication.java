@@ -19,6 +19,7 @@ import no.cantara.realestate.metasys.cloudconnector.observations.ScheduledImport
 import no.cantara.realestate.metasys.cloudconnector.observations.TrendLogsImporter;
 import no.cantara.realestate.metasys.cloudconnector.sensors.MetasysConfigImporter;
 import no.cantara.realestate.metasys.cloudconnector.sensors.SensorType;
+import no.cantara.realestate.observations.ObservationMessage;
 import no.cantara.stingray.application.AbstractStingrayApplication;
 import no.cantara.stingray.application.health.StingrayHealthService;
 import no.cantara.stingray.security.StingraySecurity;
@@ -32,6 +33,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.ServiceLoader;
 
+import static no.cantara.realestate.metasys.cloudconnector.ObservationMesstageStubs.buildStubObservation;
 import static org.slf4j.LoggerFactory.getLogger;
 
 public class MetasysCloudconnectorApplication extends AbstractStingrayApplication<MetasysCloudconnectorApplication> {
@@ -74,6 +76,8 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         //FIXME Used temporarily before ServiceLoader works.
         if (observationDistributionClient == null) {
             observationDistributionClient = new AzureObservationDistributionClient();
+            ObservationMessage stubMessage = buildStubObservation();
+            observationDistributionClient.publish(stubMessage);
         }
         String mesurementsName = config.get("measurements.name");
         MetricsDistributionClient metricsDistributionClient = new MetricsDistributionServiceStub(mesurementsName);
