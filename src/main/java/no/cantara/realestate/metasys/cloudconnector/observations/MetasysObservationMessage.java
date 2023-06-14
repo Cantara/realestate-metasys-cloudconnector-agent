@@ -26,7 +26,7 @@ public class MetasysObservationMessage extends ObservationMessage {
     protected void buildObservation() {
         SensorRecObject rec = mappedSensorId.getRec();
         SensorId sensorId = mappedSensorId.getSensorId();
-        setRecId(sensorId.getId());
+        setSensorId(sensorId.getId());
         setRealEstate(rec.getRealEstate());
         setBuilding(rec.getBuilding());
         setFloor(rec.getFloor());
@@ -46,9 +46,9 @@ public class MetasysObservationMessage extends ObservationMessage {
         if (value instanceof BigDecimal) {
             value = ((BigDecimal) value).setScale(2, RoundingMode.CEILING);
         }
-        setObservedValue(value);
+        setValue(value);
         Instant observedAt = trendSample.getSampleDate();
-        setObservedAt(observedAt);
+        setObservationTime(observedAt);
         Instant receivedAt = Instant.now();
         setReceivedAt(receivedAt);
     }

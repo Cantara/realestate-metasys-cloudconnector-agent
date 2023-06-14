@@ -71,6 +71,10 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
                 observationDistributionClient = null;
             }
         }
+        //FIXME Used temporarily before ServiceLoader works.
+        if (observationDistributionClient == null) {
+            observationDistributionClient = new AzureObservationDistributionClient();
+        }
         String mesurementsName = config.get("measurements.name");
         MetricsDistributionClient metricsDistributionClient = new MetricsDistributionServiceStub(mesurementsName);
         MappedIdRepository mappedIdRepository = init(MappedIdRepository.class, () -> createMappedIdRepository(doImportData));

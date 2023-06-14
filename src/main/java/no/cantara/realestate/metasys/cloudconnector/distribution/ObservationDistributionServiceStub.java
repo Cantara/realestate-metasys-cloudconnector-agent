@@ -75,9 +75,9 @@ public class ObservationDistributionServiceStub implements ObservationDistributi
                 if (value instanceof BigDecimal) {
                     value = ((BigDecimal) value).setScale(2, RoundingMode.CEILING);
                 }
-                observationMessage.setObservedValue(value);
+                observationMessage.setValue(value);
                 Instant observedAt = trendSample.getSampleDate();
-                observationMessage.setObservedAt(observedAt);
+                observationMessage.setObservationTime(observedAt);
                 Instant receivedAt = Instant.now();
                 observationMessage.setReceivedAt(receivedAt);
                 publish(observationMessage);
