@@ -76,8 +76,8 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         //FIXME Used temporarily before ServiceLoader works.
         if (observationDistributionClient == null) {
 
-
-           AzureObservationDistributionClient distributionClient = (AzureObservationDistributionClient) observationDistributionClient;
+            observationDistributionClient = new AzureObservationDistributionClient();
+            AzureObservationDistributionClient distributionClient = (AzureObservationDistributionClient) observationDistributionClient;
 
             distributionClient.openConnection();
             log.info("Establishing and verifying connection to Azure.");
