@@ -23,6 +23,8 @@ public class ObservationDistributionServiceStub implements ObservationDistributi
 
     public static final int DEFAULT_MAX_SIZE = 10000;
     private final List<ObservationMessage> observedMessages;
+    private boolean isConnected = false;
+    private long numberOfMessagesObserved = 0;
 
     public ObservationDistributionServiceStub() {
         this(DEFAULT_MAX_SIZE);
@@ -33,14 +35,42 @@ public class ObservationDistributionServiceStub implements ObservationDistributi
     }
 
     @Override
+    public String getName() {
+        return "ObservationDistributionServiceStub";
+    }
+
+    @Override
+    public void openConnection() {
+        log.info("Opening Connection to Stub");
+        isConnected = true;
+    }
+
+    @Override
+    public void closeConnection() {
+        log.info("Closing Connection to Stub");
+        isConnected = false;
+    }
+
+    @Override
+    public boolean isConnectionEstablished() {
+        return isConnected;
+    }
+
+    @Override
     public void publish(ObservationMessage message) {
         boolean added = observedMessages.add(message);
         if (added) {
             log.trace("Added 1 message");
+            numberOfMessagesObserved ++;
         } else {
             observedMessages.remove(0);
             publish(message);
         }
+    }
+
+    @Override
+    public long getNumberOfMessagesObserved() {
+        return numberOfMessagesObserved;
     }
 
 

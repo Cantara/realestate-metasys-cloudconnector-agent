@@ -13,6 +13,7 @@ import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClientSim
 import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionClient;
 import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionServiceStub;
 import no.cantara.realestate.metasys.cloudconnector.distribution.ObservationDistributionResource;
+import no.cantara.realestate.metasys.cloudconnector.distribution.ObservationDistributionServiceStub;
 import no.cantara.realestate.metasys.cloudconnector.observations.MappedIdBasedImporter;
 import no.cantara.realestate.metasys.cloudconnector.observations.MetasysMappedIdQueryBuilder;
 import no.cantara.realestate.metasys.cloudconnector.observations.ScheduledImportManager;
@@ -60,31 +61,28 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         StingraySecurity.initSecurity(this);
         boolean doImportData = config.asBoolean("import.data");
         SdClient sdClient = createSdClient(config);
-        //FIXME Use ObservationDistributionService based on plugin mechanisms.
-        //ObservationDistributionClient observationDistributionClient = new no.cantara.realestate.azure.AzureObservationDistributionClient(devicePrimaryConnectionString)
-        //Prefered new no.cantara.realestate.azure.AzureObservationDistributionClient() where devicePrimaryConnectionString is read from configuration.
+
         ServiceLoader<ObservationDistributionClient> observationDistributionClients = ServiceLoader.load(ObservationDistributionClient.class);
-//        ObservationDistributionClient observationDistributionClient = new ObservationDistributionServiceStub();
         ObservationDistributionClient observationDistributionClient = null;
         for (ObservationDistributionClient distributionClient : observationDistributionClients) {
             if (distributionClient != null && distributionClient instanceof AzureObservationDistributionClient) {
+                log.info("Found implementation of ObservationDistributionClient on classpath: {}", distributionClient.toString());
                 observationDistributionClient = distributionClient;
-            } else {
-                observationDistributionClient = null;
             }
+            get(StingrayHealthService.class).registerHealthProbe(observationDistributionClient.getName() +"-isConnected: ", observationDistributionClient::isConnectionEstablished);
+            get(StingrayHealthService.class).registerHealthProbe(observationDistributionClient.getName() +"-numberofmessagesobserved: ", observationDistributionClient::getNumberOfMessagesObserved);
         }
-        //FIXME Used temporarily before ServiceLoader works.
         if (observationDistributionClient == null) {
-
-            observationDistributionClient = new AzureObservationDistributionClient();
-            AzureObservationDistributionClient distributionClient = (AzureObservationDistributionClient) observationDistributionClient;
-
-            distributionClient.openConnection();
-            log.info("Establishing and verifying connection to Azure.");
-            if (distributionClient.isConnectionEstablished()) {
-                ObservationMessage stubMessage = buildStubObservation();
-                observationDistributionClient.publish(stubMessage);
-            }
+            log.warn("No implemmentation of ObservationDistributionClient was found on classpath. Creating a ObservationDistributionServiceStub explicitly.");
+            observationDistributionClient = new ObservationDistributionServiceStub();
+            get(StingrayHealthService.class).registerHealthProbe(observationDistributionClient.getName() +"-isConnected: ", observationDistributionClient::isConnectionEstablished);
+            get(StingrayHealthService.class).registerHealthProbe(observationDistributionClient.getName() +"-numberofmessagesobserved: ", observationDistributionClient::getNumberOfMessagesObserved);
+        }
+        observationDistributionClient.openConnection();
+        log.info("Establishing and verifying connection to Azure.");
+        if (observationDistributionClient.isConnectionEstablished()) {
+            ObservationMessage stubMessage = buildStubObservation();
+            observationDistributionClient.publish(stubMessage);
         }
         String mesurementsName = config.get("measurements.name");
         MetricsDistributionClient metricsDistributionClient = new MetricsDistributionServiceStub(mesurementsName);

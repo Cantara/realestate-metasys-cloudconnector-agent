@@ -39,13 +39,18 @@
   <dependencies>
     <dependency>
       <groupId>no.cantara.realestate</groupId>
+      <artifactId>api-java</artifactId>
+      <version>0.3.0</version>
+    </dependency>
+    <dependency>
+      <groupId>no.cantara.realestate</groupId>
       <artifactId>typelib-java</artifactId>
       <version>0.3.1</version>
     </dependency>
     <dependency>
       <groupId>no.cantara.realestate</groupId>
       <artifactId>azure-client-java</artifactId>
-      <version>0.2.1</version>
+      <version>0.2.2</version>
     </dependency>
     <dependency>
       <groupId>no.cantara.stingray</groupId>
