@@ -14,4 +14,10 @@ public interface SdClient {
     void logon() throws SdLogonFailedException;
 
     boolean isLoggedIn();
+
+    String getName();
+
+    boolean isHealthy();
+
+    long getNumberOfTrendSamplesReceived();
 }

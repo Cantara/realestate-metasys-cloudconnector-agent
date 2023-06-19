@@ -21,6 +21,7 @@ public class SdClientSimulator implements SdClient {
     private final int SECONDS_BETWEEN_SCHEDULED_IMPORT_RUNS = 3;
 
     private Set<String> simulatedTrendIds = new HashSet<>();
+    private long numberOfTrendSamplesReceived = 0;
 
 
     public SdClientSimulator() {
@@ -38,10 +39,19 @@ public class SdClientSimulator implements SdClient {
         for (Instant t : trendTimeSamples.keySet()) {
             if (t.isAfter(i)) {
                 trendSamples.add(trendTimeSamples.get(t));
+                addNumberOfTrendSamplesReceived();
             }
         }
         log.info("findTrendSamples returned:{} trendSamples", trendSamples.size());
         return trendSamples;
+    }
+
+    synchronized void addNumberOfTrendSamplesReceived() {
+        if (numberOfTrendSamplesReceived < Long.MAX_VALUE) {
+            numberOfTrendSamplesReceived ++;
+        } else {
+            numberOfTrendSamplesReceived = 1;
+        }
     }
 
     @Override
@@ -171,5 +181,21 @@ public class SdClientSimulator implements SdClient {
     @Override
     public boolean isLoggedIn() {
         return true;
+    }
+
+    @Override
+    public String getName() {
+        return "SdClientSimulator";
+
+    }
+
+    @Override
+    public boolean isHealthy() {
+        return true;
+    }
+
+    @Override
+    public long getNumberOfTrendSamplesReceived() {
+        return numberOfTrendSamplesReceived;
     }
 }

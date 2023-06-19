@@ -17,7 +17,7 @@ public class TemporaryHealthResource {
     public static LastImportedObservationTypes lastImportedObservationTypes = new InMemoryLastImportedObservationTypes();
 
     public static String last_import_start = "";
-    public static String duratipn = "";
+    public static String duration = "";
     public static String count = "";
     public static String current_import_start = "";
 
@@ -25,11 +25,11 @@ public class TemporaryHealthResource {
     private static boolean status;
 
     public static void setHealthy() {
-        TemporaryHealthResource.status = true;
+        status = true;
     }
 
     public static void setUnhealthy() {
-        TemporaryHealthResource.status = false;
+        status = false;
     }
 
     public static void addRegisteredError(String errorString) {

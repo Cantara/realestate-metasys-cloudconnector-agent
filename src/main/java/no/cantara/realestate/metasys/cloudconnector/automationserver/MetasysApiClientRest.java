@@ -2,6 +2,7 @@ package no.cantara.realestate.metasys.cloudconnector.automationserver;
 
 import jakarta.ws.rs.core.HttpHeaders;
 import no.cantara.realestate.json.RealEstateObjectMapper;
+import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorException;
 import no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealthResource;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
@@ -27,8 +28,6 @@ import java.util.List;
 import java.util.Set;
 
 import static no.cantara.realestate.mappingtable.Main.getConfigValue;
-import static no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealthResource.setHealthy;
-import static no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealthResource.setUnhealthy;
 import static no.cantara.realestate.metasys.cloudconnector.utils.UrlEncoder.urlEncode;
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -45,6 +44,8 @@ public class MetasysApiClientRest implements SdClient {
     private static final String LATEST_BY_DATE = "SampleDateDescending";
     private UserToken userToken = null;
     private final MetasysApiLogonService logonService;
+    private long numberOfTrendSamplesReceived = 0;
+    private boolean isHealthy = true;
 
     public MetasysApiClientRest(URI apiUri) {
         this.apiUri = apiUri;
@@ -156,10 +157,14 @@ public class MetasysApiClientRest implements SdClient {
                     }
                 }
             } catch (Exception e) {
-
+                setUnhealthy();
+                throw new MetasysCloudConnectorException("Failed to fetch trendsamples for objectId " + objectId
+                        + ", after date "+ onAndAfterDateTime + ". Reason: " + e.getMessage(), e);
             }
         } catch (Exception e) {
-
+            setUnhealthy();
+            throw new MetasysCloudConnectorException("Failed to fetch trendsamples for objectId " + objectId
+                    + ", after date "+ onAndAfterDateTime + ". Reason: " + e.getMessage(), e);
         }
 
         /*
@@ -188,7 +193,7 @@ public class MetasysApiClientRest implements SdClient {
         }
 
          */
-
+        isHealthy = true;
         return new HashSet<>(trendSamples);
     }
 
@@ -225,6 +230,7 @@ public class MetasysApiClientRest implements SdClient {
             return accessToken;
         } catch (SdLogonFailedException e){
 //            SlackNotificationService.sendAlarm(METASYS_API,LOGON_FAILED);
+            isHealthy = false;
             throw e;
         }
     }
@@ -279,6 +285,7 @@ public class MetasysApiClientRest implements SdClient {
                     SdLogonFailedException logonFailedException = new SdLogonFailedException(msg);
                     log.warn("Failed to logon to Metasys. Reason {}", logonFailedException.getMessage());
                     setUnhealthy();
+                    TemporaryHealthResource.addRegisteredError("Failed to logon to Metasys. Reason: " + logonFailedException.getMessage());
                     throw logonFailedException;
                 }
 
@@ -289,12 +296,16 @@ public class MetasysApiClientRest implements SdClient {
             String msg = "Failed to logon to Metasys at uri: " + loginUri + ", with username: " + username;
             SdLogonFailedException logonFailedException = new SdLogonFailedException(msg, e);
             log.warn(msg);
+            setUnhealthy();
+            TemporaryHealthResource.addRegisteredError(msg + " Reason: " + logonFailedException.getMessage());
             throw logonFailedException;
         } catch (ParseException e) {
             String msg = "Failed to logon to Metasys at uri: " + loginUri + ", with username: " + username +
                     ". Failure parsing the response.";
             SdLogonFailedException logonFailedException = new SdLogonFailedException(msg, e);
             log.warn(msg);
+            setUnhealthy();
+            TemporaryHealthResource.addRegisteredError(msg + " Reason: " + logonFailedException.getMessage());
             throw logonFailedException;
         } finally {
             try {
@@ -310,7 +321,37 @@ public class MetasysApiClientRest implements SdClient {
         return userToken != null;
     }
 
+    @Override
+    public String getName() {
+        return "MetasysApiClientRest";
+    }
+    void setHealthy() {
+        this.isHealthy = true;
+        log.debug("Metasys is Healthy");
+        TemporaryHealthResource.setHealthy();
+    }
+
+    void setUnhealthy() {
+        log.warn("Metasys is Unhealthy");
+        this.isHealthy = false;
+        TemporaryHealthResource.setUnhealthy();
+    }
+
+
     public boolean isHealthy() {
-        return TemporaryHealthResource.getStatus();
+        return isHealthy;
+    }
+
+    @Override
+    public long getNumberOfTrendSamplesReceived() {
+        return numberOfTrendSamplesReceived;
+    }
+
+    synchronized void addNumberOfTrendSamplesReceived() {
+        if (numberOfTrendSamplesReceived < Long.MAX_VALUE) {
+            numberOfTrendSamplesReceived ++;
+        } else {
+            numberOfTrendSamplesReceived = 1;
+        }
     }
 }
