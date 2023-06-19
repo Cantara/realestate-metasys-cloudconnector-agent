@@ -112,7 +112,16 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
             lastImportedAt = Instant.now();
             lastImportedObservationTypes.updateLastImported(sensorType, lastImportedAt);
         }
-        importAfterDateTime(sensorType, lastImportedAt.minusSeconds(FIRST_IMPORT_LATEST_SECONDS));
+        Instant importFromDateTime = getImportFromDateTime();
+        importAfterDateTime(sensorType, importFromDateTime);
+    }
+
+    protected Instant getImportFromDateTime() {
+        Instant importFrom = null;
+        int importBeforeInSec = ApplicationProperties.getInstance().asInt("import.start.before.sec", FIRST_IMPORT_LATEST_SECONDS);
+        importFrom = Instant. now().minusSeconds(importBeforeInSec);
+        log.info("Start import from: {}", importFrom);
+        return importFrom;
     }
 
     @Override
