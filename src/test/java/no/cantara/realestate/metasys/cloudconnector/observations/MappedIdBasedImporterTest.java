@@ -1,6 +1,7 @@
 package no.cantara.realestate.metasys.cloudconnector.observations;
 
 import no.cantara.config.ApplicationProperties;
+import no.cantara.config.testsupport.ApplicationPropertiesTestHelper;
 import no.cantara.realestate.distribution.ObservationDistributionClient;
 import no.cantara.realestate.mappingtable.MappedSensorId;
 import no.cantara.realestate.mappingtable.metasys.MetasysSensorId;
@@ -30,6 +31,7 @@ class MappedIdBasedImporterTest {
 
     @BeforeEach
     void setUp() {
+        ApplicationPropertiesTestHelper.enableMutableSingleton();
         config = ApplicationProperties.builder().buildAndSetStaticSingleton();
         MappedIdQuery mockIdQuery = mock(MappedIdQuery.class);
         mockBasClient = mock(SdClient.class);
