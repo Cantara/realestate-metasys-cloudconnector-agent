@@ -140,7 +140,6 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
                 if (trendId == null) {
                     log.warn("TrendId is null for sensorId: {}", sensorId);
                 } else {
-                    log.trace("****");
                     Instant importFrom = lastSuccessfulImportAt.get(trendId);
                     if (importFrom == null) {
                         importFrom = fromDateTime;
@@ -149,17 +148,22 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
                     log.trace("Try import of trendId: {} from: {}", trendId, importFrom);
                     try {
                         Set<MetasysTrendSample> trendSamples = basClient.findTrendSamplesByDate(trendId, take, skip, importFrom);
-                        log.trace("Found {} samples for trendId: {}", trendSamples.size(), trendId);
-                        if (trendSamples.size() > 0) {
-                            lastSuccessfulImportAt.put(trendId, Instant.now());
+                        if (trendSamples != null) {
+                            log.trace("Found {} samples for trendId: {}", trendSamples.size(), trendId);
+                            if (trendSamples.size() > 0) {
+                                lastSuccessfulImportAt.put(trendId, Instant.now());
+                            }
+
+                            successfulImport++;
+                            for (MetasysTrendSample trendSample : trendSamples) {
+                                ObservationMessage observationMessage = new MetasysObservationMessage(trendSample, mappedSensorId);
+                                distributionClient.publish(observationMessage);
+                            }
+                            metricsClient.populate(trendSamples, mappedSensorId);
+                            reportSuccessfulImport(trendId);
+                        } else {
+                            log.trace("Missing TrendSamples for trendId: {}",trendId);
                         }
-                        successfulImport++;
-                        for (MetasysTrendSample trendSample : trendSamples) {
-                            ObservationMessage observationMessage = new MetasysObservationMessage(trendSample, mappedSensorId);
-                            distributionClient.publish(observationMessage);
-                        }
-                        metricsClient.populate(trendSamples, mappedSensorId);
-                        reportSuccessfulImport(trendId);
                     } catch (URISyntaxException e) {
                         MetasysCloudConnectorException se = new MetasysCloudConnectorException("Import of trend: {} is not possible now. Reason: {}", e, StatusType.RETRY_NOT_POSSIBLE);
                         log.warn("Import of trend: {} is not possible now. URI to SD server is misconfigured. Reason: {} ", trendId, e.getMessage());
