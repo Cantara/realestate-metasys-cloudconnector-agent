@@ -111,7 +111,7 @@ public class MetasysApiClientRest implements SdClient {
         URI samplesUri = new URI(apiUrl + "objects/" + objectId+"/trendedAttributes/presentValue/samples");
         CloseableHttpClient httpClient = HttpClients.createDefault();
         HttpGet request = null;
-        List<MetasysTrendSample> trendSamples = null;
+        List<MetasysTrendSample> trendSamples = new ArrayList<>();
         try {
 
             String startTime = onAndAfterDateTime.toString();
