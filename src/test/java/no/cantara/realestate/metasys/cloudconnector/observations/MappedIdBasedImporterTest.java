@@ -12,6 +12,7 @@ import no.cantara.realestate.mappingtable.tfm.Tfm;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
 import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionClient;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -29,9 +30,14 @@ class MappedIdBasedImporterTest {
     private MappedIdBasedImporter importer;
     private SdClient mockBasClient;
 
+    @BeforeAll
+    void propInit() {
+        ApplicationPropertiesTestHelper.enableMutableSingleton();
+    }
+
     @BeforeEach
     void setUp() {
-        ApplicationPropertiesTestHelper.enableMutableSingleton();
+
         config = ApplicationProperties.builder().buildAndSetStaticSingleton();
         MappedIdQuery mockIdQuery = mock(MappedIdQuery.class);
         mockBasClient = mock(SdClient.class);
@@ -43,7 +49,6 @@ class MappedIdBasedImporterTest {
 
     @Test
     void getImportFromDateTime() {
-        ApplicationPropertiesTestHelper.enableMutableSingleton();
         Instant expectedTime = Instant.now().minusSeconds(60);
         Instant importFrom = importer.getImportFromDateTime();
         assertTrue(expectedTime.compareTo(importFrom) < 10);
@@ -51,7 +56,6 @@ class MappedIdBasedImporterTest {
 
     @Test
     void trendSamplesIsNull() throws SdLogonFailedException, URISyntaxException {
-        ApplicationPropertiesTestHelper.enableMutableSingleton();
         MappedSensorId mappedSensorStub = buildMetasysMappedId("moId", "moR","recId1", "tfm2");
         importer.addImportableTrendId(mappedSensorStub);
         when(mockBasClient.findTrendSamplesByDate(anyString(),anyInt(),anyInt(),any(Instant.class))).thenReturn(null);
