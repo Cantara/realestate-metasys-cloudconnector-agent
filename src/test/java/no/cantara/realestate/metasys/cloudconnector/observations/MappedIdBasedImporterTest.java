@@ -43,6 +43,7 @@ class MappedIdBasedImporterTest {
 
     @Test
     void getImportFromDateTime() {
+        ApplicationPropertiesTestHelper.enableMutableSingleton();
         Instant expectedTime = Instant.now().minusSeconds(60);
         Instant importFrom = importer.getImportFromDateTime();
         assertTrue(expectedTime.compareTo(importFrom) < 10);
@@ -50,6 +51,7 @@ class MappedIdBasedImporterTest {
 
     @Test
     void trendSamplesIsNull() throws SdLogonFailedException, URISyntaxException {
+        ApplicationPropertiesTestHelper.enableMutableSingleton();
         MappedSensorId mappedSensorStub = buildMetasysMappedId("moId", "moR","recId1", "tfm2");
         importer.addImportableTrendId(mappedSensorStub);
         when(mockBasClient.findTrendSamplesByDate(anyString(),anyInt(),anyInt(),any(Instant.class))).thenReturn(null);
