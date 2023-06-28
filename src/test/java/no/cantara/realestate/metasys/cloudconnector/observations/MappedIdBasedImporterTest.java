@@ -12,7 +12,6 @@ import no.cantara.realestate.mappingtable.tfm.Tfm;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
 import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionClient;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -30,14 +29,9 @@ class MappedIdBasedImporterTest {
     private MappedIdBasedImporter importer;
     private SdClient mockBasClient;
 
-    @BeforeAll
-    void propInit() {
-        ApplicationPropertiesTestHelper.enableMutableSingleton();
-    }
-
     @BeforeEach
     void setUp() {
-
+        ApplicationPropertiesTestHelper.enableMutableSingleton();
         config = ApplicationProperties.builder().buildAndSetStaticSingleton();
         MappedIdQuery mockIdQuery = mock(MappedIdQuery.class);
         mockBasClient = mock(SdClient.class);
