@@ -175,6 +175,7 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
                     } catch (Exception e) {
                         MetasysCloudConnectorException se = new MetasysCloudConnectorException("Failed to import trendId " + trendId, e, StatusType.RETRY_MAY_FIX_ISSUE);
                         log.trace("Failed to import trendId {} for tfm2rec: {}. Reason: {}", trendId, mappedSensorId, se.getMessage());
+                        log.trace("cause:", e);
                         failedImport++;
                     }
                 }
