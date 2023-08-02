@@ -31,6 +31,9 @@ public class MetasysObservationMessage extends ObservationMessage {
         } else {
             setSensorId(rec.getRecId());
         }
+        if (rec.getTfm() != null) {
+            setTfm(rec.getTfm().getTfm());
+        }
         setRealEstate(rec.getRealEstate());
         setBuilding(rec.getBuilding());
         setFloor(rec.getFloor());
