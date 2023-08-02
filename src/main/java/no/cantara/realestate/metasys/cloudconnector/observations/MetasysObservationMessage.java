@@ -26,7 +26,11 @@ public class MetasysObservationMessage extends ObservationMessage {
     protected void buildObservation() {
         SensorRecObject rec = mappedSensorId.getRec();
         SensorId sensorId = mappedSensorId.getSensorId();
-        setSensorId(sensorId.getId());
+        if (sensorId.getId() != null && sensorId.getId().isEmpty()) {
+            setSensorId(sensorId.getId());
+        } else {
+            setSensorId(rec.getRecId());
+        }
         setRealEstate(rec.getRealEstate());
         setBuilding(rec.getBuilding());
         setFloor(rec.getFloor());
