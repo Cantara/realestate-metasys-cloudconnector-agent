@@ -73,13 +73,13 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
                 observationDistributionClient = distributionClient;
             }
             get(StingrayHealthService.class).registerHealthProbe(observationDistributionClient.getName() +"-isConnected: ", observationDistributionClient::isConnectionEstablished);
-            get(StingrayHealthService.class).registerHealthProbe(observationDistributionClient.getName() +"-numberofmessagesobserved: ", observationDistributionClient::getNumberOfMessagesObserved);
+            get(StingrayHealthService.class).registerHealthProbe(observationDistributionClient.getName() +"-numberofMessagesObserved: ", observationDistributionClient::getNumberOfMessagesObserved);
         }
         if (observationDistributionClient == null) {
             log.warn("No implementation of ObservationDistributionClient was found on classpath. Creating a ObservationDistributionServiceStub explicitly.");
             observationDistributionClient = new ObservationDistributionServiceStub();
             get(StingrayHealthService.class).registerHealthProbe(observationDistributionClient.getName() +"-isConnected: ", observationDistributionClient::isConnectionEstablished);
-            get(StingrayHealthService.class).registerHealthProbe(observationDistributionClient.getName() +"-numberofmessagesobserved: ", observationDistributionClient::getNumberOfMessagesObserved);
+            get(StingrayHealthService.class).registerHealthProbe(observationDistributionClient.getName() +"-numberofMessagesDistributed: ", observationDistributionClient::getNumberOfMessagesObserved);
         }
         observationDistributionClient.openConnection();
         log.info("Establishing and verifying connection to Azure.");
