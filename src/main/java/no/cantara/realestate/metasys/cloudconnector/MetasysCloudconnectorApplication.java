@@ -76,7 +76,7 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
             get(StingrayHealthService.class).registerHealthProbe(observationDistributionClient.getName() +"-numberofmessagesobserved: ", observationDistributionClient::getNumberOfMessagesObserved);
         }
         if (observationDistributionClient == null) {
-            log.warn("No implemmentation of ObservationDistributionClient was found on classpath. Creating a ObservationDistributionServiceStub explicitly.");
+            log.warn("No implementation of ObservationDistributionClient was found on classpath. Creating a ObservationDistributionServiceStub explicitly.");
             observationDistributionClient = new ObservationDistributionServiceStub();
             get(StingrayHealthService.class).registerHealthProbe(observationDistributionClient.getName() +"-isConnected: ", observationDistributionClient::isConnectionEstablished);
             get(StingrayHealthService.class).registerHealthProbe(observationDistributionClient.getName() +"-numberofmessagesobserved: ", observationDistributionClient::getNumberOfMessagesObserved);
