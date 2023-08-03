@@ -87,8 +87,8 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
             ObservationMessage stubMessage = buildStubObservation();
             observationDistributionClient.publish(stubMessage);
         }
-        String mesurementsName = config.get("measurements.name");
-        MetricsDistributionClient metricsDistributionClient = new MetricsDistributionServiceStub(mesurementsName);
+        String measurementsName = config.get("measurements.name");
+        MetricsDistributionClient metricsDistributionClient = new MetricsDistributionServiceStub(measurementsName);
         MappedIdRepository mappedIdRepository = init(MappedIdRepository.class, () -> createMappedIdRepository(doImportData));
         ObservationDistributionClient finalObservationDistributionClient = observationDistributionClient;
         ScheduledImportManager scheduledImportManager = init(ScheduledImportManager.class, () -> wireScheduledImportManager(sdClient, finalObservationDistributionClient, metricsDistributionClient, mappedIdRepository));
