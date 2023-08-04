@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration scan="true">
+
+    <contextListener class="ch.qos.logback.classic.jul.LevelChangePropagator">
+        <resetJUL>true</resetJUL>
+    </contextListener>
+
+    <property name="METASYS_CLOUDCONNECTOR_HOME" value="logs"/>
+
+    <appender name="RF"
+              class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${METASYS_CLOUDCONNECTOR_HOME}/metasys-cloudconnector.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${METASYS_CLOUDCONNECTOR_HOME}/metasys-cloudconnector-%d{dd.MM.yyyy}.%i.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+            <maxFileSize>200MB</maxFileSize>
+            <totalSizeCap>5GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{dd.MM.yyyy HH:mm:ss} %p %yellow([%thread]) %highlight(%-5level) %logger{36}.%M - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <!-- encoders are assigned the type
+             ch.qos.logback.classic.encoder.PatternLayoutEncoder by default -->
+        <encoder>
+            <pattern>%d{dd.MM.yyyy HH:mm:ss} %p %yellow([%thread]) %highlight(%-5level) %logger{36}.%M - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+
+    <logger name="no.cantara" level="trace" additivity="false">
+        <appender-ref ref="RF"/>
+        <appender-ref ref="STDOUT" />
+    </logger>
+
+    <root level="INFO">
+        <appender-ref ref="RF"/>
+        <appender-ref ref="STDOUT" />
+    </root>
+</configuration>
