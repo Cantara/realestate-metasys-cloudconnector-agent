@@ -3,6 +3,7 @@ package no.cantara.realestate.metasys.cloudconnector.automationserver;
 import jakarta.ws.rs.core.HttpHeaders;
 import no.cantara.realestate.json.RealEstateObjectMapper;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorException;
+import no.cantara.realestate.metasys.cloudconnector.notifications.SlackNotificationService;
 import no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealthResource;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
@@ -36,6 +37,7 @@ public class MetasysApiClientRest implements SdClient {
     private final URI apiUri;
 
     //FIXME Implement Client https://github.com/Cantara/stingray/blob/main/samples/greeter/src/main/java/no/cantara/stingray/sample/greeter/HttpRandomizerClient.java
+    public static final String METASYS_API = "Metasys";
     public static final String HOST_UNREACHABLE = "HOST_UNREACHABLE";
     public static final String LOGON_FAILED = "Logon to Metasys Api Failed";
     public static final String SERVICE_FAILED = "Metasys Api is failing.";
@@ -224,12 +226,12 @@ public class MetasysApiClientRest implements SdClient {
             if (userToken != null) {
                 accessToken = userToken.getAccessToken();
             } else {
-//                SlackNotificationService.clearService(METASYS_API);
+                SlackNotificationService.clearService(METASYS_API);
             }
 
             return accessToken;
         } catch (SdLogonFailedException e){
-//            SlackNotificationService.sendAlarm(METASYS_API,LOGON_FAILED);
+            SlackNotificationService.sendAlarm(METASYS_API,LOGON_FAILED);
             isHealthy = false;
             throw e;
         }
@@ -293,6 +295,7 @@ public class MetasysApiClientRest implements SdClient {
                 response.close();
             }
         } catch (IOException e) {
+            SlackNotificationService.sendAlarm(METASYS_API,HOST_UNREACHABLE);
             String msg = "Failed to logon to Metasys at uri: " + loginUri + ", with username: " + username;
             SdLogonFailedException logonFailedException = new SdLogonFailedException(msg, e);
             log.warn(msg);
@@ -300,6 +303,7 @@ public class MetasysApiClientRest implements SdClient {
             TemporaryHealthResource.addRegisteredError(msg + " Reason: " + logonFailedException.getMessage());
             throw logonFailedException;
         } catch (ParseException e) {
+            SlackNotificationService.sendWarning(METASYS_API,"Parsing of login information failed.");
             String msg = "Failed to logon to Metasys at uri: " + loginUri + ", with username: " + username +
                     ". Failure parsing the response.";
             SdLogonFailedException logonFailedException = new SdLogonFailedException(msg, e);

@@ -34,6 +34,7 @@
     <stingray.version>1.8.8</stingray.version>
     <mappingtable.version>0.3.2</mappingtable.version>
     <mockserver.version>5.15.0</mockserver.version>
+    <slack-api-client.version>1.30.0</slack-api-client.version>
   </properties>
 
   <dependencies>
@@ -123,6 +124,13 @@
       <groupId>org.apache.httpcomponents.client5</groupId>
       <artifactId>httpclient5</artifactId>
       <version>5.2.1</version>
+    </dependency>
+
+    <!-- Alerting -->
+    <dependency>
+      <groupId>com.slack.api</groupId>
+      <artifactId>slack-api-client</artifactId>
+      <version>${slack-api-client.version}</version>
     </dependency>
 
 
