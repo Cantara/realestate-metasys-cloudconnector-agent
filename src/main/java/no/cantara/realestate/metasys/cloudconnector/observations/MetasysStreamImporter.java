@@ -2,13 +2,17 @@ package no.cantara.realestate.metasys.cloudconnector.observations;
 
 import no.cantara.config.ApplicationProperties;
 import no.cantara.realestate.distribution.ObservationDistributionClient;
+import no.cantara.realestate.mappingtable.MappedSensorId;
+import no.cantara.realestate.mappingtable.UniqueKey;
+import no.cantara.realestate.mappingtable.metasys.MetasysUniqueKey;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClient;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysStreamClient;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.StreamEvent;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.StreamListener;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.*;
 import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionClient;
+import no.cantara.realestate.observations.ObservationMessage;
 import org.slf4j.Logger;
+
+import java.util.List;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -28,10 +32,28 @@ public class MetasysStreamImporter implements StreamListener {
         this.metricsDistributionClient = metricsDistributionClient;
     }
 
+    //FIXME
     @Override
     public void onEvent(StreamEvent event) {
-        log.trace("MetasysStreamImporter received:\n {}", event);
 
+        if (event instanceof MetasysObservedValueEvent) {
+            log.trace("MetasysStreamImporter received:\n {}", event);
+            MetasysObservedValueEvent observedValueEvent = (MetasysObservedValueEvent) event;
+            String metasysObjectId = observedValueEvent.getId();
+            UniqueKey key = new MetasysUniqueKey(metasysObjectId);
+            List<MappedSensorId> mappedIds = idRepository.find(key);
+            if (mappedIds != null && mappedIds.size() > 0) {
+                log.trace("MappedId found for metasysObjectId: {} mappedIds: {}", metasysObjectId, mappedIds.toString());
+                for (MappedSensorId mappedId : mappedIds) {
+                    ObservedValue observedValue = observedValueEvent.getObservedValue();
+                    ObservationMessage observationMessage = new MetasysObservationMessage(observedValue, mappedId);
+                    distributionClient.publish(observationMessage);
+                    //TODO publish metrics metricsDistributionClient.publish(observationMessage);
+                }
+            } else {
+                log.trace("MappedId not found for metasysObjectId: {}", metasysObjectId);
+            }
+        }
     }
 
     protected void startSubscribing() {

@@ -116,7 +116,6 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
     }
 
 
-    //wireScheduledImportManager(SdClient sdClient, ObservationDistributionClient distributionClient, MetricsDistributionClient metricsClient, MappedIdRepository mappedIdRepository) {
     protected MetasysStreamImporter wireMetasysStreamImporter(MetasysStreamClient streamClient, SdClient sdClient, MappedIdRepository mappedIdRepository, ObservationDistributionClient distributionClient, MetricsDistributionClient metricsClient) {
         MetasysStreamImporter streamImporter = new MetasysStreamImporter(streamClient, sdClient, mappedIdRepository, distributionClient, metricsClient);
 
