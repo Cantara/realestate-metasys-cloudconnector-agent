@@ -198,4 +198,9 @@ public class SdClientSimulator implements SdClient {
     public long getNumberOfTrendSamplesReceived() {
         return numberOfTrendSamplesReceived;
     }
+
+    @Override
+    public UserToken getUserToken() {
+        return new UserToken();
+    }
 }

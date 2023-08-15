@@ -358,4 +358,8 @@ public class MetasysApiClientRest implements SdClient {
             numberOfTrendSamplesReceived = 1;
         }
     }
+
+    public UserToken getUserToken() {
+        return userToken;
+    }
 }

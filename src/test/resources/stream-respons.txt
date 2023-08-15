@@ -1,0 +1,24 @@
+Received Event: {"item":{"presentValue":411.839996,"id":"05ccd193-a3f9-5db7-9c72-61987ca3d8dd","itemReference":"a43w-adx-01:511-434402-OS01/BACnet IP.E433_301-OU001.R3037.-RY601"},"condition":{"presentValue":{"reliability":"reliabilityEnumSet.reliable","priority":"writePriorityEnumSet.priorityDefault"}}}
+13.08.2023 19:12:04 TRACE [main] TRACE n.cantara.sse.SseClientWithReconnect.main - Received Event:
+id: a87c8c2b-8539-4495-a94b-4f341a06036e:10,
+name: object.values.update,
+comment: null,
+data: {
+        "item": {
+          "presentValue": 411.839996,
+          "id": "05ccd193-a3f9-5db7-9c72-61987ca3d8dd",
+          "itemReference": "a43w-adx-01:511-434402-OS01/BACnet IP.E433_301-OU001.R3037.-RY601"
+        },
+        "condition": {
+          "presentValue": {
+            "reliability": "reliabilityEnumSet.reliable",
+            "priority": "writePriorityEnumSet.priorityDefault"
+          }
+        }
+      }
+
+
+Received Event: "2023-08-13T17:12:11.288578Z"
+
+13.08.2023 19:12:11 TRACE [main] TRACE n.cantara.sse.SseClientWithReconnect.main - Received Event: id: a87c8c2b-8539-4495-a94b-4f341a06036e:11, name: object.values.heartbeat, comment: null,
+data: "2023-08-13T17:12:11.288578Z"

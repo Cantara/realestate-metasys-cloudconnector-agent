@@ -10,14 +10,12 @@ import no.cantara.realestate.mappingtable.repository.MappedIdRepositoryImpl;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysApiClientRest;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClientSimulator;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysStreamClient;
 import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionClient;
 import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionServiceStub;
 import no.cantara.realestate.metasys.cloudconnector.distribution.ObservationDistributionResource;
 import no.cantara.realestate.metasys.cloudconnector.distribution.ObservationDistributionServiceStub;
-import no.cantara.realestate.metasys.cloudconnector.observations.MappedIdBasedImporter;
-import no.cantara.realestate.metasys.cloudconnector.observations.MetasysMappedIdQueryBuilder;
-import no.cantara.realestate.metasys.cloudconnector.observations.ScheduledImportManager;
-import no.cantara.realestate.metasys.cloudconnector.observations.TrendLogsImporter;
+import no.cantara.realestate.metasys.cloudconnector.observations.*;
 import no.cantara.realestate.metasys.cloudconnector.sensors.MetasysConfigImporter;
 import no.cantara.realestate.metasys.cloudconnector.sensors.SensorType;
 import no.cantara.realestate.observations.ObservationMessage;
@@ -93,15 +91,35 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         ObservationDistributionClient finalObservationDistributionClient = observationDistributionClient;
         ScheduledImportManager scheduledImportManager = init(ScheduledImportManager.class, () -> wireScheduledImportManager(sdClient, finalObservationDistributionClient, metricsDistributionClient, mappedIdRepository));
         ObservationDistributionResource observationDistributionResource = initAndRegisterJaxRsWsComponent(ObservationDistributionResource.class, () -> createObservationDistributionResource(finalObservationDistributionClient));
-        get(StingrayHealthService.class).registerHealthProbe("observationDistribution.message.count", observationDistributionResource::getDistributedCount);
+
+        //Wire up the stream importer
+        MetasysStreamClient streamClient = init(MetasysStreamClient.class, () -> new MetasysStreamClient());
+        MetasysStreamImporter streamImporter = init(MetasysStreamImporter.class, () -> wireMetasysStreamImporter(streamClient, sdClient, mappedIdRepository, finalObservationDistributionClient, metricsDistributionClient));
+
+        //Random Example
         init(Random.class, this::createRandom);
         RandomizerResource randomizerResource = initAndRegisterJaxRsWsComponent(RandomizerResource.class, this::createRandomizerResource);
-        get(StingrayHealthService.class).registerHealthProbe("randomizer.request.count", randomizerResource::getRequestCount);
+
         get(StingrayHealthService.class).registerHealthProbe("mappedIdRepository.size", mappedIdRepository::size);
         get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-isHealthy: ", sdClient::isHealthy);
         get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-isLogedIn: ", sdClient::isLoggedIn);
         get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-numberofTrendsSamples: ", sdClient::getNumberOfTrendSamplesReceived);
+        get(StingrayHealthService.class).registerHealthProbe("observationDistribution.message.count", observationDistributionResource::getDistributedCount);
+        get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isHealthy: ", streamClient::isHealthy);
+        get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isLogedIn: ", streamClient::isLoggedIn);
+        get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isStreamOpen: ", streamClient::isStreamOpen);
+
+        // Start import scheduler and stream
         scheduledImportManager.startScheduledImportOfTrendIds();
+        streamImporter.openStream();
+    }
+
+
+    //wireScheduledImportManager(SdClient sdClient, ObservationDistributionClient distributionClient, MetricsDistributionClient metricsClient, MappedIdRepository mappedIdRepository) {
+    protected MetasysStreamImporter wireMetasysStreamImporter(MetasysStreamClient streamClient, SdClient sdClient, MappedIdRepository mappedIdRepository, ObservationDistributionClient distributionClient, MetricsDistributionClient metricsClient) {
+        MetasysStreamImporter streamImporter = new MetasysStreamImporter(streamClient, sdClient, mappedIdRepository, distributionClient, metricsClient);
+
+        return streamImporter;
     }
 
     private SdClient createSdClient(ApplicationProperties config) {

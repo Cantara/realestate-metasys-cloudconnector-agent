@@ -20,4 +20,6 @@ public interface SdClient {
     boolean isHealthy();
 
     long getNumberOfTrendSamplesReceived();
+
+    UserToken getUserToken();
 }

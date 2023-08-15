@@ -1,0 +1,13 @@
+{
+  "item": {
+    "presentValue": 411.839996,
+    "id": "05ccd193-a3f9-5db7-9c72-61987ca3d8dd",
+    "itemReference": "a43w-adx-01:511-434402-OS01/BACnet IP.E433_301-OU001.R3037.-RY601"
+  },
+  "condition": {
+    "presentValue": {
+      "reliability": "reliabilityEnumSet.reliable",
+      "priority": "writePriorityEnumSet.priorityDefault"
+    }
+  }
+}
