@@ -35,5 +35,5 @@ importsensorsQuery.realestates=realEstateName1,realEstateName2
 ``` 
 
 ### Updates
-* 0.7.0 - Support for Streming of sensors from Metasys
+* 0.7.0 - Support for Streming of sensors from Metasys, and distributing these observations.
 
