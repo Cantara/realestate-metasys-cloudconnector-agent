@@ -34,3 +34,6 @@ The intention is to support filtering of which sensors, from defined buildings t
 importsensorsQuery.realestates=realEstateName1,realEstateName2
 ``` 
 
+### Updates
+* 0.7.0 - Support for Streming of sensors from Metasys
+
