@@ -45,7 +45,8 @@ public class MetasysStreamImporter implements StreamListener {
         if (event instanceof MetasysObservedValueEvent) {
             log.debug("MetasysStreamImporter received:\n {}", event);
             MetasysObservedValueEvent observedValueEvent = (MetasysObservedValueEvent) event;
-            String metasysObjectId = observedValueEvent.getId();
+            //FIXME introcuce test for this scenario
+            String metasysObjectId = observedValueEvent.getObservedValue().getId();
             UniqueKey key = new MetasysUniqueKey(metasysObjectId);
             List<MappedSensorId> mappedIds = idRepository.find(key);
             if (mappedIds != null && mappedIds.size() > 0) {
