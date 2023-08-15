@@ -109,10 +109,18 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isHealthy: ", streamClient::isHealthy);
         get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isLogedIn: ", streamClient::isLoggedIn);
         get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isStreamOpen: ", streamClient::isStreamOpen);
+        get(StingrayHealthService.class).registerHealthProbe(streamImporter.getName() + "-isHealthy: ", streamImporter::isHealthy);
+        get(StingrayHealthService.class).registerHealthProbe(streamImporter.getName() + "-subscriptionId: ", streamImporter::getSubscriptionId);
 
         // Start import scheduler and stream
         scheduledImportManager.startScheduledImportOfTrendIds();
-        streamImporter.openStream();
+        try {
+            streamImporter.openStream();
+        } catch (Exception e) {
+            String cause = e.getMessage();
+            streamImporter.setUnhealthy(cause);
+            log.warn("Failed to open stream. Reason: {}", e.getMessage());
+        }
     }
 
 

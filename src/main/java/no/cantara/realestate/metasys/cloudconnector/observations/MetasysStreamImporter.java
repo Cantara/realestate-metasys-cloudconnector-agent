@@ -12,6 +12,7 @@ import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistribu
 import no.cantara.realestate.observations.ObservationMessage;
 import org.slf4j.Logger;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.slf4j.LoggerFactory.getLogger;
@@ -23,6 +24,10 @@ public class MetasysStreamImporter implements StreamListener {
     private final MappedIdRepository idRepository;
     private final ObservationDistributionClient distributionClient;
     private final MetricsDistributionClient metricsDistributionClient;
+    private String subscriptionId = null;
+
+    private boolean isHealthy = false;
+    private List<String> unhealthyMessages = new ArrayList<>();
 
     public MetasysStreamImporter(MetasysStreamClient streamClient, SdClient sdClient, MappedIdRepository idRepository, ObservationDistributionClient distributionClient, MetricsDistributionClient metricsDistributionClient) {
         this.streamClient = streamClient;
@@ -35,9 +40,10 @@ public class MetasysStreamImporter implements StreamListener {
     //FIXME
     @Override
     public void onEvent(StreamEvent event) {
+        log.trace("StreamEvent received:\n {}. Class: {}", event, event.getClass());
 
         if (event instanceof MetasysObservedValueEvent) {
-            log.trace("MetasysStreamImporter received:\n {}", event);
+            log.debug("MetasysStreamImporter received:\n {}", event);
             MetasysObservedValueEvent observedValueEvent = (MetasysObservedValueEvent) event;
             String metasysObjectId = observedValueEvent.getId();
             UniqueKey key = new MetasysUniqueKey(metasysObjectId);
@@ -53,6 +59,9 @@ public class MetasysStreamImporter implements StreamListener {
             } else {
                 log.trace("MappedId not found for metasysObjectId: {}", metasysObjectId);
             }
+        } else if (event instanceof MetasysOpenStreamEvent) {
+            this.subscriptionId = ((MetasysOpenStreamEvent) event).getSubscriptionId();
+            log.info("Start subscribing to stream with subscriptionId: {}", subscriptionId);
         }
     }
 
@@ -74,7 +83,28 @@ public class MetasysStreamImporter implements StreamListener {
         String streamUrl = ApplicationProperties.getInstance().get("sd.api.url") + "/stream";
         if (streamClient != null && !streamClient.isStreamOpen()) {
             streamClient.openStream(streamUrl, sdClient.getUserToken().getAccessToken(), this);
+            isHealthy = true;
         }
+    }
 
+    public String getSubscriptionId() {
+        return subscriptionId;
+    }
+
+    public String getName() {
+        return "MetasysStreamImporter";
+    }
+
+    public boolean isHealthy() {
+        return isHealthy;
+    }
+
+    public void setUnhealthy(String cause) {
+        this.isHealthy = false;
+        this.unhealthyMessages.add(cause);
+    }
+
+    public List<String> getUnhealthyMessages() {
+        return unhealthyMessages;
     }
 }
