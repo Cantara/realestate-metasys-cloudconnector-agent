@@ -10,6 +10,7 @@ import no.cantara.realestate.mappingtable.repository.MappedIdRepositoryImpl;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysApiClientRest;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClientSimulator;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysStreamClient;
 import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionClient;
 import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionServiceStub;
@@ -131,9 +132,13 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
             try {
                 URI apiUri = new URI(apiUrl);
                 sdClient = new MetasysApiClientRest(apiUri);
+                log.info("Logon to SdClient with username: {}", config.get("sd.api.username"));
+                sdClient.logon();
                 log.info("Running with a live REST SD.");
             } catch (URISyntaxException e) {
                 throw new MetasysCloudConnectorException("Failed to connect SD Client to URL: " + apiUrl, e);
+            } catch (SdLogonFailedException e) {
+                throw new MetasysCloudConnectorException("Failed to logon SD Client. URL used: " + apiUrl, e);
             }
         } else {
             URI simulatorUri = URI.create("https://simulator.totto.org:8080/SD");
