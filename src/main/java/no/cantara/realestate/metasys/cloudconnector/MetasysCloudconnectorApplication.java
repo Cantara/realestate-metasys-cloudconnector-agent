@@ -46,8 +46,13 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
                 .conventions(ApplicationProperties.builder())
                 .buildAndSetStaticSingleton();
 
-        new MetasysCloudconnectorApplication(config).init().start();
-        log.info("Server started. See status on {}:{}{}/health", "http://localhost", config.get("server.port"), config.get("server.context-path"));
+        try {
+            new MetasysCloudconnectorApplication(config).init().start();
+            log.info("Server started. See status on {}:{}{}/health", "http://localhost", config.get("server.port"), config.get("server.context-path"));
+        } catch (Exception e) {
+            log.error("Failed to start MetasysCloudconnectorApplication", e);
+        }
+
     }
 
     public MetasysCloudconnectorApplication(ApplicationProperties config) {
@@ -93,34 +98,37 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         ScheduledImportManager scheduledImportManager = init(ScheduledImportManager.class, () -> wireScheduledImportManager(sdClient, finalObservationDistributionClient, metricsDistributionClient, mappedIdRepository));
         ObservationDistributionResource observationDistributionResource = initAndRegisterJaxRsWsComponent(ObservationDistributionResource.class, () -> createObservationDistributionResource(finalObservationDistributionClient));
 
-        //Wire up the stream importer
-        MetasysStreamClient streamClient = init(MetasysStreamClient.class, () -> new MetasysStreamClient());
-        MetasysStreamImporter streamImporter = init(MetasysStreamImporter.class, () -> wireMetasysStreamImporter(streamClient, sdClient, mappedIdRepository, finalObservationDistributionClient, metricsDistributionClient));
-
-        //Random Example
-        init(Random.class, this::createRandom);
-        RandomizerResource randomizerResource = initAndRegisterJaxRsWsComponent(RandomizerResource.class, this::createRandomizerResource);
-
         get(StingrayHealthService.class).registerHealthProbe("mappedIdRepository.size", mappedIdRepository::size);
         get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-isHealthy: ", sdClient::isHealthy);
         get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-isLogedIn: ", sdClient::isLoggedIn);
         get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-numberofTrendsSamples: ", sdClient::getNumberOfTrendSamplesReceived);
         get(StingrayHealthService.class).registerHealthProbe("observationDistribution.message.count", observationDistributionResource::getDistributedCount);
-        get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isHealthy: ", streamClient::isHealthy);
-        get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isLogedIn: ", streamClient::isLoggedIn);
-        get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isStreamOpen: ", streamClient::isStreamOpen);
-        get(StingrayHealthService.class).registerHealthProbe(streamImporter.getName() + "-isHealthy: ", streamImporter::isHealthy);
-        get(StingrayHealthService.class).registerHealthProbe(streamImporter.getName() + "-subscriptionId: ", streamImporter::getSubscriptionId);
+        //Random Example
+        init(Random.class, this::createRandom);
+        RandomizerResource randomizerResource = initAndRegisterJaxRsWsComponent(RandomizerResource.class, this::createRandomizerResource);
+
+        //Wire up the stream importer
+        boolean enableStream = config.asBoolean("sd.stream.enabled");
+        if (enableStream) {
+            MetasysStreamClient streamClient = init(MetasysStreamClient.class, () -> new MetasysStreamClient());
+            MetasysStreamImporter streamImporter = init(MetasysStreamImporter.class, () -> wireMetasysStreamImporter(streamClient, sdClient, mappedIdRepository, finalObservationDistributionClient, metricsDistributionClient));
+            get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isHealthy: ", streamClient::isHealthy);
+            get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isLogedIn: ", streamClient::isLoggedIn);
+            get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isStreamOpen: ", streamClient::isStreamOpen);
+            get(StingrayHealthService.class).registerHealthProbe(streamImporter.getName() + "-isHealthy: ", streamImporter::isHealthy);
+            get(StingrayHealthService.class).registerHealthProbe(streamImporter.getName() + "-subscriptionId: ", streamImporter::getSubscriptionId);
+            try {
+                streamImporter.openStream();
+            } catch (Exception e) {
+                String cause = e.getMessage();
+                streamImporter.setUnhealthy(cause);
+                log.warn("Failed to open stream. Reason: {}", e.getMessage());
+            }
+        }
 
         // Start import scheduler and stream
         scheduledImportManager.startScheduledImportOfTrendIds();
-        try {
-            streamImporter.openStream();
-        } catch (Exception e) {
-            String cause = e.getMessage();
-            streamImporter.setUnhealthy(cause);
-            log.warn("Failed to open stream. Reason: {}", e.getMessage());
-        }
+
     }
 
 
