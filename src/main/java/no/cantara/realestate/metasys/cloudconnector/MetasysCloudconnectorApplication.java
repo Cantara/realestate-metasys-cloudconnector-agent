@@ -110,7 +110,7 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         //Wire up the stream importer
         boolean enableStream = config.asBoolean("sd.stream.enabled");
         if (enableStream) {
-            MetasysStreamClient streamClient = init(MetasysStreamClient.class, () -> new MetasysStreamClient());
+            MetasysStreamClient streamClient =  new MetasysStreamClient();
             MetasysStreamImporter streamImporter = init(MetasysStreamImporter.class, () -> wireMetasysStreamImporter(streamClient, sdClient, mappedIdRepository, finalObservationDistributionClient, metricsDistributionClient));
             get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isHealthy: ", streamClient::isHealthy);
             get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isLogedIn: ", streamClient::isLoggedIn);
