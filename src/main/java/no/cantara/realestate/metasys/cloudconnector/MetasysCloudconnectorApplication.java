@@ -112,18 +112,18 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         if (enableStream) {
             MetasysStreamClient streamClient =  new MetasysStreamClient();
             MetasysStreamImporter streamImporter = init(MetasysStreamImporter.class, () -> wireMetasysStreamImporter(streamClient, sdClient, mappedIdRepository, finalObservationDistributionClient, metricsDistributionClient));
-//            get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isHealthy: ", streamClient::isHealthy);
-//            get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isLogedIn: ", streamClient::isLoggedIn);
-//            get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isStreamOpen: ", streamClient::isStreamOpen);
-//            get(StingrayHealthService.class).registerHealthProbe(streamImporter.getName() + "-isHealthy: ", streamImporter::isHealthy);
-//            get(StingrayHealthService.class).registerHealthProbe(streamImporter.getName() + "-subscriptionId: ", streamImporter::getSubscriptionId);
-            try {
-                streamImporter.openStream();
-            } catch (Exception e) {
-                String cause = e.getMessage();
-                streamImporter.setUnhealthy(cause);
-                log.warn("Failed to open stream. Reason: {}", e.getMessage());
-            }
+            get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isHealthy: ", streamClient::isHealthy);
+            get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isLogedIn: ", streamClient::isLoggedIn);
+            get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isStreamOpen: ", streamClient::isStreamOpen);
+            get(StingrayHealthService.class).registerHealthProbe(streamImporter.getName() + "-isHealthy: ", streamImporter::isHealthy);
+            get(StingrayHealthService.class).registerHealthProbe(streamImporter.getName() + "-subscriptionId: ", streamImporter::getSubscriptionId);
+//            try {
+//                streamImporter.openStream();
+//            } catch (Exception e) {
+//                String cause = e.getMessage();
+//                streamImporter.setUnhealthy(cause);
+//                log.warn("Failed to open stream. Reason: {}", e.getMessage());
+//            }
         }
 
         // Start import scheduler and stream
