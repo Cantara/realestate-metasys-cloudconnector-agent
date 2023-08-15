@@ -72,12 +72,17 @@ public class MetasysStreamClient {
                     isLoggedIn = true;
                     isStreamOpen = true;
                 } else {
-                    String data = inboundEvent.readData(String.class);
-                    System.out.println("Received Event: " + data);
-                    log.trace("Received Event: id: {}, name: {}, comment: {}, \ndata: {}", inboundEvent.getId(), inboundEvent.getName(), inboundEvent.getComment(), data);
-                    StreamEvent streamEvent = EventInputMapper.toStreamEvent(inboundEvent);
-                    streamListener.onEvent(streamEvent);
-                    lastEventReceievedAt = System.currentTimeMillis();
+                    try {
+                        String data = inboundEvent.readData(String.class);
+                        System.out.println("Received Event: " + data);
+                        log.trace("Received Event: id: {}, name: {}, comment: {}, \ndata: {}", inboundEvent.getId(), inboundEvent.getName(), inboundEvent.getComment(), data);
+                        StreamEvent streamEvent = EventInputMapper.toStreamEvent(inboundEvent);
+                        streamListener.onEvent(streamEvent);
+                        lastEventReceievedAt = System.currentTimeMillis();
+                    } catch (Exception e) {
+                        //FIXME improve error handling
+                        log.error("Failed to read data from inboundEvent: {}", inboundEvent, e);
+                    }
                 }
             }
         } catch (InterruptedException e) {
