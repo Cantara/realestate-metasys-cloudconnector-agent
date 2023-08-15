@@ -85,6 +85,8 @@ public class MetasysStreamImporter implements StreamListener {
         if (streamClient != null && !streamClient.isStreamOpen()) {
             streamClient.openStream(streamUrl, sdClient.getUserToken().getAccessToken(), this);
             isHealthy = true;
+        } else {
+            log.debug("Stream already open. Skipping openStream");
         }
     }
 

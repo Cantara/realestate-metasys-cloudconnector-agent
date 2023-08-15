@@ -49,45 +49,48 @@ public class MetasysStreamClient {
     }
 
     public void openStream(String sseUrl, String bearerToken, StreamListener streamListener) {
-        EventInput eventInput = client.target(sseUrl)
-                .request()
-                .header("Authorization", "Bearer " + bearerToken)
-                .get(EventInput.class);
-        isLoggedIn = true;
-        isStreamOpen = true;
-        try {
-            while (!eventInput.isClosed()) {
-                InboundEvent inboundEvent = eventInput.read();
-                if (inboundEvent == null) {
-                    // Reconnect logic (you can add a delay here before reconnecting)
-                    isLoggedIn = false;
-                    eventInput.close();
-                    isStreamOpen = false;
-                    Thread.sleep(100);
+        Thread t = new Thread(() -> {
+            EventInput eventInput = client.target(sseUrl)
+                    .request()
+                    .header("Authorization", "Bearer " + bearerToken)
+                    .get(EventInput.class);
+            isLoggedIn = true;
+            isStreamOpen = true;
+            try {
+                while (!eventInput.isClosed()) {
+                    InboundEvent inboundEvent = eventInput.read();
+                    if (inboundEvent == null) {
+                        // Reconnect logic (you can add a delay here before reconnecting)
+                        isLoggedIn = false;
+                        eventInput.close();
+                        isStreamOpen = false;
+                        Thread.sleep(100);
 
-                    eventInput = client.target(sseUrl)
-                            .request()
-                            .header("Authorization", "Bearer " + bearerToken)
-                            .get(EventInput.class);
-                    isLoggedIn = true;
-                    isStreamOpen = true;
-                } else {
-                    try {
-                        String data = inboundEvent.readData(String.class);
-                        System.out.println("Received Event: " + data);
-                        log.trace("Received Event: id: {}, name: {}, comment: {}, \ndata: {}", inboundEvent.getId(), inboundEvent.getName(), inboundEvent.getComment(), data);
-                        StreamEvent streamEvent = EventInputMapper.toStreamEvent(inboundEvent);
-                        streamListener.onEvent(streamEvent);
-                        lastEventReceievedAt = System.currentTimeMillis();
-                    } catch (Exception e) {
-                        //FIXME improve error handling
-                        log.error("Failed to read data from inboundEvent: {}", inboundEvent, e);
+                        eventInput = client.target(sseUrl)
+                                .request()
+                                .header("Authorization", "Bearer " + bearerToken)
+                                .get(EventInput.class);
+                        isLoggedIn = true;
+                        isStreamOpen = true;
+                    } else {
+                        try {
+                            String data = inboundEvent.readData(String.class);
+                            System.out.println("Received Event: " + data);
+                            log.trace("Received Event: id: {}, name: {}, comment: {}, \ndata: {}", inboundEvent.getId(), inboundEvent.getName(), inboundEvent.getComment(), data);
+                            StreamEvent streamEvent = EventInputMapper.toStreamEvent(inboundEvent);
+                            streamListener.onEvent(streamEvent);
+                            lastEventReceievedAt = System.currentTimeMillis();
+                        } catch (Exception e) {
+                            //FIXME improve error handling
+                            log.error("Failed to read data from inboundEvent: {}", inboundEvent, e);
+                        }
                     }
                 }
+            } catch (InterruptedException e) {
+                //Do nothing based on sleep interupted
             }
-        } catch (InterruptedException e) {
-            //Do nothing based on sleep interupted
-        }
+        });
+        t.start();
 
     }
 
