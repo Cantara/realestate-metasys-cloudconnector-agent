@@ -1,5 +1,6 @@
 package no.cantara.realestate.metasys.cloudconnector;
 
+import com.codahale.metrics.health.HealthCheck;
 import no.cantara.config.ApplicationProperties;
 import no.cantara.realestate.azure.AzureObservationDistributionClient;
 import no.cantara.realestate.distribution.ObservationDistributionClient;
@@ -113,10 +114,11 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
             MetasysStreamClient streamClient =  new MetasysStreamClient();
             MetasysStreamImporter streamImporter = init(MetasysStreamImporter.class, () -> wireMetasysStreamImporter(streamClient, sdClient, mappedIdRepository, finalObservationDistributionClient, metricsDistributionClient));
             get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isHealthy: ", streamClient::isHealthy);
-            get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isLogedIn: ", streamClient::isLoggedIn);
+            get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isLoggedIn: ", streamClient::isLoggedIn);
             get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isStreamOpen: ", streamClient::isStreamOpen);
             get(StingrayHealthService.class).registerHealthProbe(streamImporter.getName() + "-isHealthy: ", streamImporter::isHealthy);
             get(StingrayHealthService.class).registerHealthProbe(streamImporter.getName() + "-subscriptionId: ", streamImporter::getSubscriptionId);
+
             try {
                 streamImporter.openStream();
             } catch (Exception e) {
@@ -124,10 +126,34 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
                 streamImporter.setUnhealthy(cause);
                 log.warn("Failed to open stream. Reason: {}", e.getMessage());
             }
+            //Register health checks
+            get(StingrayHealthService.class).registerHealthCheck(streamClient.getName() + ".isLoggedIn", new HealthCheck() {
+                @Override
+                protected Result check() throws Exception {
+                    if (streamClient.isHealthy() && streamClient.isLoggedIn()) {
+                        return Result.healthy();
+                    } else {
+                        return Result.unhealthy(streamClient.getName() + " is not logged in. ");
+                    }
+                }
+            });
+            get(StingrayHealthService.class).registerHealthCheck(streamImporter.getName() + ".isHealthy", new HealthCheck() {
+                @Override
+                protected Result check() throws Exception {
+                    if (streamImporter.isHealthy()) {
+                        return Result.healthy();
+                    } else {
+                        return Result.unhealthy(streamImporter.getName() +" is unhealthy. ");
+                    }
+                }
+            });
         }
 
         // Start import scheduler and stream
         scheduledImportManager.startScheduledImportOfTrendIds();
+
+        //Register health checks
+
 
     }
 
