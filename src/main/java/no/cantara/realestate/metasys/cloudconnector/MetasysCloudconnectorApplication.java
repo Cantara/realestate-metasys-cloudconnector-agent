@@ -40,6 +40,7 @@ import static org.slf4j.LoggerFactory.getLogger;
 public class MetasysCloudconnectorApplication extends AbstractStingrayApplication<MetasysCloudconnectorApplication> {
     private static final Logger log = getLogger(MetasysCloudconnectorApplication.class);
     private boolean enableStream;
+    private boolean enableScheduledImport;
 
 
     public static void main(String[] args) {
@@ -62,7 +63,9 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         if (enableStream) {
             get(MetasysStreamImporter.class).startSubscribing();
         }
-        get(ScheduledImportManager.class).startScheduledImportOfTrendIds();
+        if (enableScheduledImport) {
+            get(ScheduledImportManager.class).startScheduledImportOfTrendIds();
+        }
     }
 
     public MetasysCloudconnectorApplication(ApplicationProperties config) {
@@ -78,6 +81,7 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         StingraySecurity.initSecurity(this);
         boolean doImportData = config.asBoolean("import.data");
         enableStream = config.asBoolean("sd.stream.enabled");
+        enableScheduledImport = config.asBoolean("sd.scheduledImport.enabled");
         SdClient sdClient = createSdClient(config);
 
         ServiceLoader<ObservationDistributionClient> observationDistributionClients = ServiceLoader.load(ObservationDistributionClient.class);
