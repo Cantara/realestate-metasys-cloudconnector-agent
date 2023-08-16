@@ -206,11 +206,11 @@ public class MetasysApiClientRest implements SdClient {
         String apiUrl = getConfigValue("sd.api.url"); //getConfigProperty("sd.api.url");
 
         String bearerToken = findAccessToken();
-        URI samplesUri = new URI(apiUrl + "objects/" + objectId+"/trendedAttributes/presentValue/attributes/presentValue?includeSchema=false");
+        URI subscribeUri = new URI(apiUrl + "objects/" + objectId+"/attributes/presentValue?includeSchema=false");
         CloseableHttpClient httpClient = HttpClients.createDefault();
         HttpGet request = null;
         try {
-            request = new HttpGet(samplesUri);
+            request = new HttpGet(subscribeUri);
             request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);
             request.addHeader(METASYS_SUBSCRIBE_HEADER, subscriptionId);
             CloseableHttpResponse response = httpClient.execute(request);
@@ -223,7 +223,7 @@ public class MetasysApiClientRest implements SdClient {
                         log.trace("Received body: {}", body);
                     }
                 } else {
-                    log.trace("Could not subscribe to subscription {} for objectId {}", subscriptionId, objectId);
+                    log.trace("Could not subscribe to subscription {} for objectId {} using URL: {}", subscriptionId, objectId, subscribeUri);
                 }
             } catch (Exception e) {
                 setUnhealthy();
