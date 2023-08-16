@@ -43,8 +43,9 @@ public class MetasysStreamImporter implements StreamListener {
     //FIXME
     @Override
     public void onEvent(StreamEvent event) {
-        log.trace("StreamEvent received:\n {}. Class: {}", event, event.getClass());
-
+        if (event != null && event.getId() != null) {
+            log.trace("StreamEvent received:\n {}. Class: {}", event, event.getClass());
+        }
         if (event instanceof MetasysObservedValueEvent) {
             log.debug("MetasysStreamImporter received:\n {}", event);
             MetasysObservedValueEvent observedValueEvent = (MetasysObservedValueEvent) event;
