@@ -5,13 +5,16 @@ import no.cantara.realestate.distribution.ObservationDistributionClient;
 import no.cantara.realestate.mappingtable.MappedSensorId;
 import no.cantara.realestate.mappingtable.UniqueKey;
 import no.cantara.realestate.mappingtable.metasys.MetasysUniqueKey;
+import no.cantara.realestate.mappingtable.repository.MappedIdQuery;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClient;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.*;
 import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionClient;
 import no.cantara.realestate.observations.ObservationMessage;
 import org.slf4j.Logger;
 
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -66,18 +69,24 @@ public class MetasysStreamImporter implements StreamListener {
         }
     }
 
-    protected void startSubscribing() {
-                /*
-          private ScheduledImportManager wireScheduledImportManager(SdClient sdClient, ObservationDistributionClient distributionClient, MetricsDistributionClient metricsClient, MappedIdRepository mappedIdRepository) {
-
-        ScheduledImportManager scheduledImportManager = null;
-
-        List<String> importAllFromRealestates = findListOfRealestatesToImportFrom();
-        log.info("Importallres: {}", importAllFromRealestates);
-        if (importAllFromRealestates != null && importAllFromRealestates.size() > 0) {
-            for (String realestate : importAllFromRealestates) {
-                MappedIdQuery mappedIdQuery = new MetasysMappedIdQueryBuilder().realEstate(realestate).build();
-         */
+    public void startSubscribing() {
+        MappedIdQuery idQuery = new MetasysMappedIdQueryBuilder().build();
+       List<MappedSensorId> mappedSensorIds =  idRepository.find(idQuery);
+       if (mappedSensorIds.size() > 0) {
+           String metasysObjectId = mappedSensorIds.get(0).getSensorId().getId();
+           String subscriptionId = getSubscriptionId();
+           log.trace("Subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId);
+           try {
+               Integer httpStatus = sdClient.subscribePresentValueChange(getSubscriptionId(), metasysObjectId);
+               log.info("Subscription returned httpStatus: {}", httpStatus);
+           } catch (URISyntaxException e) {
+               log.warn("SD URL is missconfigured. Failed to subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
+           } catch (SdLogonFailedException e) {
+               log.warn("Failed to logon to SD system. Could not subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
+           }
+       } else {
+           log.warn("No mappedSensorIds found. Skipping subscription.");
+       }
     }
 
     public void openStream() {

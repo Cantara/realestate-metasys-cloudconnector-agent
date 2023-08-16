@@ -39,7 +39,7 @@ import static org.slf4j.LoggerFactory.getLogger;
 
 public class MetasysCloudconnectorApplication extends AbstractStingrayApplication<MetasysCloudconnectorApplication> {
     private static final Logger log = getLogger(MetasysCloudconnectorApplication.class);
-
+    private boolean enableStream;
 
 
     public static void main(String[] args) {
@@ -48,12 +48,21 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
                 .buildAndSetStaticSingleton();
 
         try {
-            new MetasysCloudconnectorApplication(config).init().start();
+            MetasysCloudconnectorApplication application = new MetasysCloudconnectorApplication(config).init().start();
             log.info("Server started. See status on {}:{}{}/health", "http://localhost", config.get("server.port"), config.get("server.context-path"));
+            application.startImportingObservations();
         } catch (Exception e) {
             log.error("Failed to start MetasysCloudconnectorApplication", e);
         }
 
+    }
+
+    private void startImportingObservations() {
+        // Start import scheduler and stream
+        if (enableStream) {
+            get(MetasysStreamImporter.class).startSubscribing();
+        }
+        get(ScheduledImportManager.class).startScheduledImportOfTrendIds();
     }
 
     public MetasysCloudconnectorApplication(ApplicationProperties config) {
@@ -68,6 +77,7 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         initBuiltinDefaults();
         StingraySecurity.initSecurity(this);
         boolean doImportData = config.asBoolean("import.data");
+        enableStream = config.asBoolean("sd.stream.enabled");
         SdClient sdClient = createSdClient(config);
 
         ServiceLoader<ObservationDistributionClient> observationDistributionClients = ServiceLoader.load(ObservationDistributionClient.class);
@@ -109,7 +119,6 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         RandomizerResource randomizerResource = initAndRegisterJaxRsWsComponent(RandomizerResource.class, this::createRandomizerResource);
 
         //Wire up the stream importer
-        boolean enableStream = config.asBoolean("sd.stream.enabled");
         if (enableStream) {
             MetasysStreamClient streamClient =  new MetasysStreamClient();
             MetasysStreamImporter streamImporter = init(MetasysStreamImporter.class, () -> wireMetasysStreamImporter(streamClient, sdClient, mappedIdRepository, finalObservationDistributionClient, metricsDistributionClient));
@@ -148,9 +157,6 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
                 }
             });
         }
-
-        // Start import scheduler and stream
-        scheduledImportManager.startScheduledImportOfTrendIds();
     }
 
 

@@ -34,6 +34,7 @@ import static org.slf4j.LoggerFactory.getLogger;
 
 public class MetasysApiClientRest implements SdClient {
     private static final Logger log = getLogger(MetasysApiClientRest.class);
+    private static final String METASYS_SUBSCRIBE_HEADER = "METASYS-SUBSCRIBE";
     private final URI apiUri;
 
     //FIXME Implement Client https://github.com/Cantara/stingray/blob/main/samples/greeter/src/main/java/no/cantara/stingray/sample/greeter/HttpRandomizerClient.java
@@ -197,6 +198,45 @@ public class MetasysApiClientRest implements SdClient {
          */
         isHealthy = true;
         return new HashSet<>(trendSamples);
+    }
+
+    @Override
+    public Integer subscribePresentValueChange(String subscriptionId, String objectId) throws URISyntaxException, SdLogonFailedException {
+        Integer statusCode = null;
+        String apiUrl = getConfigValue("sd.api.url"); //getConfigProperty("sd.api.url");
+
+        String bearerToken = findAccessToken();
+        URI samplesUri = new URI(apiUrl + "objects/" + objectId+"/trendedAttributes/presentValue/attributes/presentValue?includeSchema=false");
+        CloseableHttpClient httpClient = HttpClients.createDefault();
+        HttpGet request = null;
+        try {
+            request = new HttpGet(samplesUri);
+            request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);
+            request.addHeader(METASYS_SUBSCRIBE_HEADER, subscriptionId);
+            CloseableHttpResponse response = httpClient.execute(request);
+            try {
+                statusCode = response.getCode();
+                if (statusCode == 202) {
+                    HttpEntity entity = response.getEntity();
+                    if (entity != null) {
+                        String body = EntityUtils.toString(entity);
+                        log.trace("Received body: {}", body);
+                    }
+                } else {
+                    log.trace("Could not subscribe to subscription {} for objectId {}", subscriptionId, objectId);
+                }
+            } catch (Exception e) {
+                setUnhealthy();
+                throw new MetasysCloudConnectorException("Failed to subscribe to objectId " + objectId
+                        + ". Reason: " + e.getMessage(), e);
+            }
+        } catch (Exception e) {
+            setUnhealthy();
+            throw new MetasysCloudConnectorException("Failed to subscribe to objectId " + objectId
+                    + ". Reason: " + e.getMessage(), e);
+        }
+        return statusCode;
+
     }
 
     public String findObjectId(String metasysDbReference) throws SdLogonFailedException, URISyntaxException {

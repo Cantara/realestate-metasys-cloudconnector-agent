@@ -162,6 +162,18 @@ public class SdClientSimulator implements SdClient {
         }
     }
 
+    @Override
+    public Integer subscribePresentValueChange(String subscriptionId, String objectId) throws URISyntaxException, SdLogonFailedException {
+        if (subscriptionId == null || objectId == null) {
+            return 400;
+        }
+
+        if (subscriptionId.isEmpty() || objectId.isEmpty()) {
+            return 404;
+        }
+        return 202;
+    }
+
     private void addSimulatedSDTrendSample(String trendId) {
         MetasysTrendSample ts = new MetasysTrendSample();
         ts.setTrendId(trendId);
