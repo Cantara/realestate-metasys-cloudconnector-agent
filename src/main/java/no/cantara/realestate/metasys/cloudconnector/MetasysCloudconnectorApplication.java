@@ -32,6 +32,7 @@ import java.nio.file.Paths;
 import java.util.*;
 
 import static no.cantara.realestate.metasys.cloudconnector.ObservationMesstageStubs.buildStubObservation;
+import static no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealthResource.setUnhealthy;
 import static org.slf4j.LoggerFactory.getLogger;
 
 public class MetasysCloudconnectorApplication extends AbstractStingrayApplication<MetasysCloudconnectorApplication> {
@@ -67,7 +68,13 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
                     idQueries.add(mappedIdQuery);
                 }
             }
-            get(MetasysStreamImporter.class).startSubscribing(idQueries);
+
+            try {
+                get(MetasysStreamImporter.class).startSubscribing(idQueries);
+            } catch (SdLogonFailedException e) {
+                setUnhealthy();
+                log.warn("Failed to start subscribing to stream. Reason: {}", e.getMessage());
+            }
         }
         if (enableScheduledImport) {
             get(ScheduledImportManager.class).startScheduledImportOfTrendIds();

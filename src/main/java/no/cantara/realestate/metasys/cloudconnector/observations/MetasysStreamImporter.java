@@ -71,12 +71,11 @@ public class MetasysStreamImporter implements StreamListener {
         }
     }
 
-    public void startSubscribing(List<MappedIdQuery> idQueries) {
+    public void startSubscribing(List<MappedIdQuery> idQueries) throws SdLogonFailedException {
         if (idQueries != null && idQueries.size() > 0) {
             MappedIdQuery idQuery = idQueries.get(0);
             List<MappedSensorId> mappedSensorIds = idRepository.find(idQuery);
-            if (mappedSensorIds.size() > 0) {
-                MappedSensorId mappedSensorId = mappedSensorIds.get(0);
+            for (MappedSensorId mappedSensorId : mappedSensorIds) {
                 MetasysSensorId sensorId = (MetasysSensorId) mappedSensorId.getSensorId();
                 String metasysObjectId = sensorId.getMetasysObjectId();
                 String subscriptionId = getSubscriptionId();
@@ -88,9 +87,8 @@ public class MetasysStreamImporter implements StreamListener {
                     log.warn("SD URL is missconfigured. Failed to subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
                 } catch (SdLogonFailedException e) {
                     log.warn("Failed to logon to SD system. Could not subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
+                    throw e;
                 }
-            } else {
-                log.warn("No mappedSensorIds found. Skipping subscription.");
             }
         } else {
             log.warn("No idQueries found. Skipping subscription.");
