@@ -29,10 +29,7 @@ import org.slf4j.Logger;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Random;
-import java.util.ServiceLoader;
+import java.util.*;
 
 import static no.cantara.realestate.metasys.cloudconnector.ObservationMesstageStubs.buildStubObservation;
 import static org.slf4j.LoggerFactory.getLogger;
@@ -61,7 +58,16 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
     private void startImportingObservations() {
         // Start import scheduler and stream
         if (enableStream) {
-            get(MetasysStreamImporter.class).startSubscribing();
+            List<String> importAllFromRealestates = findListOfRealestatesToImportFrom();
+            log.info("Importallres: {}", importAllFromRealestates);
+            List<MappedIdQuery> idQueries = new ArrayList<>();
+            if (importAllFromRealestates != null && importAllFromRealestates.size() > 0) {
+                for (String realestate : importAllFromRealestates) {
+                    MappedIdQuery mappedIdQuery = new MetasysMappedIdQueryBuilder().realEstate(realestate).build();
+                    idQueries.add(mappedIdQuery);
+                }
+            }
+            get(MetasysStreamImporter.class).startSubscribing(idQueries);
         }
         if (enableScheduledImport) {
             get(ScheduledImportManager.class).startScheduledImportOfTrendIds();

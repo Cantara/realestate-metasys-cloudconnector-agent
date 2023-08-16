@@ -70,24 +70,28 @@ public class MetasysStreamImporter implements StreamListener {
         }
     }
 
-    public void startSubscribing() {
-        MappedIdQuery idQuery = new MetasysMappedIdQueryBuilder().build();
-       List<MappedSensorId> mappedSensorIds =  idRepository.find(idQuery);
-       if (mappedSensorIds.size() > 0) {
-           String metasysObjectId = mappedSensorIds.get(0).getSensorId().getId();
-           String subscriptionId = getSubscriptionId();
-           log.trace("Subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId);
-           try {
-               Integer httpStatus = sdClient.subscribePresentValueChange(getSubscriptionId(), metasysObjectId);
-               log.info("Subscription returned httpStatus: {}", httpStatus);
-           } catch (URISyntaxException e) {
-               log.warn("SD URL is missconfigured. Failed to subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
-           } catch (SdLogonFailedException e) {
-               log.warn("Failed to logon to SD system. Could not subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
-           }
-       } else {
-           log.warn("No mappedSensorIds found. Skipping subscription.");
-       }
+    public void startSubscribing(List<MappedIdQuery> idQueries) {
+        if (idQueries != null && idQueries.size() > 0) {
+            MappedIdQuery idQuery = idQueries.get(0);
+            List<MappedSensorId> mappedSensorIds = idRepository.find(idQuery);
+            if (mappedSensorIds.size() > 0) {
+                String metasysObjectId = mappedSensorIds.get(0).getSensorId().getId();
+                String subscriptionId = getSubscriptionId();
+                log.trace("Subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId);
+                try {
+                    Integer httpStatus = sdClient.subscribePresentValueChange(getSubscriptionId(), metasysObjectId);
+                    log.info("Subscription returned httpStatus: {}", httpStatus);
+                } catch (URISyntaxException e) {
+                    log.warn("SD URL is missconfigured. Failed to subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
+                } catch (SdLogonFailedException e) {
+                    log.warn("Failed to logon to SD system. Could not subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
+                }
+            } else {
+                log.warn("No mappedSensorIds found. Skipping subscription.");
+            }
+        } else {
+            log.warn("No idQueries found. Skipping subscription.");
+        }
     }
 
     public void openStream() {
