@@ -151,10 +151,6 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
 
         // Start import scheduler and stream
         scheduledImportManager.startScheduledImportOfTrendIds();
-
-        //Register health checks
-
-
     }
 
 
