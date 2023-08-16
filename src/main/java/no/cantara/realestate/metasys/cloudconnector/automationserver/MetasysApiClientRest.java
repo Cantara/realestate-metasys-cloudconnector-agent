@@ -215,16 +215,17 @@ public class MetasysApiClientRest implements SdClient {
             request.addHeader(METASYS_SUBSCRIBE_HEADER, subscriptionId);
             CloseableHttpResponse response = httpClient.execute(request);
             try {
+                HttpEntity entity = response.getEntity();
                 statusCode = response.getCode();
-//                if (statusCode == 202) {
-                    HttpEntity entity = response.getEntity();
+                if (statusCode == 202) {
+                   log.trace("Subscribing ok for objectId: {}", objectId);
+                } else {
+                    String body = "";
                     if (entity != null) {
-                        String body = EntityUtils.toString(entity);
-                        log.trace("Received body: {}", body);
+                        body = EntityUtils.toString(entity);
                     }
-//                } else {
-//                    log.trace("Could not subscribe to subscription {} for objectId {} using URL: {}", subscriptionId, objectId, subscribeUri);
-//                }
+                    log.trace("Could not subscribe to subscription {} for objectId {} using URL: {}. Status: {}. Body text: {}", subscriptionId, objectId, subscribeUri, statusCode, body);
+                }
             } catch (Exception e) {
                 setUnhealthy();
                 throw new MetasysCloudConnectorException("Failed to subscribe to objectId " + objectId
