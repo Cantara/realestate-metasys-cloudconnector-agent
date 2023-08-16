@@ -7,6 +7,9 @@ public class MetasysOpenStreamEvent extends StreamEvent {
 
     public MetasysOpenStreamEvent(String id, String data) {
         super(id, name, null, data);
+        if (data != null) {
+            data = data.replace("\"", "");
+        }
         this.subscriptionId = data;
     }
 
