@@ -4,6 +4,7 @@ import no.cantara.config.ApplicationProperties;
 import no.cantara.realestate.distribution.ObservationDistributionClient;
 import no.cantara.realestate.mappingtable.MappedSensorId;
 import no.cantara.realestate.mappingtable.UniqueKey;
+import no.cantara.realestate.mappingtable.metasys.MetasysSensorId;
 import no.cantara.realestate.mappingtable.metasys.MetasysUniqueKey;
 import no.cantara.realestate.mappingtable.repository.MappedIdQuery;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
@@ -75,7 +76,9 @@ public class MetasysStreamImporter implements StreamListener {
             MappedIdQuery idQuery = idQueries.get(0);
             List<MappedSensorId> mappedSensorIds = idRepository.find(idQuery);
             if (mappedSensorIds.size() > 0) {
-                String metasysObjectId = mappedSensorIds.get(0).getSensorId().getId();
+                MappedSensorId mappedSensorId = mappedSensorIds.get(0);
+                MetasysSensorId sensorId = (MetasysSensorId) mappedSensorId.getSensorId();
+                String metasysObjectId = sensorId.getMetasysObjectId();
                 String subscriptionId = getSubscriptionId();
                 log.trace("Subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId);
                 try {
