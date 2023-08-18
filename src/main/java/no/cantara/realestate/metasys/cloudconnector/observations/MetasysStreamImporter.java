@@ -22,9 +22,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.Timer;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -123,6 +121,23 @@ public class MetasysStreamImporter implements StreamListener {
 
     protected void scheduleResubscribeWithin(Instant userTokenExpires) {
         log.trace("UserToken expires at: {}", userTokenExpires);
+        Duration dur = Duration.between(Instant.now(), userTokenExpires);
+        long durMillis = dur.get(ChronoUnit.MILLIS);
+        Timer timer = new Timer();
+        timer.schedule(new java.util.TimerTask() {
+            @Override
+            public void run() {
+                log.warn("Stream Subscription will soon expire. Need to re-subscribe with userToken {}", userTokenExpires);
+                try {
+                    sdClient.logon();
+                    UserToken reauthentiacateduserToken = sdClient.getUserToken();
+                    log.warn("Stream Subscription will soon expire. Need to re-subscribe with userToken {}", reauthentiacateduserToken);
+                } catch (Exception e) {
+                    log.warn("Exception trying to run re-subscribe with userToken {}", userTokenExpires, e);
+                }
+            }
+        }, durMillis);
+        /*
         ScheduledExecutorService executorService = Executors.newScheduledThreadPool(1);
         Runnable task1 = () -> {
             try {
@@ -133,9 +148,10 @@ public class MetasysStreamImporter implements StreamListener {
                 log.info("Exception trying to run simulated generation of trendvalues");
             }
         };
-        Duration dur = Duration.between(Instant.now(), userTokenExpires);
-        long dursec = dur.get(ChronoUnit.SECONDS);
+
         executorService.schedule(task1, dursec - 30, TimeUnit.SECONDS);
+
+         */
     }
 
     public String getSubscriptionId() {
