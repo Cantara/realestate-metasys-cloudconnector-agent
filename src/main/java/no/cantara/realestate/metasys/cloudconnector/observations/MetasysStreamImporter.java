@@ -54,7 +54,6 @@ public class MetasysStreamImporter implements StreamListener {
         this.metricsDistributionClient = metricsDistributionClient;
         scheduledExecutorService = new ScheduledThreadPoolExecutor(1);
         scheduledExecutorService.setRemoveOnCancelPolicy(true);
-        streamUrl = ApplicationProperties.getInstance().get("sd.api.url") + "/stream";
     }
 
     //FIXME
@@ -120,7 +119,7 @@ public class MetasysStreamImporter implements StreamListener {
     }
 
     public void openStream() {
-
+        streamUrl = ApplicationProperties.getInstance().get("sd.api.url") + "/stream";
         if (streamClient != null && !streamClient.isStreamOpen()) {
             UserToken userToken = sdClient.getUserToken();
             if (userToken != null) {
@@ -138,6 +137,7 @@ public class MetasysStreamImporter implements StreamListener {
     }
 
     public void reauthorizeSubscription() {
+        streamUrl = ApplicationProperties.getInstance().get("sd.api.url") + "/stream";
         if (streamClient != null) {
             UserToken userToken = sdClient.getUserToken();
             if (userToken != null) {
