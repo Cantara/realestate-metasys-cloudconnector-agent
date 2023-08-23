@@ -84,7 +84,9 @@ public class MetasysStreamImporter implements StreamListener {
             log.debug("Schedule resubscribe.");
             UserToken userToken = sdClient.getUserToken();
             expires = userToken.getExpires();
-            scheduleResubscribeWithin(expires);
+            Instant testTime = Instant.now().plusSeconds(600);
+            log.debug("Schedule resubscribe should be within: {}. Will test with only 10 minute delay. Rescubscribe within: {}", expires, testTime);
+            scheduleResubscribeWithin(testTime);
         }
     }
 
@@ -117,8 +119,8 @@ public class MetasysStreamImporter implements StreamListener {
         if (streamClient != null && !streamClient.isStreamOpen()) {
             UserToken userToken = sdClient.getUserToken();
             if (userToken != null) {
-                Instant userTokenExpires = userToken.getExpires();
-                scheduleResubscribeWithin(userTokenExpires);
+//                Instant userTokenExpires = userToken.getExpires();
+//                scheduleResubscribeWithin(userTokenExpires);
                 String accessToken = userToken.getAccessToken();
                 streamClient.openStream(streamUrl, accessToken, this);
                 isHealthy = true;
