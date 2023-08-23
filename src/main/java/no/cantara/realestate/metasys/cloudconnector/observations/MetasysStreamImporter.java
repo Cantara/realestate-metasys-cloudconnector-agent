@@ -45,6 +45,7 @@ public class MetasysStreamImporter implements StreamListener {
     private ScheduledThreadPoolExecutor scheduledExecutorService;
     private String streamUrl;
     private String lastKnownEventId;
+    private boolean reAuthorizationIsScheduled;
 
     public MetasysStreamImporter(MetasysStreamClient streamClient, SdClient sdClient, MappedIdRepository idRepository, ObservationDistributionClient distributionClient, MetricsDistributionClient metricsDistributionClient) {
         this.streamClient = streamClient;
@@ -87,11 +88,12 @@ public class MetasysStreamImporter implements StreamListener {
             log.debug("Schedule resubscribe.");
             UserToken userToken = sdClient.getUserToken();
             expires = userToken.getExpires();
-            Instant testTime = Instant.now().plusSeconds(600);
-            log.debug("Schedule resubscribe should be within: {}. Will test with only 10 minute delay. Resubscribe within: {}", expires, testTime);
-            scheduleResubscribeWithin(testTime);
+            Long reSubscribeIntervalInSeconds = Duration.between(Instant.now(), expires).get(ChronoUnit.SECONDS);
+            Long testTime = 600L;
+            log.warn("Schedule resubscribe should be within: {}. Will test with only 10 minute delay. Resubscribe within: {} seconds", expires, testTime);
+            reSubscribeIntervalInSeconds = testTime;
+            scheduleResubscribe(reSubscribeIntervalInSeconds);
         }
-        //FIXME If this was a new connection, the first message has an event type of hello and a special purpose. If this was a reconnect attempt, the first event will be subscribed data updates.
     }
 
     public void startSubscribing(List<MappedIdQuery> idQueries) throws SdLogonFailedException {
@@ -143,7 +145,7 @@ public class MetasysStreamImporter implements StreamListener {
             UserToken userToken = sdClient.getUserToken();
             if (userToken != null) {
                 Instant userTokenExpires = userToken.getExpires();
-                scheduleResubscribeWithin(userTokenExpires);
+//                scheduleResubscribeWithin(userTokenExpires);
                 String accessToken = userToken.getAccessToken();
 
                 streamClient.reconnectStream(streamUrl, accessToken, getLastKnownEventId(), this);
@@ -156,34 +158,34 @@ public class MetasysStreamImporter implements StreamListener {
         }
     }
 
-    protected void scheduleResubscribeWithin(Instant userTokenExpires) {
-        log.trace("UserToken expires at: {}", userTokenExpires);
+    protected void scheduleResubscribe(long reSubscribeIntervalInSeconds) {
+        log.trace("Schedule resubscribe every {} seconds", reSubscribeIntervalInSeconds);
 
-        Long resubscribeWithinSeconds = Duration.between(Instant.now(), userTokenExpires).get(ChronoUnit.SECONDS) - 30;
-        Runnable task1 = () -> {
-            try {
-                log.warn("Stream Subscription will soon expire. Need to re-subscribe ");
-                sdClient.logon();
-                UserToken reAuthentiacateduserToken = sdClient.getUserToken();
-                if (reAuthentiacateduserToken != null && reAuthentiacateduserToken.getExpires() != null) {
-                    log.info("Resubscribe successful. New userToken expires at: {}", reAuthentiacateduserToken.getExpires());
+        if (!reAuthorizationIsScheduled || scheduledExecutorService.getQueue().size() < 1) {
+
+            Long initialDelay = reSubscribeIntervalInSeconds - 30;
+            if (initialDelay < 0) {
+                initialDelay = 0L;
+            }
+            log.trace("Resubscribe every {} seconds. Initial delay: {}", reSubscribeIntervalInSeconds, initialDelay);
+            Runnable task1 = () -> {
+                try {
+                    log.warn("Stream Subscription will soon expire. Need to re-subscribe ");
+                    sdClient.logon();
+                    UserToken reAuthentiacateduserToken = sdClient.getUserToken();
+                    if (reAuthentiacateduserToken != null && reAuthentiacateduserToken.getExpires() != null) {
+                        log.info("Resubscribe successful. New userToken expires at: {}", reAuthentiacateduserToken.getExpires());
+                    }
+                    reauthorizeSubscription();
+                } catch (Exception e) {
+                    log.warn("Exception trying to reauthenticate with UserToken <hidden>", e);
                 }
-                reauthorizeSubscription();
-            } catch (Exception e) {
-                log.warn("Exception trying to reauthenticate userToken {}", userTokenExpires, e);
-            }
-        };
-
-        if (scheduledExecutorService != null) {
-            if (scheduledExecutorService.getQueue().size() > 0) {
-                log.debug("Remove all of the older tasks from queue");
-                scheduledExecutorService.getQueue().clear();
-            }
+            };
+            scheduledExecutorService.scheduleAtFixedRate(task1, initialDelay, reSubscribeIntervalInSeconds, TimeUnit.SECONDS);
+            reAuthorizationIsScheduled = true;
         } else {
-            scheduledExecutorService = new ScheduledThreadPoolExecutor(1);
-            scheduledExecutorService.setRemoveOnCancelPolicy(true);
+            log.trace("Resubscribe already scheduled. Skipping scheduleResubscribeWithin");
         }
-        scheduledExecutorService.schedule(task1, resubscribeWithinSeconds, TimeUnit.SECONDS);
     }
 
     public String getSubscriptionId() {

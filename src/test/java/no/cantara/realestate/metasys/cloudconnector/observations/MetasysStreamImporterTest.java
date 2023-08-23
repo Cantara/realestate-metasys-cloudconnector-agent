@@ -46,14 +46,15 @@ class MetasysStreamImporterTest {
     }
 
     @Test
-    void scheduleResubscribeWithin() throws SdLogonFailedException, InterruptedException {
+    void scheduleResubscribe() throws SdLogonFailedException, InterruptedException {
         UserToken stubUserToken = new UserToken();
         stubUserToken.setExpires(Instant.now().plusSeconds(90));
         when(sdClient.getUserToken()).thenReturn(stubUserToken);
-        metasysStreamImporter.scheduleResubscribeWithin(Instant.now().plusSeconds(1));
+        metasysStreamImporter.scheduleResubscribe(1L);
         Thread.sleep(1100);
-        verify(sdClient, times(1)).logon();
-        verify(sdClient, times(2)).getUserToken();
+        //Will run twice. First time immediately due to interval is less than 30 seconds
+        verify(sdClient, times(2)).logon();
+        verify(sdClient, times(4)).getUserToken();
     }
 
     @Test

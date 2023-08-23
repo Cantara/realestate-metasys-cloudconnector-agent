@@ -49,7 +49,7 @@ public class MetasysStreamClient {
 
     }
     public void reconnectStream(String sseUrl, String bearerToken, String lastKnownEventId, StreamListener streamListener) {
-        log.info("Reconnect stream at {} with lastKnownEventId {}", sseUrl, lastKnownEventId);
+        log.info("Reconnect stream at url {} with lastKnownEventId {}", sseUrl, lastKnownEventId);
         if (streamThread != null && streamThread.isAlive()) {
             streamThread.interrupt();
             try {
