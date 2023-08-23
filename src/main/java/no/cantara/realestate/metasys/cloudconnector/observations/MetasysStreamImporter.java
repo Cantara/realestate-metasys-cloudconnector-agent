@@ -137,6 +137,7 @@ public class MetasysStreamImporter implements StreamListener {
     }
 
     public void reauthorizeSubscription() {
+        log.info("ReAuthorize on thread {}", Thread.currentThread().getName());
         streamUrl = ApplicationProperties.getInstance().get("sd.api.url") + "/stream";
         if (streamClient != null) {
             UserToken userToken = sdClient.getUserToken();
@@ -144,7 +145,7 @@ public class MetasysStreamImporter implements StreamListener {
                 Instant userTokenExpires = userToken.getExpires();
                 scheduleResubscribeWithin(userTokenExpires);
                 String accessToken = userToken.getAccessToken();
-                log.info("ReAuthorize on thread {}", Thread.currentThread().getName());
+
                 streamClient.reconnectStream(streamUrl, accessToken, getLastKnownEventId(), this);
                 isHealthy = true;
             } else {
@@ -183,10 +184,6 @@ public class MetasysStreamImporter implements StreamListener {
             scheduledExecutorService.setRemoveOnCancelPolicy(true);
         }
         scheduledExecutorService.schedule(task1, resubscribeWithinSeconds, TimeUnit.SECONDS);
-    }
-
-    protected void callToMethodIn5Minutes(Instant userTokenExpires) {
-        //Create a task that will call the reauthorizeSubscription method, on the main thread in 5 minutes
     }
 
     public String getSubscriptionId() {

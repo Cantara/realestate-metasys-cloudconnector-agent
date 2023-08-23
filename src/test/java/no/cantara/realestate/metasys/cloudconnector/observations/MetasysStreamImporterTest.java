@@ -1,5 +1,7 @@
 package no.cantara.realestate.metasys.cloudconnector.observations;
 
+import no.cantara.config.ApplicationProperties;
+import no.cantara.config.testsupport.ApplicationPropertiesTestHelper;
 import no.cantara.realestate.distribution.ObservationDistributionClient;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClient;
@@ -8,6 +10,7 @@ import no.cantara.realestate.metasys.cloudconnector.automationserver.UserToken;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysOpenStreamEvent;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysStreamClient;
 import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionClient;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -25,6 +28,12 @@ class MetasysStreamImporterTest {
     private MappedIdRepository idRepository;
     private ObservationDistributionClient distributionClient;
     private MetricsDistributionClient metricsDistributionClient;
+
+    @BeforeAll
+    static void beforeAll() {
+        ApplicationPropertiesTestHelper.enableMutableSingleton();
+        ApplicationProperties.builder().buildAndSetStaticSingleton();
+    }
 
     @BeforeEach
     void setUp() {
@@ -44,7 +53,7 @@ class MetasysStreamImporterTest {
         metasysStreamImporter.scheduleResubscribeWithin(Instant.now().plusSeconds(1));
         Thread.sleep(1100);
         verify(sdClient, times(1)).logon();
-        verify(sdClient, times(1)).getUserToken();
+        verify(sdClient, times(2)).getUserToken();
     }
 
     @Test
