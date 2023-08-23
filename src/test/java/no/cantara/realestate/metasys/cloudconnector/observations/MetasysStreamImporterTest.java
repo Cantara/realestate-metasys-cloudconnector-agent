@@ -65,4 +65,29 @@ class MetasysStreamImporterTest {
         assertEquals(1, executorService.getActiveCount());
         verify(sdClient, times(1)).getUserToken();
     }
+
+    @Test
+    void attemptRescheduleTwice() throws SdLogonFailedException {
+        String id = "1";
+        String data = "subscriptionId-12345";
+        MetasysOpenStreamEvent stubEvent = new MetasysOpenStreamEvent(id, data);
+        ScheduledThreadPoolExecutor executorService = (ScheduledThreadPoolExecutor) metasysStreamImporter.getScheduledExecutorService();
+        UserToken stubUserToken = new UserToken();
+        stubUserToken.setExpires(Instant.now().plusSeconds(180));
+        when(sdClient.getUserToken()).thenReturn(stubUserToken);
+        //Prepareatin - first reschedule
+        assertEquals(0, executorService.getQueue().size());
+        metasysStreamImporter.onEvent(stubEvent);
+        assertEquals(1, executorService.getQueue().size());
+        //Attempt to reschedule again
+        UserToken newestUserToken = new UserToken();
+        newestUserToken.setExpires(Instant.now().plusSeconds(3600));
+        when(sdClient.getUserToken()).thenReturn(newestUserToken);
+        id = "2";
+        MetasysOpenStreamEvent newestStubEvent = new MetasysOpenStreamEvent(id, data);
+        metasysStreamImporter.onEvent(newestStubEvent);
+        assertEquals(1, executorService.getQueue().size());
+        verify(sdClient, times(2)).getUserToken();
+
+    }
 }

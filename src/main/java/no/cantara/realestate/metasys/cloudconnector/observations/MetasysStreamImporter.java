@@ -22,8 +22,8 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import static org.slf4j.LoggerFactory.getLogger;
@@ -42,7 +42,7 @@ public class MetasysStreamImporter implements StreamListener {
     private List<String> unhealthyMessages = new ArrayList<>();
     private Instant expires;
 
-    private ScheduledExecutorService scheduledExecutorService;
+    private ScheduledThreadPoolExecutor scheduledExecutorService;
 
     public MetasysStreamImporter(MetasysStreamClient streamClient, SdClient sdClient, MappedIdRepository idRepository, ObservationDistributionClient distributionClient, MetricsDistributionClient metricsDistributionClient) {
         this.streamClient = streamClient;
@@ -50,7 +50,8 @@ public class MetasysStreamImporter implements StreamListener {
         this.idRepository = idRepository;
         this.distributionClient = distributionClient;
         this.metricsDistributionClient = metricsDistributionClient;
-        scheduledExecutorService = Executors.newScheduledThreadPool(1);
+        scheduledExecutorService = new ScheduledThreadPoolExecutor(1);
+        scheduledExecutorService.setRemoveOnCancelPolicy(true);
     }
 
     //FIXME
@@ -137,15 +138,24 @@ public class MetasysStreamImporter implements StreamListener {
             try {
                 log.warn("Stream Subscription will soon expire. Need to re-subscribe ");
                 sdClient.logon();
-                UserToken reauthentiacateduserToken = sdClient.getUserToken();
-                if (reauthentiacateduserToken != null && reauthentiacateduserToken.getExpires() != null) {
-                    log.info("Resubscribe successful. New userToken expires at: {}", reauthentiacateduserToken.getExpires());
+                UserToken reAuthentiacateduserToken = sdClient.getUserToken();
+                if (reAuthentiacateduserToken != null && reAuthentiacateduserToken.getExpires() != null) {
+                    log.info("Resubscribe successful. New userToken expires at: {}", reAuthentiacateduserToken.getExpires());
                 }
             } catch (Exception e) {
                 log.warn("Exception trying to reauthenticate userToken {}", userTokenExpires, e);
             }
         };
 
+        if (scheduledExecutorService != null) {
+            if (scheduledExecutorService.getQueue().size() > 0) {
+                log.debug("Remove all of the older tasks from queue");
+                scheduledExecutorService.getQueue().clear();
+            }
+        } else {
+            scheduledExecutorService = new ScheduledThreadPoolExecutor(1);
+            scheduledExecutorService.setRemoveOnCancelPolicy(true);
+        }
         scheduledExecutorService.schedule(task1, resubscribeWithinSeconds, TimeUnit.SECONDS);
     }
 
