@@ -49,12 +49,13 @@ public class MetasysStreamClient {
 
     }
     public void reconnectStream(String sseUrl, String bearerToken, String lastKnownEventId, StreamListener streamListener) {
-        if (streamThread != null) {
+        log.info("Reconnect stream at {} with lastKnownEventId {}", sseUrl, lastKnownEventId);
+        if (streamThread != null && streamThread.isAlive()) {
             streamThread.interrupt();
             try {
-                streamThread.join();
+                streamThread.join(200);
             } catch (InterruptedException e) {
-                log.debug("Stream's thread is interrupted. May now reopen the Stream.");
+                log.warn("Interrupted while waiting for stream thread to join");
             }
         }
         openStream(sseUrl, bearerToken, lastKnownEventId, streamListener);
@@ -108,7 +109,9 @@ public class MetasysStreamClient {
                     }
                 }
             } catch (InterruptedException e) {
-                //Do nothing based on sleep interupted
+                log.info("StreamListener thread interrupted");
+                eventInput.close();
+                log.info("StreamListener thread closed");
             }
         });
         streamThread.setName("StreamListener");
@@ -154,4 +157,7 @@ public class MetasysStreamClient {
 
 
 }
+
+
+
 
