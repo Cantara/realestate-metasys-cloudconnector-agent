@@ -21,6 +21,7 @@ public class MetasysStreamClient {
     private boolean isLoggedIn = false;
     private boolean isStreamOpen = false;
     private long lastEventReceievedAt = -1;
+    private Thread streamThread = null;
 
     public MetasysStreamClient() {
         client = init();
@@ -39,7 +40,7 @@ public class MetasysStreamClient {
         String bearerToken = args[1];
 
         MetasysStreamClient sseClient = new MetasysStreamClient();
-        sseClient.openStream(sseUrl, bearerToken, new StreamListener() {
+        sseClient.openStream(sseUrl, bearerToken,null, new StreamListener() {
             @Override
             public void onEvent(StreamEvent streamEvent) {
                 log.info("Received event: {}", streamEvent);
@@ -47,13 +48,33 @@ public class MetasysStreamClient {
         });
 
     }
+    public void reconnectStream(String sseUrl, String bearerToken, String lastKnownEventId, StreamListener streamListener) {
+        if (streamThread != null) {
+            streamThread.interrupt();
+            try {
+                streamThread.join();
+            } catch (InterruptedException e) {
+                log.debug("Stream's thread is interrupted. May now reopen the Stream.");
+            }
+        }
+        openStream(sseUrl, bearerToken, lastKnownEventId, streamListener);
+    }
 
-    public void openStream(String sseUrl, String bearerToken, StreamListener streamListener) {
-        Thread t = new Thread(() -> {
-            EventInput eventInput = client.target(sseUrl)
+    public void openStream(String sseUrl, String bearerToken, String lastKnownEventId, StreamListener streamListener) {
+        streamThread = new Thread(() -> {
+            EventInput eventInput;
+            if (lastKnownEventId == null) {
+                eventInput = client.target(sseUrl)
                     .request()
                     .header("Authorization", "Bearer " + bearerToken)
                     .get(EventInput.class);
+            } else {
+                eventInput = client.target(sseUrl)
+                        .request()
+                        .header("Authorization", "Bearer " + bearerToken)
+                        .header("Last-Event-Id", lastKnownEventId)
+                        .get(EventInput.class);
+            }
             isLoggedIn = true;
             isStreamOpen = true;
             try {
@@ -90,7 +111,8 @@ public class MetasysStreamClient {
                 //Do nothing based on sleep interupted
             }
         });
-        t.start();
+        streamThread.setName("StreamListener");
+        streamThread.start();
 
     }
 
@@ -129,5 +151,7 @@ public class MetasysStreamClient {
     public boolean isStreamOpen() {
         return isStreamOpen;
     }
+
+
 }
 

@@ -43,6 +43,8 @@ public class MetasysStreamImporter implements StreamListener {
     private Instant expires;
 
     private ScheduledThreadPoolExecutor scheduledExecutorService;
+    private String streamUrl;
+    private String lastKnownEventId;
 
     public MetasysStreamImporter(MetasysStreamClient streamClient, SdClient sdClient, MappedIdRepository idRepository, ObservationDistributionClient distributionClient, MetricsDistributionClient metricsDistributionClient) {
         this.streamClient = streamClient;
@@ -52,6 +54,7 @@ public class MetasysStreamImporter implements StreamListener {
         this.metricsDistributionClient = metricsDistributionClient;
         scheduledExecutorService = new ScheduledThreadPoolExecutor(1);
         scheduledExecutorService.setRemoveOnCancelPolicy(true);
+        streamUrl = ApplicationProperties.getInstance().get("sd.api.url") + "/stream";
     }
 
     //FIXME
@@ -63,6 +66,7 @@ public class MetasysStreamImporter implements StreamListener {
         if (event instanceof MetasysObservedValueEvent) {
             log.debug("MetasysStreamImporter received:\n {}", event);
             MetasysObservedValueEvent observedValueEvent = (MetasysObservedValueEvent) event;
+            setLastKnownEventId(observedValueEvent.getId());
             //FIXME introcuce test for this scenario
             String metasysObjectId = observedValueEvent.getObservedValue().getId();
             UniqueKey key = new MetasysUniqueKey(metasysObjectId);
@@ -88,6 +92,7 @@ public class MetasysStreamImporter implements StreamListener {
             log.debug("Schedule resubscribe should be within: {}. Will test with only 10 minute delay. Resubscribe within: {}", expires, testTime);
             scheduleResubscribeWithin(testTime);
         }
+        //FIXME If this was a new connection, the first message has an event type of hello and a special purpose. If this was a reconnect attempt, the first event will be subscribed data updates.
     }
 
     public void startSubscribing(List<MappedIdQuery> idQueries) throws SdLogonFailedException {
@@ -115,14 +120,31 @@ public class MetasysStreamImporter implements StreamListener {
     }
 
     public void openStream() {
-        String streamUrl = ApplicationProperties.getInstance().get("sd.api.url") + "/stream";
+
         if (streamClient != null && !streamClient.isStreamOpen()) {
             UserToken userToken = sdClient.getUserToken();
             if (userToken != null) {
 //                Instant userTokenExpires = userToken.getExpires();
 //                scheduleResubscribeWithin(userTokenExpires);
                 String accessToken = userToken.getAccessToken();
-                streamClient.openStream(streamUrl, accessToken, this);
+                streamClient.openStream(streamUrl, accessToken, null,this);
+                isHealthy = true;
+            } else {
+                isHealthy = false;
+            }
+        } else {
+            log.debug("Stream already open. Skipping openStream");
+        }
+    }
+
+    public void reauthorizeSubscription() {
+        if (streamClient != null) {
+            UserToken userToken = sdClient.getUserToken();
+            if (userToken != null) {
+                Instant userTokenExpires = userToken.getExpires();
+                scheduleResubscribeWithin(userTokenExpires);
+                String accessToken = userToken.getAccessToken();
+                streamClient.reconnectStream(streamUrl, accessToken, getLastKnownEventId(), this);
                 isHealthy = true;
             } else {
                 isHealthy = false;
@@ -188,5 +210,17 @@ public class MetasysStreamImporter implements StreamListener {
 
     protected ScheduledExecutorService getScheduledExecutorService() {
         return scheduledExecutorService;
+    }
+
+    public String getStreamUrl() {
+        return streamUrl;
+    }
+
+    public synchronized String getLastKnownEventId() {
+        return lastKnownEventId;
+    }
+
+    public synchronized void setLastKnownEventId(String lastKnownEventId) {
+        this.lastKnownEventId = lastKnownEventId;
     }
 }
