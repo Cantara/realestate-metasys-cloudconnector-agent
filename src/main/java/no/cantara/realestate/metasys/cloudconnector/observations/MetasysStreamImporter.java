@@ -22,12 +22,15 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Timer;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
 public class MetasysStreamImporter implements StreamListener {
     private static final Logger log = getLogger(MetasysStreamImporter.class);
+    private static final long REAUTHENTICATE_WITHIN_MILLIS = 30000;
     private final MetasysStreamClient streamClient;
     private final SdClient sdClient;
     private final MappedIdRepository idRepository;
@@ -39,12 +42,15 @@ public class MetasysStreamImporter implements StreamListener {
     private List<String> unhealthyMessages = new ArrayList<>();
     private Instant expires;
 
+    private ScheduledExecutorService scheduledExecutorService;
+
     public MetasysStreamImporter(MetasysStreamClient streamClient, SdClient sdClient, MappedIdRepository idRepository, ObservationDistributionClient distributionClient, MetricsDistributionClient metricsDistributionClient) {
         this.streamClient = streamClient;
         this.sdClient = sdClient;
         this.idRepository = idRepository;
         this.distributionClient = distributionClient;
         this.metricsDistributionClient = metricsDistributionClient;
+        scheduledExecutorService = Executors.newScheduledThreadPool(1);
     }
 
     //FIXME
@@ -74,6 +80,10 @@ public class MetasysStreamImporter implements StreamListener {
         } else if (event instanceof MetasysOpenStreamEvent) {
             this.subscriptionId = ((MetasysOpenStreamEvent) event).getSubscriptionId();
             log.info("Start subscribing to stream with subscriptionId: {}", subscriptionId);
+            log.debug("Schedule resubscribe.");
+            UserToken userToken = sdClient.getUserToken();
+            expires = userToken.getExpires();
+            scheduleResubscribeWithin(expires);
         }
     }
 
@@ -121,37 +131,22 @@ public class MetasysStreamImporter implements StreamListener {
 
     protected void scheduleResubscribeWithin(Instant userTokenExpires) {
         log.trace("UserToken expires at: {}", userTokenExpires);
-        Duration dur = Duration.between(Instant.now(), userTokenExpires);
-        long durMillis = dur.get(ChronoUnit.MILLIS);
-        Timer timer = new Timer();
-        timer.schedule(new java.util.TimerTask() {
-            @Override
-            public void run() {
-                log.warn("Stream Subscription will soon expire. Need to re-subscribe with userToken {}", userTokenExpires);
-                try {
-                    sdClient.logon();
-                    UserToken reauthentiacateduserToken = sdClient.getUserToken();
-                    log.warn("Stream Subscription will soon expire. Need to re-subscribe with userToken {}", reauthentiacateduserToken);
-                } catch (Exception e) {
-                    log.warn("Exception trying to run re-subscribe with userToken {}", userTokenExpires, e);
-                }
-            }
-        }, durMillis);
-        /*
-        ScheduledExecutorService executorService = Executors.newScheduledThreadPool(1);
+
+        Long resubscribeWithinSeconds = Duration.between(Instant.now(), userTokenExpires).get(ChronoUnit.SECONDS) - 30;
         Runnable task1 = () -> {
             try {
+                log.warn("Stream Subscription will soon expire. Need to re-subscribe ");
                 sdClient.logon();
                 UserToken reauthentiacateduserToken = sdClient.getUserToken();
-                log.warn("Stream Subscription will soon expire. Need to re-subscribe with userToken {}", reauthentiacateduserToken);
+                if (reauthentiacateduserToken != null && reauthentiacateduserToken.getExpires() != null) {
+                    log.info("Resubscribe successful. New userToken expires at: {}", reauthentiacateduserToken.getExpires());
+                }
             } catch (Exception e) {
-                log.info("Exception trying to run simulated generation of trendvalues");
+                log.warn("Exception trying to reauthenticate userToken {}", userTokenExpires, e);
             }
         };
 
-        executorService.schedule(task1, dursec - 30, TimeUnit.SECONDS);
-
-         */
+        scheduledExecutorService.schedule(task1, resubscribeWithinSeconds, TimeUnit.SECONDS);
     }
 
     public String getSubscriptionId() {
@@ -173,5 +168,13 @@ public class MetasysStreamImporter implements StreamListener {
 
     public List<String> getUnhealthyMessages() {
         return unhealthyMessages;
+    }
+
+    public Instant getExpires() {
+        return expires;
+    }
+
+    protected ScheduledExecutorService getScheduledExecutorService() {
+        return scheduledExecutorService;
     }
 }
