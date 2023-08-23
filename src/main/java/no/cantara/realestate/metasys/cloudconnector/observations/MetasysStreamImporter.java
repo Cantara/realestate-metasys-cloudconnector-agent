@@ -107,7 +107,7 @@ public class MetasysStreamImporter implements StreamListener {
                     Integer httpStatus = sdClient.subscribePresentValueChange(getSubscriptionId(), metasysObjectId);
                     log.info("Subscription returned httpStatus: {}", httpStatus);
                 } catch (URISyntaxException e) {
-                    log.warn("SD URL is missconfigured. Failed to subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
+                    log.warn("SD URL is misconfigured. Failed to subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
                 } catch (SdLogonFailedException e) {
                     log.warn("Failed to logon to SD system. Could not subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
                     throw e;
@@ -144,6 +144,7 @@ public class MetasysStreamImporter implements StreamListener {
                 Instant userTokenExpires = userToken.getExpires();
                 scheduleResubscribeWithin(userTokenExpires);
                 String accessToken = userToken.getAccessToken();
+                log.info("ReAuthorize on thread {}", Thread.currentThread().getName());
                 streamClient.reconnectStream(streamUrl, accessToken, getLastKnownEventId(), this);
                 isHealthy = true;
             } else {
@@ -166,6 +167,7 @@ public class MetasysStreamImporter implements StreamListener {
                 if (reAuthentiacateduserToken != null && reAuthentiacateduserToken.getExpires() != null) {
                     log.info("Resubscribe successful. New userToken expires at: {}", reAuthentiacateduserToken.getExpires());
                 }
+                reauthorizeSubscription();
             } catch (Exception e) {
                 log.warn("Exception trying to reauthenticate userToken {}", userTokenExpires, e);
             }
@@ -181,6 +183,10 @@ public class MetasysStreamImporter implements StreamListener {
             scheduledExecutorService.setRemoveOnCancelPolicy(true);
         }
         scheduledExecutorService.schedule(task1, resubscribeWithinSeconds, TimeUnit.SECONDS);
+    }
+
+    protected void callToMethodIn5Minutes(Instant userTokenExpires) {
+        //Create a task that will call the reauthorizeSubscription method, on the main thread in 5 minutes
     }
 
     public String getSubscriptionId() {
