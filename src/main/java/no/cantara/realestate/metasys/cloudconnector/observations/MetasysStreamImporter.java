@@ -181,7 +181,7 @@ public class MetasysStreamImporter implements StreamListener {
             if (initialDelay < 0) {
                 initialDelay = 0L;
             }
-            log.trace("Resubscribe every {} seconds. Initial delay: {}", reSubscribeIntervalInSeconds, initialDelay);
+            log.info("Resubscribe first time around {}. Then every {} seconds. ", Instant.now().plusSeconds(initialDelay), reSubscribeIntervalInSeconds);
             Runnable task1 = () -> {
                 try {
                     log.warn("Stream Subscription will soon expire. Need to re-subscribe ");
