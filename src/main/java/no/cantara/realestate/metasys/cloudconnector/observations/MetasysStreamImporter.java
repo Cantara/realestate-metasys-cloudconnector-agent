@@ -90,9 +90,9 @@ public class MetasysStreamImporter implements StreamListener {
             UserToken userToken = sdClient.getUserToken();
             expires = userToken.getExpires();
             Long reSubscribeIntervalInSeconds = Duration.between(Instant.now(), expires).get(ChronoUnit.SECONDS);
-            Long testTime = 600L;
-            log.warn("Schedule resubscribe should be within: {}. Will test with only 10 minute delay. Resubscribe within: {} seconds", expires, testTime);
-            reSubscribeIntervalInSeconds = testTime;
+//            Long testTime = 600L;
+//            log.warn("Schedule resubscribe should be within: {}. Will test with only 10 minute delay. Resubscribe within: {} seconds", expires, testTime);
+//            reSubscribeIntervalInSeconds = testTime;
             scheduleResubscribe(reSubscribeIntervalInSeconds);
         }
     }
