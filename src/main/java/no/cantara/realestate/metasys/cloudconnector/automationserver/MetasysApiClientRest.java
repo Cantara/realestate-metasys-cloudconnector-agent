@@ -290,6 +290,78 @@ public class MetasysApiClientRest implements SdClient {
         return willSoonExpire;
     }
 
+    public UserToken refreshToken() throws SdLogonFailedException {
+        UserToken refreshedUserToken = null;
+        CloseableHttpClient httpClient = HttpClients.createDefault();
+        String refreshTokenUrl = apiUri + "refreshToken";
+        HttpGet request = null;
+        String truncatedAccessToken = null;
+        try {
+
+            request = new HttpGet(refreshTokenUrl);
+            String accessToken = userToken.getAccessToken();
+            if (accessToken != null && accessToken.length() > 11) {
+                truncatedAccessToken = accessToken.substring(0, 10) + "...";
+            } else {
+                truncatedAccessToken = accessToken;
+            }
+            request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
+
+            CloseableHttpResponse response = httpClient.execute(request);
+            try {
+                int httpCode = response.getCode();
+                if (httpCode == 200) {
+                    HttpEntity entity = response.getEntity();
+                    if (entity != null) {
+                        String body = EntityUtils.toString(entity);
+                        log.trace("Received body: {}", body);
+                        userToken = RealEstateObjectMapper.getInstance().getObjectMapper().readValue(body, UserToken.class);
+                        log.trace("Converted to userToken: {}", userToken);
+                        refreshedUserToken = userToken;
+                        setHealthy();
+                    }
+                } else {
+                    String msg = "Failed to refresh userToken to Metasys at uri: " + request.getRequestUri() +
+                            ". accessToken: " + truncatedAccessToken +
+                            ". ResponseCode: " + httpCode +
+                            ". ReasonPhrase: " + response.getReasonPhrase();
+                    SdLogonFailedException logonFailedException = new SdLogonFailedException(msg);
+                    log.warn("Failed to refresh accessToken on Metasys. Reason {}", logonFailedException.getMessage());
+                    setUnhealthy();
+                    TemporaryHealthResource.addRegisteredError("Failed to refresh accessToken on Metasys. Reason: " + logonFailedException.getMessage());
+                    throw logonFailedException;
+                }
+
+            } finally {
+                response.close();
+            }
+        } catch (IOException e) {
+            SlackNotificationService.sendAlarm(METASYS_API,HOST_UNREACHABLE);
+            String msg = "Failed to refresh accessToken on Metasys at uri: " + refreshTokenUrl + ", with accessToken: " + truncatedAccessToken;
+            SdLogonFailedException logonFailedException = new SdLogonFailedException(msg, e);
+            log.warn(msg);
+            setUnhealthy();
+            TemporaryHealthResource.addRegisteredError(msg + " Reason: " + logonFailedException.getMessage());
+            throw logonFailedException;
+        } catch (ParseException e) {
+            SlackNotificationService.sendWarning(METASYS_API,"Parsing of AccessToken information failed.");
+            String msg = "Failed to refresh accessToken on Metasys at uri: " + refreshTokenUrl + ", with accessToken: " + truncatedAccessToken +
+                    ". Failure parsing the response.";
+            SdLogonFailedException logonFailedException = new SdLogonFailedException(msg, e);
+            log.warn(msg);
+            setUnhealthy();
+            TemporaryHealthResource.addRegisteredError(msg + " Reason: " + logonFailedException.getMessage());
+            throw logonFailedException;
+        } finally {
+            try {
+                httpClient.close();
+            } catch (IOException e) {
+                //Do nothing
+            }
+        }
+        return refreshedUserToken;
+    }
+
     @Override
     public void logon() throws SdLogonFailedException {
         String username = getConfigValue("sd.api.username");

@@ -103,6 +103,11 @@ public class SdClientSimulator implements SdClient {
         return;
     }
 
+    @Override
+    public UserToken refreshToken() throws SdLogonFailedException {
+        return null;
+    }
+
     String encodeAndPrefix(String trendId) {
         if (trendId != null) {
             return urlEncode(trendId);

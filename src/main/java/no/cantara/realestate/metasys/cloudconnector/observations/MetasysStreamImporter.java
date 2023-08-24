@@ -81,7 +81,7 @@ public class MetasysStreamImporter implements StreamListener {
                     //TODO publish metrics metricsDistributionClient.publish(observationMessage);
                 }
             } else {
-                    log.trace("MappedId not found for metasysObjectId: {}", metasysObjectId);
+                log.trace("MappedId not found for metasysObjectId: {}", metasysObjectId);
             }
         } else if (event instanceof MetasysOpenStreamEvent) {
             this.subscriptionId = ((MetasysOpenStreamEvent) event).getSubscriptionId();
@@ -93,7 +93,7 @@ public class MetasysStreamImporter implements StreamListener {
 //            Long testTime = 600L;
 //            log.warn("Schedule resubscribe should be within: {}. Will test with only 10 minute delay. Resubscribe within: {} seconds", expires, testTime);
 //            reSubscribeIntervalInSeconds = testTime;
-            scheduleResubscribe(reSubscribeIntervalInSeconds);
+//            scheduleResubscribe(reSubscribeIntervalInSeconds);
         }
     }
 
@@ -127,11 +127,15 @@ public class MetasysStreamImporter implements StreamListener {
         if (streamClient != null && !streamClient.isStreamOpen()) {
             UserToken userToken = sdClient.getUserToken();
             if (userToken != null) {
-//                Instant userTokenExpires = userToken.getExpires();
-//                scheduleResubscribeWithin(userTokenExpires);
                 String accessToken = userToken.getAccessToken();
-                streamClient.openStream(streamUrl, accessToken, null,this);
+                streamClient.openStream(streamUrl, accessToken, null, this);
                 isHealthy = true;
+                expires = userToken.getExpires();
+                Long refreshTokenIntervalInSeconds = Duration.between(Instant.now(), expires).get(ChronoUnit.SECONDS);
+                Long testTime = 600L;
+                refreshTokenIntervalInSeconds = testTime;
+                log.warn("Schedule resubscribe should be within: {}. Will test with only 10 minute delay. Resubscribe within: {} seconds", expires, testTime);
+                scheduleRefreshToken(refreshTokenIntervalInSeconds);
             } else {
                 isHealthy = false;
             }
@@ -152,9 +156,9 @@ public class MetasysStreamImporter implements StreamListener {
                     isHealthy = true;
                 } catch (RealEstateStreamException e) {
                     isHealthy = false;
-                    if (e.getAction()!= null && e.getAction() == RealEstateStreamException.Action.RECREATE_SUBSCRIPTION_NEEDED) {
+                    if (e.getAction() != null && e.getAction() == RealEstateStreamException.Action.RECREATE_SUBSCRIPTION_NEEDED) {
                         log.info("Failed to reconnect stream. Will try to open a new subscription", e);
-                           streamClient.openStream(streamUrl, accessToken, null, this);
+                        streamClient.openStream(streamUrl, accessToken, null, this);
                         try {
                             startSubscribing(idQueries);
                         } catch (SdLogonFailedException ex) {
@@ -169,6 +173,34 @@ public class MetasysStreamImporter implements StreamListener {
             }
         } else {
             log.debug("Stream already open. Skipping openStream");
+        }
+    }
+
+    protected void scheduleRefreshToken(long reSubscribeIntervalInSeconds) {
+        log.trace("Schedule resubscribe every {} seconds", reSubscribeIntervalInSeconds);
+
+        if (!reAuthorizationIsScheduled || scheduledExecutorService.getQueue().size() < 1) {
+
+            Long initialDelay = reSubscribeIntervalInSeconds - 30;
+            if (initialDelay < 0) {
+                initialDelay = 0L;
+            }
+            log.info("Resubscribe first time around {}. Then every {} seconds. ", Instant.now().plusSeconds(initialDelay), reSubscribeIntervalInSeconds);
+            Runnable refreshTokenTask = () -> {
+                try {
+                    log.warn("Stream Subscription will soon expire. Need to refresh accessToken ");
+                    UserToken reAuthentiacateduserToken = sdClient.refreshToken();
+                    if (reAuthentiacateduserToken != null && reAuthentiacateduserToken.getExpires() != null) {
+                        log.info("Refresh of accessToken successful. New userToken expires at: {}", reAuthentiacateduserToken.getExpires());
+                    }
+                } catch (Exception e) {
+                    log.warn("Exception trying to refresh UserToken <hidden>", e);
+                }
+            };
+            scheduledExecutorService.scheduleAtFixedRate(refreshTokenTask, initialDelay, reSubscribeIntervalInSeconds, TimeUnit.SECONDS);
+            reAuthorizationIsScheduled = true;
+        } else {
+            log.trace("Resubscribe already scheduled. Skipping scheduleResubscribeWithin");
         }
     }
 
