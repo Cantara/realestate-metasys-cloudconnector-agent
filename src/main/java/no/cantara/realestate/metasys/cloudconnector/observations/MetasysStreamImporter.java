@@ -46,6 +46,7 @@ public class MetasysStreamImporter implements StreamListener {
     private String streamUrl;
     private String lastKnownEventId;
     private boolean reAuthorizationIsScheduled;
+    private List<MappedIdQuery> idQueries;
 
     public MetasysStreamImporter(MetasysStreamClient streamClient, SdClient sdClient, MappedIdRepository idRepository, ObservationDistributionClient distributionClient, MetricsDistributionClient metricsDistributionClient) {
         this.streamClient = streamClient;
@@ -97,6 +98,7 @@ public class MetasysStreamImporter implements StreamListener {
     }
 
     public void startSubscribing(List<MappedIdQuery> idQueries) throws SdLogonFailedException {
+        this.idQueries = idQueries;
         if (idQueries != null && idQueries.size() > 0) {
             MappedIdQuery idQuery = idQueries.get(0);
             List<MappedSensorId> mappedSensorIds = idRepository.find(idQuery);
@@ -144,13 +146,25 @@ public class MetasysStreamImporter implements StreamListener {
         if (streamClient != null) {
             UserToken userToken = sdClient.getUserToken();
             if (userToken != null) {
-                Instant userTokenExpires = userToken.getExpires();
-//                scheduleResubscribeWithin(userTokenExpires);
                 String accessToken = userToken.getAccessToken();
-
-                streamClient.reconnectStream(streamUrl, accessToken, getLastKnownEventId(), this);
-                isHealthy = true;
+                try {
+                    streamClient.reconnectStream(streamUrl, accessToken, getLastKnownEventId(), this);
+                    isHealthy = true;
+                } catch (RealEstateStreamException e) {
+                    isHealthy = false;
+                    if (e.getAction()!= null && e.getAction() == RealEstateStreamException.Action.RECREATE_SUBSCRIPTION_NEEDED) {
+                        log.info("Failed to reconnect stream. Will try to open a new subscription", e);
+                           streamClient.openStream(streamUrl, accessToken, null, this);
+                        try {
+                            startSubscribing(idQueries);
+                        } catch (SdLogonFailedException ex) {
+                            log.warn("Failed to logon to Metasys when trying to reauthorizeSubscription", ex);
+                            isHealthy = false;
+                        }
+                    }
+                }
             } else {
+                log.warn("UserToken is null. Cannot reauthorizeSubscription");
                 isHealthy = false;
             }
         } else {

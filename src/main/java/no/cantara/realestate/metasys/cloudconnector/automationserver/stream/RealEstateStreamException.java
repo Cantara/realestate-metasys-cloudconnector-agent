@@ -5,7 +5,7 @@ import no.cantara.realestate.RealEstateException;
 public class RealEstateStreamException extends RealEstateException {
     private Action action;
 
-    enum Action {
+    public enum Action {
         RECREATE_SUBSCRIPTION_NEEDED,
         ABORT
     }
