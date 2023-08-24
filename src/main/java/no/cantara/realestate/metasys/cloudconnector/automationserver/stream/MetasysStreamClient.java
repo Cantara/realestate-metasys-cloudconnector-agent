@@ -41,42 +41,6 @@ public class MetasysStreamClient {
         return client;
     }
 
-    public static void main(String[] args) {
-        if (args.length != 2) {
-            System.out.println("Usage: java -cp \"target/ServerSentEvents-<version>.jar\" no.cantara.sse.SseClient <sseUrl> <bearerToken>");
-            System.exit(1);
-        }
-        String sseUrl = args[0];
-        String bearerToken = args[1];
-
-        MetasysStreamClient sseClient = new MetasysStreamClient();
-        //Open stream first time
-        String lastKnownEventId = null;
-        //Reconnect stream from lastKnownEventId, aka a previous subscription
-        lastKnownEventId = "123";
-        sseClient.openStream(sseUrl, bearerToken,lastKnownEventId, new StreamListener() {
-            @Override
-            public void onEvent(StreamEvent streamEvent) {
-                log.info("Received event: {}", streamEvent);
-            }
-        });
-
-
-
-    }
-    public void reconnectStream(String sseUrl, String bearerToken, String lastKnownEventId, StreamListener streamListener) {
-        log.info("Reconnect stream at url {} with lastKnownEventId {}", sseUrl, lastKnownEventId);
-        if (streamThread != null && streamThread.isAlive()) {
-            streamThread.interrupt();
-            try {
-                streamThread.join(200);
-            } catch (InterruptedException e) {
-                log.warn("Interrupted while waiting for stream thread to join");
-            }
-        }
-        openStream(sseUrl, bearerToken, lastKnownEventId, streamListener);
-    }
-
     public void openStream(String sseUrl, String bearerToken, String lastKnownEventId, StreamListener streamListener) {
         //Check that the server are able to establish or re-establish the subscription
         Response response = null;
@@ -165,6 +129,30 @@ public class MetasysStreamClient {
         streamThread.start();
 
     }
+    public void reconnectStream(String sseUrl, String bearerToken, String lastKnownEventId, StreamListener streamListener) throws RealEstateStreamException {
+        log.info("Reconnect stream at url {} with lastKnownEventId {}", sseUrl, lastKnownEventId);
+        if (streamThread != null && streamThread.isAlive()) {
+            streamThread.interrupt();
+            try {
+                streamThread.join(200);
+            } catch (InterruptedException e) {
+                log.warn("Interrupted while waiting for stream thread to join");
+            }
+        }
+        try {
+            openStream(sseUrl, bearerToken, lastKnownEventId, streamListener);
+        } catch (RealEstateStreamException re) {
+            isStreamOpen = false;
+            isLoggedIn = false;
+            if (re.getAction() != null && re.getAction() == RealEstateStreamException.Action.RECREATE_SUBSCRIPTION_NEEDED) {
+                log.warn("Recreate subscription needed for URL: {}, lastKnownEventId: {}", sseUrl, lastKnownEventId);
+
+            } else {
+                log.warn("Failed to open stream on URL: {}, lastKnownEventId: {}", sseUrl, lastKnownEventId, re);
+            }
+            throw re;
+        }
+    }
 
 
     public void close() {
@@ -195,6 +183,27 @@ public class MetasysStreamClient {
 
     public boolean isStreamOpen() {
         return isStreamOpen;
+    }
+
+    public static void main(String[] args) {
+        if (args.length != 2) {
+            System.out.println("Usage: java -cp \"target/ServerSentEvents-<version>.jar\" no.cantara.sse.SseClient <sseUrl> <bearerToken>");
+            System.exit(1);
+        }
+        String sseUrl = args[0];
+        String bearerToken = args[1];
+
+        MetasysStreamClient sseClient = new MetasysStreamClient();
+        //Open stream first time
+        String lastKnownEventId = null;
+        //Reconnect stream from lastKnownEventId, aka a previous subscription
+        lastKnownEventId = "123";
+        sseClient.openStream(sseUrl, bearerToken,lastKnownEventId, new StreamListener() {
+            @Override
+            public void onEvent(StreamEvent streamEvent) {
+                log.info("Received event: {}", streamEvent);
+            }
+        });
     }
 
 
