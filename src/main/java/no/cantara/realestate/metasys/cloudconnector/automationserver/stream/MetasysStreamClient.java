@@ -93,7 +93,7 @@ public class MetasysStreamClient {
                 throw new RealEstateStreamException("Failed to open stream on URL: " + sseUrl + ", lastKnownEventId: " + lastKnownEventId + ", response is null: " + response);
             }
         }
-//        streamThread = new Thread(() -> {
+        streamThread = new Thread(() -> {
 
         EventInput eventInput = null;
         try {
@@ -160,9 +160,9 @@ public class MetasysStreamClient {
             }
             log.info("StreamListener thread closed");
         }
-//        });
-//        streamThread.setName("StreamListener");
-//        streamThread.start();
+        });
+        streamThread.setName("StreamListener");
+        streamThread.start();
 
     }
 

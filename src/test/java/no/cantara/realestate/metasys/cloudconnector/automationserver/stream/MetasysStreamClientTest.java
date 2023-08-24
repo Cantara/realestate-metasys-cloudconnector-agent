@@ -43,7 +43,6 @@ class MetasysStreamClientTest {
     @Test
     void serverReply204whenOpenStream() {
         mockServer
-//        new MockServerClient("localhost", HTTP_PORT)
                 .when(
                         request()
                                 .withMethod("GET")
@@ -58,12 +57,10 @@ class MetasysStreamClientTest {
 
         try {
             metasysStreamClient.openStream("http://localhost:" + HTTP_PORT + "/api/v4/stream", "dummyToken", null, null);
-            Thread.sleep(200);
             metasysStreamClient.close();
         } catch (Exception e) {
             System.out.println(e);
         }
-//        new MockServerClient("localhost", HTTP_PORT).verify(
         mockServer.verify(
                 request()
                         .withMethod("GET")
@@ -74,7 +71,7 @@ class MetasysStreamClientTest {
 
     @AfterAll
     static void afterAll() {
-        mockServer.retrieveRecordedRequestsAndResponses(request().withPath("/api/v4/stream"));
+//        mockServer.retrieveRecordedRequestsAndResponses(request().withPath("/api/v4/stream"));
         mockServer.stop();
     }
 }
