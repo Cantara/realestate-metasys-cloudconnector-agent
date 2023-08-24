@@ -29,7 +29,7 @@ public class EventInputMapper {
                     streamEvent = new StreamEvent(inboundEvent.getId(), name, inboundEvent.getComment(), inboundEvent.readData());
             }
         }
-        log.trace("Received Event: id: {}, name: {}, comment: {}, \ndata: {}", streamEvent.getId(), streamEvent.getName(), streamEvent.getComment(), streamEvent.getData());
+        log.trace("Received Event: id: {}, name: {}, comment: {}, data: {}", streamEvent.getId(), streamEvent.getName(), streamEvent.getComment(), streamEvent.getData());
         return streamEvent;
     }
 }
