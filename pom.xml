@@ -174,8 +174,8 @@
     </dependency>
     <dependency>
       <groupId>org.mock-server</groupId>
-      <artifactId>mockserver-netty</artifactId>
-      <version>${mockserver.version}</version>
+      <artifactId>mockserver-junit-jupiter-no-dependencies</artifactId>
+      <version>5.14.0</version>
       <scope>test</scope>
     </dependency>
     <dependency>
