@@ -46,15 +46,14 @@ class MetasysStreamImporterTest {
     }
 
     @Test
-    void scheduleResubscribe() throws SdLogonFailedException, InterruptedException {
+    void scheduleRefreshAccessToken() throws SdLogonFailedException, InterruptedException {
         UserToken stubUserToken = new UserToken();
         stubUserToken.setExpires(Instant.now().plusSeconds(90));
         when(sdClient.getUserToken()).thenReturn(stubUserToken);
-        metasysStreamImporter.scheduleResubscribe(1L);
+        metasysStreamImporter.scheduleRefreshToken(1L);
         Thread.sleep(1100);
         //Will run twice. First time immediately due to interval is less than 30 seconds
-        verify(sdClient, times(2)).logon();
-        verify(sdClient, times(4)).getUserToken();
+        verify(sdClient, times(2)).refreshToken();
     }
 
     @Test
@@ -72,8 +71,8 @@ class MetasysStreamImporterTest {
         //The test
         metasysStreamImporter.onEvent(stubEvent);
         //Verify that the task is scheduled
-        assertEquals(1, executorService.getActiveCount());
-        verify(sdClient, times(1)).getUserToken();
+        assertEquals(0, executorService.getActiveCount());
+        verify(sdClient, times(0)).refreshToken();
     }
 
     @Test
@@ -85,19 +84,32 @@ class MetasysStreamImporterTest {
         UserToken stubUserToken = new UserToken();
         stubUserToken.setExpires(Instant.now().plusSeconds(180));
         when(sdClient.getUserToken()).thenReturn(stubUserToken);
-        //Prepareatin - first reschedule
+        //Prepareation - first reschedule
         assertEquals(0, executorService.getQueue().size());
-        metasysStreamImporter.onEvent(stubEvent);
+        metasysStreamImporter.openStream();
         assertEquals(1, executorService.getQueue().size());
-        //Attempt to reschedule again
+        //Attempt to refresh again
         UserToken newestUserToken = new UserToken();
         newestUserToken.setExpires(Instant.now().plusSeconds(3600));
         when(sdClient.getUserToken()).thenReturn(newestUserToken);
         id = "2";
-        MetasysOpenStreamEvent newestStubEvent = new MetasysOpenStreamEvent(id, data);
-        metasysStreamImporter.onEvent(newestStubEvent);
+        metasysStreamImporter.scheduleRefreshToken(1L);
         assertEquals(1, executorService.getQueue().size());
-        verify(sdClient, times(2)).getUserToken();
+        verify(sdClient, times(1)).getUserToken();
+    }
+
+    @Test
+    void openStream() {
+        UserToken stubUserToken = new UserToken();
+        stubUserToken.setAccessToken("dummyToken");
+        stubUserToken.setExpires(Instant.now().plusSeconds(90));
+        when(sdClient.getUserToken()).thenReturn(stubUserToken);
+        metasysStreamImporter.openStream();
+        ScheduledThreadPoolExecutor executorService = (ScheduledThreadPoolExecutor) metasysStreamImporter.getScheduledExecutorService();
+
+        verify(metasysStreamClient, times(1)).openStream(anyString(), anyString(), isNull(), any(MetasysStreamImporter.class));
+        //Verify that the refreshTokenTask is scheduled
+        assertEquals(1, executorService.getQueue().size());
 
     }
 }
