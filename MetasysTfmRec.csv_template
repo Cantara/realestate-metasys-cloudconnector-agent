@@ -1,2 +1,2 @@
-Tfm,MetasysObjectReference,MetasysObjectId,Name,Description,RealEstate,Interval,Building,Floor,ElectricityZone,SensorType,MeasurementUnit
-433.012-OE101-Energy,METASYS1:RE1-NAE7/BACnet IP1.Modbus 433U11.Analog Inputs.AI-93,208540b1-ab8a-566a-8a41-8b4cee515baf,433.012-OE101-Energy,Ventilasjon 360.011,RealEst2,15m,Building1,Floor1,ventilasjon,Energy,kwh
+RecId,Tfm,MetasysObjectReference,MetasysObjectId,Name,Description,RealEstate,Building,Section,Floor,ServesRoom,PlacementRoom,SensorType,MeasurementUnit
+RealEstateCoreSensor-1,433.012-OE101-Energy,METASYS1:RE1-NAE7/BACnet IP1.Modbus 433U11.Analog Inputs.AI-93,208540b1-ab8a-566a-8a41-8b4cee515baf,433.012-OE101-Energy,Ventilasjon 360.011,RealEst2,1,Section1,01,117,120,Energy,kwh
