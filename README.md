@@ -1,5 +1,5 @@
 # realestate-metasys-cloudconnector-app
-Read sensor observations from Johnson Controls Metasys. Distribute these to the clud eg by MQTT or Azure Digital Twin
+Read sensor observations from Johnson Controls Metasys. Distribute these to the cloud e.g. by MQTT or Azure Digital Twin
 
 # Getting Started
 
@@ -38,21 +38,21 @@ java -jar path_to/realestate-metasys-cloudconnector-agent-<version>.jar
 http://localhost:8081/metayscloudconnector/health/pretty
 ```:json
 {
-"Status": "UP",
-"version": "unknown",
-"ip": "127.0.1.1",
-"running since": "2023-09-04T13:08:23.493546367Z",
-"MetasysStreamClient.isLoggedIn": "UP",
-"MetasysStreamImporter.isHealthy": "UP",
-"webserver.running": "UP",
-"AzureObservationDistributionClient-isConnected: ": "true",
-"AzureObservationDistributionClient-numberofMessagesObserved: ": "1",
-"mappedIdRepository.size": "68",
-"MetasysStreamClient-isHealthy: ": "true
-"MetasysStreamClient-isLoggedIn: ": "true",
-"MetasysStreamClient-isStreamOpen: ": "true",
-"MetasysStreamImporter-isHealthy: ": "true",
-"now": "2023-09-04T13:08:37.632070133Z"
+  "Status": "UP",
+  "version": "unknown",
+  "ip": "127.0.1.1",
+  "running since": "2023-09-04T13:08:23.493546367Z",
+  "MetasysStreamClient.isLoggedIn": "UP",
+  "MetasysStreamImporter.isHealthy": "UP",
+  "webserver.running": "UP",
+  "AzureObservationDistributionClient-isConnected: ": "true",
+  "AzureObservationDistributionClient-numberofMessagesObserved: ": "1",
+  "mappedIdRepository.size": "68",
+  "MetasysStreamClient-isHealthy: ": "true
+  "MetasysStreamClient-isLoggedIn: ": "true",
+  "MetasysStreamClient-isStreamOpen: ": "true",
+  "MetasysStreamImporter-isHealthy: ": "true",
+  "now": "2023-09-04T13:08:37.632070133Z"
 }
 ```
 
