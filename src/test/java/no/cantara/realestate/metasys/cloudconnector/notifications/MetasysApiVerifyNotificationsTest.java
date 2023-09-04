@@ -11,6 +11,7 @@ import org.mockserver.model.MediaType;
 import java.net.URI;
 import java.time.Instant;
 
+import static no.cantara.realestate.mappingtable.Main.getConfigValue;
 import static no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysApiClientRest.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
@@ -66,13 +67,15 @@ public class MetasysApiVerifyNotificationsTest {
 
     @Test
     void verifyMetasysLoginOk() {
+        String userName = getConfigValue("sd.api.username");
+        String password = getConfigValue("sd.api.password");
         mockServer
                 .when(
                         request()
                                 .withMethod("POST")
                                 .withPath("/api/v4/login")
                                 .withContentType(MediaType.APPLICATION_JSON)
-                                .withBody(json("{\"username\": \"jane-doe\", \"password\": \"strongPassword\"}"))
+                                .withBody(json("{\"username\": \"" + userName + "\", \"password\": \"" + password + "\"}"))
                 )
                 .respond(
                         response()
