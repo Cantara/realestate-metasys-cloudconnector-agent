@@ -380,7 +380,6 @@ public class MetasysApiClientRest implements SdClient {
         String loginUri = apiUri + "login";
         HttpPost request = null;
         try {
-
             request = new HttpPost(loginUri);
             request.addHeader(HttpHeaders.CONTENT_TYPE, "application/json");
             request.setEntity(new StringEntity(jsonBody));
@@ -396,6 +395,7 @@ public class MetasysApiClientRest implements SdClient {
                         userToken = RealEstateObjectMapper.getInstance().getObjectMapper().readValue(body, UserToken.class);
                         log.trace("Converted to userToken: {}", userToken);
                         setHealthy();
+                        notificationService.clearService(METASYS_API);
                     }
                 } else {
                     String msg = "Failed to logon to Metasys at uri: " + request.getRequestUri() +
@@ -405,6 +405,7 @@ public class MetasysApiClientRest implements SdClient {
                     SdLogonFailedException logonFailedException = new SdLogonFailedException(msg);
                     log.warn("Failed to logon to Metasys. Reason {}", logonFailedException.getMessage());
                     setUnhealthy();
+                    notificationService.sendWarning(METASYS_API,LOGON_FAILED);
                     TemporaryHealthResource.addRegisteredError("Failed to logon to Metasys. Reason: " + logonFailedException.getMessage());
                     throw logonFailedException;
                 }
