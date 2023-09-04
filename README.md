@@ -59,6 +59,7 @@ http://localhost:8081/metayscloudconnector/health/pretty
 ### Alerting
 There is support for Slack alerting.
 When the connection to Metasys fails, or the distribution to Azure IoT Hub is lost, an alert is sent to Slack.
+When the connection to Metasys is restored, or the distribution to Azure IoT Hub is restored, an ack is sent to Slack.
 ```
 slack_alerting_enabled=true
 slack_token=...
