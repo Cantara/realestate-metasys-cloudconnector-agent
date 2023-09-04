@@ -67,9 +67,10 @@ public class SlackNotificationService implements NotificationService {
         slackToken = ApplicationProperties.getInstance().get(SLACK_TOKEN_KEY);
         slackAlarmChannel = ApplicationProperties.getInstance().get(SLACK_ALARM_CHANNEL_KEY);
         slackWarningChannel = ApplicationProperties.getInstance().get(SLACK_WARNING_CHANNEL_KEY);
-
-        slack = Slack.getInstance();
-        setupClient();
+        if (alertingIsEnabled) {
+            slack = Slack.getInstance();
+            setupClient();
+        }
     }
 
 
@@ -142,7 +143,7 @@ public class SlackNotificationService implements NotificationService {
         return true;
     }
 
-    private static synchronized void appendAlarmToFile(String service, String amessage, boolean cleared) {
+    private synchronized void appendAlarmToFile(String service, String amessage, boolean cleared) {
         try {
             FileWriter fileWriter;
             if (initialBootAlarm && !cleared) {
@@ -164,7 +165,10 @@ public class SlackNotificationService implements NotificationService {
         }
     }
 
-    private static synchronized void appendWarningToFile(String service, String mwessage, boolean cleared) {
+    private synchronized void appendWarningToFile(String service, String mwessage, boolean cleared) {
+        if (!alertingIsEnabled) {
+            return;
+        }
         try {
             FileWriter fileWriter;
             if (initialBootWarning && !cleared) {
@@ -187,7 +191,10 @@ public class SlackNotificationService implements NotificationService {
         }
     }
 
-    private synchronized static void storeNotificationStateMaps() {
+    private synchronized void storeNotificationStateMaps() {
+        if (!alertingIsEnabled) {
+            return;
+        }
         if (warningMap.size() > 0) {
             String warningMapFilename = notificationStateFilename.replace("mapname", "warning");
             try {
@@ -213,7 +220,10 @@ public class SlackNotificationService implements NotificationService {
         }
     }
 
-    private static boolean restoreNotificationStateMaps() {
+    private boolean restoreNotificationStateMaps() {
+        if (!alertingIsEnabled) {
+            return false;
+        }
         if (loadedStateFromFile) {
             return true;
         }
