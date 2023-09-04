@@ -18,6 +18,7 @@ import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistribu
 import no.cantara.realestate.metasys.cloudconnector.distribution.ObservationDistributionResource;
 import no.cantara.realestate.metasys.cloudconnector.distribution.ObservationDistributionServiceStub;
 import no.cantara.realestate.metasys.cloudconnector.notifications.NotificationService;
+import no.cantara.realestate.metasys.cloudconnector.notifications.SlackNotificationService;
 import no.cantara.realestate.metasys.cloudconnector.observations.*;
 import no.cantara.realestate.metasys.cloudconnector.sensors.MetasysConfigImporter;
 import no.cantara.realestate.metasys.cloudconnector.sensors.SensorType;
@@ -182,11 +183,12 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
 
     private void initNotificationServices() {
         ServiceLoader<NotificationService> notificationServices = ServiceLoader.load(NotificationService.class);
-        if (notificationServices != null) {
+        if (notificationServices != null && notificationServices.iterator().hasNext()) {
             notificationService = notificationServices.findFirst().orElse(null);
             log.trace("Alerts and Warnings will be sent with NotificationService: {}", notificationService);
         } else {
-            log.info("No implementation of NotificationService was found on classpath. No alerts or warnings will be sent.");
+            log.warn("ServiceLoader could not find any implementation of NotificationService. Using SlackNotificationService.");
+            notificationService = new SlackNotificationService();
         }
     }
 

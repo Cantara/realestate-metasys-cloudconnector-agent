@@ -53,16 +53,28 @@ public class SlackNotificationService implements NotificationService {
     public static final String SLACK_WARNING_CHANNEL_KEY = "slack_warning_channel";
 
 
-    private static final boolean alertingIsEnabled;
-    private static final String slackToken;
-    private static final Slack slack;
-    private static final String slackAlarmChannel;
-    private static final String slackWarningChannel;
+    private  final boolean alertingIsEnabled;
+    private  final String slackToken;
+    private  final Slack slack;
+    private  final String slackAlarmChannel;
+    private  final String slackWarningChannel;
+
+    private MethodsClient methodsClient = null;
+
+
+    public SlackNotificationService() {
+        alertingIsEnabled = ApplicationProperties.getInstance().asBoolean(SLACK_ALERTING_ENABLED_KEY, false);
+        slackToken = ApplicationProperties.getInstance().get(SLACK_TOKEN_KEY);
+        slackAlarmChannel = ApplicationProperties.getInstance().get(SLACK_ALARM_CHANNEL_KEY);
+        slackWarningChannel = ApplicationProperties.getInstance().get(SLACK_WARNING_CHANNEL_KEY);
+
+        slack = Slack.getInstance();
+        setupClient();
+    }
 
 
 
-    private static MethodsClient methodsClient = null;
-
+    /*
     static {
         alertingIsEnabled = ApplicationProperties.getInstance().asBoolean(SLACK_ALERTING_ENABLED_KEY, false);
         slackToken = ApplicationProperties.getInstance().get(SLACK_TOKEN_KEY);
@@ -76,6 +88,8 @@ public class SlackNotificationService implements NotificationService {
 //        clearService("test");
 
     }
+
+     */
 
     public synchronized boolean sendWarning(String service, String warningMessage) {
         if (!loadedStateFromFile) {
@@ -234,7 +248,7 @@ public class SlackNotificationService implements NotificationService {
         return true;
     }
 
-    private static void notifySlackAlarm(String service, String message) {
+    private void notifySlackAlarm(String service, String message) {
         if (alertingIsEnabled) {
             ChatPostMessageRequest request = ChatPostMessageRequest.builder()
                     .channel(slackAlarmChannel)
@@ -256,7 +270,7 @@ public class SlackNotificationService implements NotificationService {
         }
     }
 
-    private static void clearSlackAlarm(String service, String timestampText) {
+    private void clearSlackAlarm(String service, String timestampText) {
         if (alertingIsEnabled) {
             ChatPostMessageRequest request = ChatPostMessageRequest.builder()
                     .channel(slackAlarmChannel)
@@ -279,7 +293,7 @@ public class SlackNotificationService implements NotificationService {
     }
 
 
-    public static void notifySlackChannel(String notifyToChannel, String message) {
+    public void notifySlackChannel(String notifyToChannel, String message) {
         if (alertingIsEnabled) {
             notifyToChannel = notifyToChannel.toLowerCase();
             /*
@@ -335,7 +349,7 @@ public class SlackNotificationService implements NotificationService {
     }
 
 
-    private static void notifySlackWarning(String service, String message) {
+    private void notifySlackWarning(String service, String message) {
         if (alertingIsEnabled) {
             ChatPostMessageRequest request = ChatPostMessageRequest.builder()
                     .channel(slackWarningChannel)
@@ -357,7 +371,7 @@ public class SlackNotificationService implements NotificationService {
         }
     }
 
-    private static void clearSlackWarning(String service, String timestampText) {
+    private void clearSlackWarning(String service, String timestampText) {
         if (alertingIsEnabled) {
             ChatPostMessageRequest request = ChatPostMessageRequest.builder()
                     .channel(slackWarningChannel)
@@ -379,13 +393,13 @@ public class SlackNotificationService implements NotificationService {
         }
     }
 
-    private static void setupClient() {
+    private void setupClient() {
         if (alertingIsEnabled) {
             methodsClient = slack.methods(slackToken);
         }
     }
 
-    public static void closeConnection() {
+    public void closeConnection() {
         if (slack != null) {
             try {
                 slack.close();

@@ -23,11 +23,7 @@ class SlackNotificationServiceManualTest {
         Thread.sleep(100);
 //        SlackNotificationService.clearService("Test");
         Thread.sleep(200);
-        SlackNotificationService.closeConnection();
-
-
-
-
+        ((SlackNotificationService)notificationService).closeConnection();
     }
 
     private static void sendStandalone(ApplicationProperties config) throws Exception {
