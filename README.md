@@ -10,12 +10,14 @@ This template may be used to configure all sensors that should be imported from 
 ## Import and configuration
 1. Copy your MetasysTfmRec.csv to import-data/MetasysTfmRec.csv
 2. Rename local_override.properties_template to local_override.properties.
+
 ### Required properties
+In local_override.properties, set the following properties:
 ```
 sd.api.prod=true
 sd.api.username=....
 sd.api.password=....
-sd.api.url=https://<metasysServer>:<port>/api/v4
+sd.api.url=https://<metasysServer>:<port>/api/v4/
 importsensorsQuery.realestates=RealEstate1,RealEstate2...
 ```
 **importsensorsQuery.realestates** is a comma separated list of the RealEstate names identified in the MetasysTfmRec.csv file. Only RealEstates in this list will be imported.
