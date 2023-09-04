@@ -3,6 +3,7 @@ package no.cantara.realestate.metasys.cloudconnector.automationserver;
 import jakarta.ws.rs.core.HttpHeaders;
 import no.cantara.realestate.json.RealEstateObjectMapper;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorException;
+import no.cantara.realestate.metasys.cloudconnector.notifications.NotificationService;
 import no.cantara.realestate.metasys.cloudconnector.notifications.SlackNotificationService;
 import no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealthResource;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
@@ -45,14 +46,16 @@ public class MetasysApiClientRest implements SdClient {
     public static final String UNKNOWN_HOST = "UNKNOWN_HOST";
 
     private static final String LATEST_BY_DATE = "SampleDateDescending";
+    private final NotificationService notificationService;
     private UserToken userToken = null;
     private final MetasysApiLogonService logonService;
     private long numberOfTrendSamplesReceived = 0;
     private boolean isHealthy = true;
 
-    public MetasysApiClientRest(URI apiUri) {
+    public MetasysApiClientRest(URI apiUri, NotificationService notificationService) {
         this.apiUri = apiUri;
         logonService = null;
+        this.notificationService = notificationService;
         /*RestClientBuilder.newBuilder()
                 .baseUri(apiUri)
                 .build(MetasysApiLogonService.class);
@@ -60,9 +63,10 @@ public class MetasysApiClientRest implements SdClient {
          */
     }
 
-    protected MetasysApiClientRest(URI apiUri, MetasysApiLogonService logonService) {
+    protected MetasysApiClientRest(URI apiUri, MetasysApiLogonService logonService, NotificationService notificationService) {
         this.apiUri = apiUri;
         this.logonService = logonService;
+        this.notificationService = notificationService;
     }
 
     public static void main(String[] args) throws URISyntaxException, SdLogonFailedException {
@@ -70,7 +74,8 @@ public class MetasysApiClientRest implements SdClient {
         String trendId = getConfigValue("trend.id");
         String apiUrl = getConfigValue("sd.api.url");
         URI apiUri = new URI(apiUrl);
-        MetasysApiClientRest apiClient = new MetasysApiClientRest(apiUri);
+
+        MetasysApiClientRest apiClient = new MetasysApiClientRest(apiUri, new SlackNotificationService());
         String bearerToken = apiClient.findAccessToken();
         Set<MetasysTrendSample> trends = apiClient.findTrendSamples(bearerToken, trendId);
         for (MetasysTrendSample trend : trends) {
@@ -267,12 +272,12 @@ public class MetasysApiClientRest implements SdClient {
             if (userToken != null) {
                 accessToken = userToken.getAccessToken();
             } else {
-                SlackNotificationService.clearService(METASYS_API);
+                notificationService.clearService(METASYS_API);
             }
 
             return accessToken;
         } catch (SdLogonFailedException e){
-            SlackNotificationService.sendAlarm(METASYS_API,LOGON_FAILED);
+            notificationService.sendAlarm(METASYS_API,LOGON_FAILED);
             isHealthy = false;
             throw e;
         }
@@ -336,7 +341,7 @@ public class MetasysApiClientRest implements SdClient {
                 response.close();
             }
         } catch (IOException e) {
-            SlackNotificationService.sendAlarm(METASYS_API,HOST_UNREACHABLE);
+            notificationService.sendAlarm(METASYS_API,HOST_UNREACHABLE);
             String msg = "Failed to refresh accessToken on Metasys at uri: " + refreshTokenUrl + ", with accessToken: " + truncatedAccessToken;
             SdLogonFailedException logonFailedException = new SdLogonFailedException(msg, e);
             log.warn(msg);
@@ -344,7 +349,7 @@ public class MetasysApiClientRest implements SdClient {
             TemporaryHealthResource.addRegisteredError(msg + " Reason: " + logonFailedException.getMessage());
             throw logonFailedException;
         } catch (ParseException e) {
-            SlackNotificationService.sendWarning(METASYS_API,"Parsing of AccessToken information failed.");
+            notificationService.sendWarning(METASYS_API,"Parsing of AccessToken information failed.");
             String msg = "Failed to refresh accessToken on Metasys at uri: " + refreshTokenUrl + ", with accessToken: " + truncatedAccessToken +
                     ". Failure parsing the response.";
             SdLogonFailedException logonFailedException = new SdLogonFailedException(msg, e);
@@ -408,7 +413,7 @@ public class MetasysApiClientRest implements SdClient {
                 response.close();
             }
         } catch (IOException e) {
-            SlackNotificationService.sendAlarm(METASYS_API,HOST_UNREACHABLE);
+            notificationService.sendAlarm(METASYS_API,HOST_UNREACHABLE);
             String msg = "Failed to logon to Metasys at uri: " + loginUri + ", with username: " + username;
             SdLogonFailedException logonFailedException = new SdLogonFailedException(msg, e);
             log.warn(msg);
@@ -416,7 +421,7 @@ public class MetasysApiClientRest implements SdClient {
             TemporaryHealthResource.addRegisteredError(msg + " Reason: " + logonFailedException.getMessage());
             throw logonFailedException;
         } catch (ParseException e) {
-            SlackNotificationService.sendWarning(METASYS_API,"Parsing of login information failed.");
+            notificationService.sendWarning(METASYS_API,"Parsing of login information failed.");
             String msg = "Failed to logon to Metasys at uri: " + loginUri + ", with username: " + username +
                     ". Failure parsing the response.";
             SdLogonFailedException logonFailedException = new SdLogonFailedException(msg, e);

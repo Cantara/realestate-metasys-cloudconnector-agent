@@ -177,7 +177,7 @@ public class MetasysStreamImporter implements StreamListener {
     }
 
     protected void scheduleRefreshToken(long reSubscribeIntervalInSeconds) {
-        log.trace("Schedule resubscribe every {} seconds", reSubscribeIntervalInSeconds);
+        log.trace("Schedule refresh every {} seconds", reSubscribeIntervalInSeconds);
 
         if (!reAuthorizationIsScheduled || scheduledExecutorService.getQueue().size() < 1) {
 
@@ -185,7 +185,7 @@ public class MetasysStreamImporter implements StreamListener {
             if (initialDelay < 0) {
                 initialDelay = 0L;
             }
-            log.info("Resubscribe first time around {}. Then every {} seconds. ", Instant.now().plusSeconds(initialDelay), reSubscribeIntervalInSeconds);
+            log.info("Refresh first time around {}. Then every {} seconds. ", Instant.now().plusSeconds(initialDelay), reSubscribeIntervalInSeconds);
             Runnable refreshTokenTask = () -> {
                 try {
                     log.warn("Stream Subscription will soon expire. Need to refresh accessToken ");

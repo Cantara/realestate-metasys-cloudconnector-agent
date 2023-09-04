@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 
-public class SlackNotificationService {
+public class SlackNotificationService implements NotificationService {
     public static final Logger logger = LoggerFactory.getLogger(SlackNotificationService.class);
 
     public static ObjectMapper mapper = new ObjectMapper().configure(com.fasterxml.jackson.core.JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
@@ -77,7 +77,7 @@ public class SlackNotificationService {
 
     }
 
-    public static synchronized boolean sendWarning(String service, String warningMessage) {
+    public synchronized boolean sendWarning(String service, String warningMessage) {
         if (!loadedStateFromFile) {
             restoreNotificationStateMaps();
             loadedStateFromFile = true;
@@ -97,7 +97,7 @@ public class SlackNotificationService {
         return true;
     }
 
-    public static synchronized boolean sendAlarm(String service, String alarmMessage) {
+    public synchronized boolean sendAlarm(String service, String alarmMessage) {
         if (!loadedStateFromFile) {
             restoreNotificationStateMaps();
             loadedStateFromFile = true;
@@ -113,7 +113,7 @@ public class SlackNotificationService {
         return true;
     }
 
-    public static synchronized boolean clearService(String service) {
+    public synchronized boolean clearService(String service) {
         String timestampText = " - Timestamp: " + Instant.now().toString();
         if (alarmMap.get(service) != null) {
             alarmMap.remove(service);

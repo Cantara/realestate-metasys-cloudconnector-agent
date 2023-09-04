@@ -17,6 +17,7 @@ import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistribu
 import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionServiceStub;
 import no.cantara.realestate.metasys.cloudconnector.distribution.ObservationDistributionResource;
 import no.cantara.realestate.metasys.cloudconnector.distribution.ObservationDistributionServiceStub;
+import no.cantara.realestate.metasys.cloudconnector.notifications.NotificationService;
 import no.cantara.realestate.metasys.cloudconnector.observations.*;
 import no.cantara.realestate.metasys.cloudconnector.sensors.MetasysConfigImporter;
 import no.cantara.realestate.metasys.cloudconnector.sensors.SensorType;
@@ -39,6 +40,7 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
     private static final Logger log = getLogger(MetasysCloudconnectorApplication.class);
     private boolean enableStream;
     private boolean enableScheduledImport;
+    private NotificationService notificationService;
 
 
     public static void main(String[] args) {
@@ -96,6 +98,15 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         enableStream = config.asBoolean("sd.stream.enabled");
         enableScheduledImport = config.asBoolean("sd.scheduledImport.enabled");
         SdClient sdClient = createSdClient(config);
+
+        ServiceLoader<NotificationService> notificationServices = ServiceLoader.load(NotificationService.class);
+        if (notificationServices != null) {
+            notificationService = notificationServices.findFirst().orElse(null);
+            log.trace("Alerts and Warings will be sent with NotificationService: {}", notificationService);
+        } else {
+            log.info("No implementation of NotificationService was found on classpath. No alerts or warnings will be sent.");
+        }
+
 
         ServiceLoader<ObservationDistributionClient> observationDistributionClients = ServiceLoader.load(ObservationDistributionClient.class);
         ObservationDistributionClient observationDistributionClient = null;
@@ -191,7 +202,7 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
             String apiUrl = config.get("sd.api.url");
             try {
                 URI apiUri = new URI(apiUrl);
-                sdClient = new MetasysApiClientRest(apiUri);
+                sdClient = new MetasysApiClientRest(apiUri, notificationService);
                 log.info("Logon to SdClient with username: {}", config.get("sd.api.username"));
                 sdClient.logon();
                 log.info("Running with a live REST SD.");

@@ -3,6 +3,7 @@ package no.cantara.realestate.metasys.cloudconnector.automationserver;
 import no.cantara.config.ApplicationProperties;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnectorApplicationFactory;
 import no.cantara.realestate.metasys.cloudconnector.MockServerSetup;
+import no.cantara.realestate.metasys.cloudconnector.notifications.SlackNotificationService;
 import org.slf4j.Logger;
 
 import java.net.URI;
@@ -21,7 +22,7 @@ public class MetasysApiClientManualTest {
         MockServerSetup.clearAndSetLoginMock();
         MockServerSetup.clearAndSetSensorMockData("8648f9cf-c135-5471-9906-9b3861e0b5ab");
         //MockServerSetup.clearAndSetSensorMockData("208540b1-ab8a-566a-8a41-8b4cee515baf");
-        MetasysApiClientRest apiClient = new MetasysApiClientRest(URI.create(apiUrl));
+        MetasysApiClientRest apiClient = new MetasysApiClientRest(URI.create(apiUrl), new SlackNotificationService());
         apiClient.logon("jane-doe","strongPassword");
         assertTrue(apiClient.isHealthy());
     }

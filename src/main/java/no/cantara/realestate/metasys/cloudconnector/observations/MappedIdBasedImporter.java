@@ -15,6 +15,8 @@ import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysTren
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
 import no.cantara.realestate.metasys.cloudconnector.distribution.*;
+import no.cantara.realestate.metasys.cloudconnector.notifications.NotificationService;
+import no.cantara.realestate.metasys.cloudconnector.notifications.SlackNotificationService;
 import no.cantara.realestate.metasys.cloudconnector.sensors.MetasysConfigImporter;
 import no.cantara.realestate.metasys.cloudconnector.sensors.SensorType;
 import no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealthResource;
@@ -223,7 +225,8 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
                 .build();
         String apiUrl = config.get("sd_api_url");
         URI apiUri = new URI(apiUrl);
-        SdClient sdClient = new MetasysApiClientRest(apiUri);
+        NotificationService notificationService = new SlackNotificationService();
+        SdClient sdClient = new MetasysApiClientRest(apiUri, notificationService);
 
         String measurementName = config.get("MEASUREMENT_NAME");
         ObservationDistributionClient observationClient = new ObservationDistributionServiceStub();//Simulator

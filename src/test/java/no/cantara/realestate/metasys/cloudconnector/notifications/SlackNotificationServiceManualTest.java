@@ -17,8 +17,9 @@ class SlackNotificationServiceManualTest {
                 .conventions(ApplicationProperties.builder())
                 .buildAndSetStaticSingleton();
 //        sendStandalone(config);
-        SlackNotificationService.clearService("Test");
-        SlackNotificationService.sendAlarm("Test", "Test again");
+        NotificationService notificationService = new SlackNotificationService();
+        notificationService.clearService("Test");
+        notificationService.sendAlarm("Test", "Test again");
         Thread.sleep(100);
 //        SlackNotificationService.clearService("Test");
         Thread.sleep(200);
