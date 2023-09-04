@@ -50,7 +50,7 @@ http://localhost:8081/metayscloudconnector/health/pretty
   "AzureObservationDistributionClient-isConnected: ": "true",
   "AzureObservationDistributionClient-numberofMessagesObserved: ": "1",
   "mappedIdRepository.size": "68",
-  "MetasysStreamClient-isHealthy: ": "true
+  "MetasysStreamClient-isHealthy: ": "true",
   "MetasysStreamClient-isLoggedIn: ": "true",
   "MetasysStreamClient-isStreamOpen: ": "true",
   "MetasysStreamImporter-isHealthy: ": "true",
