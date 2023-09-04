@@ -94,19 +94,12 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
     protected void doInit() {
         initBuiltinDefaults();
         StingraySecurity.initSecurity(this);
+
+        initNotificationServices();
         boolean doImportData = config.asBoolean("import.data");
         enableStream = config.asBoolean("sd.stream.enabled");
         enableScheduledImport = config.asBoolean("sd.scheduledImport.enabled");
         SdClient sdClient = createSdClient(config);
-
-        ServiceLoader<NotificationService> notificationServices = ServiceLoader.load(NotificationService.class);
-        if (notificationServices != null) {
-            notificationService = notificationServices.findFirst().orElse(null);
-            log.trace("Alerts and Warings will be sent with NotificationService: {}", notificationService);
-        } else {
-            log.info("No implementation of NotificationService was found on classpath. No alerts or warnings will be sent.");
-        }
-
 
         ServiceLoader<ObservationDistributionClient> observationDistributionClients = ServiceLoader.load(ObservationDistributionClient.class);
         ObservationDistributionClient observationDistributionClient = null;
@@ -184,6 +177,16 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
                     }
                 }
             });
+        }
+    }
+
+    private void initNotificationServices() {
+        ServiceLoader<NotificationService> notificationServices = ServiceLoader.load(NotificationService.class);
+        if (notificationServices != null) {
+            notificationService = notificationServices.findFirst().orElse(null);
+            log.trace("Alerts and Warnings will be sent with NotificationService: {}", notificationService);
+        } else {
+            log.info("No implementation of NotificationService was found on classpath. No alerts or warnings will be sent.");
         }
     }
 
