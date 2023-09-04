@@ -38,7 +38,7 @@ java -jar path_to/realestate-metasys-cloudconnector-agent-<version>.jar
 
 ### Monitoring
 http://localhost:8081/metayscloudconnector/health/pretty
-```:json
+```json
 {
   "Status": "UP",
   "version": "unknown",
