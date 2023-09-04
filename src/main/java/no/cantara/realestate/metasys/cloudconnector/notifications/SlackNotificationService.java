@@ -70,6 +70,8 @@ public class SlackNotificationService implements NotificationService {
         if (alertingIsEnabled) {
             slack = Slack.getInstance();
             setupClient();
+        } else {
+            slack = null;
         }
     }
 
