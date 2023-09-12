@@ -12,6 +12,7 @@ import no.cantara.realestate.observations.ObservationMessage;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.Objects;
 
 public class MetasysObservationMessage extends ObservationMessage {
 
@@ -79,5 +80,27 @@ public class MetasysObservationMessage extends ObservationMessage {
         Instant receivedAt = Instant.now();
         setValue(value);
         setReceivedAt(receivedAt);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        MetasysObservationMessage that = (MetasysObservationMessage) o;
+        return Objects.equals(trendSample, that.trendSample) && Objects.equals(mappedSensorId, that.mappedSensorId) && Objects.equals(observedValue, that.observedValue);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(trendSample, mappedSensorId, observedValue);
+    }
+
+    @Override
+    public String toString() {
+        return "MetasysObservationMessage{" +
+                "trendSample=" + trendSample +
+                ", mappedSensorId=" + mappedSensorId +
+                ", observedValue=" + observedValue +
+                "} " + super.toString();
     }
 }

@@ -3,18 +3,24 @@ package no.cantara.realestate.metasys.cloudconnector.observations;
 import no.cantara.config.ApplicationProperties;
 import no.cantara.config.testsupport.ApplicationPropertiesTestHelper;
 import no.cantara.realestate.distribution.ObservationDistributionClient;
+import no.cantara.realestate.mappingtable.MappedSensorId;
+import no.cantara.realestate.mappingtable.SensorId;
+import no.cantara.realestate.mappingtable.UniqueKey;
+import no.cantara.realestate.mappingtable.metasys.MetasysSensorId;
+import no.cantara.realestate.mappingtable.metasys.MetasysUniqueKey;
+import no.cantara.realestate.mappingtable.rec.SensorRecObject;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.UserToken;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysOpenStreamEvent;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysStreamClient;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.*;
 import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionClient;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -115,6 +121,32 @@ class MetasysStreamImporterTest {
 
     @Test
     void onEventPresentValueIsNumber() {
-
+        String expectedMessageFormat = """
+                {
+                  "item": {
+                    "presentValue": 408,
+                    "id": "61abb522-7173-57f6-9dc2-11e89d51ctbd",
+                    "itemReference": "tbdw-adx-01:building001-434402-OS01/BACnet IP.E433_101-OU001.R1027.-RY601"
+                  },
+                  "condition": {
+                    "presentValue": {
+                      "reliability": "reliabilityEnumSet.reliable",
+                      "priority": "writePriorityEnumSet.priorityDefault"
+                    }
+                  }
+                }
+                """;
+        String metasysObjectId = "61abb522-7173-57f6-9dc2-11e89d51ctbd";
+        ObservedValueNumber observedValueNumber = new ObservedValueNumber(metasysObjectId, 408, "tbdw-adx-01:building001-434402-OS01/BACnet IP.E433_101-OU001.R1027.-RY601");
+        UniqueKey key = new MetasysUniqueKey(metasysObjectId);
+        SensorRecObject rec = mock(SensorRecObject.class);
+        SensorId sensorId = new MetasysSensorId(metasysObjectId, "metasysObjectReferene");
+        MappedSensorId mappedSensorId = new MappedSensorId(sensorId, rec);
+        when(idRepository.find(eq(key))).thenReturn(List.of(mappedSensorId));
+        StreamEvent streamEvent = new MetasysObservedValueEvent("1", "object.values.update", "comment", observedValueNumber);
+        //Test onEventMethod
+        metasysStreamImporter.onEvent(streamEvent);
+        MetasysObservationMessage observationMessage = new MetasysObservationMessage(observedValueNumber, mappedSensorId);
+        verify(distributionClient, times(1)).publish(eq(observationMessage));
     }
 }
