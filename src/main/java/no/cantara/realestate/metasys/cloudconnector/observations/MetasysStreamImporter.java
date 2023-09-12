@@ -68,7 +68,6 @@ public class MetasysStreamImporter implements StreamListener {
             log.debug("MetasysStreamImporter received: {}", event);
             MetasysObservedValueEvent observedValueEvent = (MetasysObservedValueEvent) event;
             setLastKnownEventId(observedValueEvent.getId());
-            //FIXME introcuce test for this scenario
             String metasysObjectId = observedValueEvent.getObservedValue().getId();
             UniqueKey key = new MetasysUniqueKey(metasysObjectId);
             List<MappedSensorId> mappedIds = idRepository.find(key);
@@ -77,8 +76,6 @@ public class MetasysStreamImporter implements StreamListener {
                 for (MappedSensorId mappedId : mappedIds) {
                     ObservedValue observedValue = observedValueEvent.getObservedValue();
                     if (observedValue instanceof ObservedValueNumber) {
-                        //FIXME implement test for this scenario
-
                         ObservationMessage observationMessage = new MetasysObservationMessage((ObservedValueNumber) observedValue, mappedId);
                         distributionClient.publish(observationMessage);
                     } else {
