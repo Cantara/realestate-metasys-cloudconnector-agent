@@ -15,11 +15,13 @@ import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFail
 import no.cantara.realestate.metasys.cloudconnector.automationserver.UserToken;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.*;
 import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionClient;
+import no.cantara.realestate.observations.ObservationMessage;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
@@ -148,5 +150,31 @@ class MetasysStreamImporterTest {
         metasysStreamImporter.onEvent(streamEvent);
         MetasysObservationMessage observationMessage = new MetasysObservationMessage(observedValueNumber, mappedSensorId);
         verify(distributionClient, times(1)).publish(eq(observationMessage));
+    }
+
+    @Test
+    void onEventPresentValueSensorIsMissingFromIdRepository() {
+        String metasysObjectId = "61abb522-7173-57f6-9dc2-11e89d51ctbd";
+        ObservedValueNumber observedValueNumber = new ObservedValueNumber(metasysObjectId, 408, "tbdw-adx-01:building001-434402-OS01/BACnet IP.E433_101-OU001.R1027.-RY601");
+        when(idRepository.find(any(UniqueKey.class))).thenReturn(new ArrayList<>());
+        StreamEvent streamEvent = new MetasysObservedValueEvent("1", "object.values.update", "comment", observedValueNumber);
+        //Test onEventMethod
+        metasysStreamImporter.onEvent(streamEvent);
+        verify(distributionClient, times(0)).publish(any(ObservationMessage.class));
+    }
+
+    @Test
+    void onEventPresentValueIsString() {
+        String metasysObjectId = "61abb522-7173-57f6-9dc2-11e89d51ctbd";
+        ObservedValueString observedValueString = new ObservedValueString(metasysObjectId, "anyString", "tbdw-adx-01:building001-434402-OS01/BACnet IP.E433_101-OU001.R1027.-RY601");
+        UniqueKey key = new MetasysUniqueKey(metasysObjectId);
+        SensorRecObject rec = mock(SensorRecObject.class);
+        SensorId sensorId = new MetasysSensorId(metasysObjectId, "metasysObjectReferene");
+        MappedSensorId mappedSensorId = new MappedSensorId(sensorId, rec);
+        when(idRepository.find(eq(key))).thenReturn(List.of(mappedSensorId));
+        StreamEvent streamEvent = new MetasysObservedValueEvent("1", "object.values.update", "comment", observedValueString);
+        //Test onEventMethod
+        metasysStreamImporter.onEvent(streamEvent);
+        verify(distributionClient, times(0)).publish(any(ObservationMessage.class));
     }
 }
