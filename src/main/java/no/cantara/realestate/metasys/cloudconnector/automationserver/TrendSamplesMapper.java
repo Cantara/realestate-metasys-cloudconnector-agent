@@ -11,6 +11,19 @@ public class TrendSamplesMapper {
         MetasysTrendSampleResult result = null;
         try {
             result = RealEstateObjectMapper.getInstance().getObjectMapper().readValue(trendSampleJson, MetasysTrendSampleResult.class);
+            if (result != null) {
+                String objectUrl = result.getObjectUrl();
+                if (objectUrl != null) {
+                    int lastSlash = objectUrl.lastIndexOf("/");
+                    if (lastSlash > 0) {
+                        String objectId = objectUrl.substring(lastSlash + 1);
+
+                        for (MetasysTrendSample sample : result.getItems()) {
+                            sample.setObjectId(objectId);
+                        }
+                    }
+                }
+            }
         } catch (Exception var2) {
             log.error("Unable to unmarshal SensorReading", var2);
         }

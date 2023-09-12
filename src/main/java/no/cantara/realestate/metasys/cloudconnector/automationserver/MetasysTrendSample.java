@@ -8,7 +8,7 @@ import java.util.Objects;
     {
 		"value": {
 			"value": 9398.001,
-			"units": "https://gp-sxd9e-113/api/v2/enumSets/507/members/19"
+			"units": "https://metasysserver/api/v4/enumSets/507/members/19"
 		},
 		"timestamp": "2020-09-16T05:20:00Z",
 		"isReliable": true
@@ -21,6 +21,7 @@ public class MetasysTrendSample {
     @JsonbProperty("timestamp")
     private Instant sampleDate;
     private Value value;
+    private String objectId;
 
     public MetasysTrendSample() {
     }
@@ -78,12 +79,21 @@ public class MetasysTrendSample {
         value.setValue(valueDeep);
     }
 
+    public void setObjectId(String objectId) {
+        this.objectId = objectId;
+    }
+
+    public String getObjectId() {
+        return objectId;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MetasysTrendSample that = (MetasysTrendSample) o;
         return Objects.equals(getTrendId(), that.getTrendId()) &&
+                Objects.equals(objectId, that.objectId) &&
                 Objects.equals(isReliable, that.isReliable) &&
                 Objects.equals(getSampleDate(), that.getSampleDate()) &&
                 Objects.equals(getValue(), that.getValue());
@@ -98,7 +108,8 @@ public class MetasysTrendSample {
     public String toString() {
         return "MetasysTrendSample{" +
                 "trendId='" + trendId + '\'' +
-                ", isReliable=" + isReliable +
+                ", objectId='" + objectId + '\'' +
+                ", isReliable=" + isReliable +  '\'' +
                 ", sampleDate=" + sampleDate +
                 ", value=" + value +
                 '}';

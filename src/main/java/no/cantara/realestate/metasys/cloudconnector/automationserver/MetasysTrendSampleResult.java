@@ -7,7 +7,7 @@ public class MetasysTrendSampleResult {
     private String next;
     private String previous;
     private List<MetasysTrendSample> items;
-    private String attributeUrl;
+    private String attribute;
     private String self;
     private String objectUrl;
 
@@ -46,12 +46,12 @@ public class MetasysTrendSampleResult {
         this.items = items;
     }
 
-    public String getAttributeUrl() {
-        return attributeUrl;
+    public String getAttribute() {
+        return attribute;
     }
 
-    public void setAttributeUrl(String attributeUrl) {
-        this.attributeUrl = attributeUrl;
+    public void setAttribute(String attribute) {
+        this.attribute = attribute;
     }
 
     public String getSelf() {
