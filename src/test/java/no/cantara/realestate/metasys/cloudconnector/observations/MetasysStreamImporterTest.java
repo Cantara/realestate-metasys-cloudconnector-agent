@@ -112,4 +112,9 @@ class MetasysStreamImporterTest {
         assertEquals(1, executorService.getQueue().size());
 
     }
+
+    @Test
+    void onEventPresentValueIsNumber() {
+
+    }
 }

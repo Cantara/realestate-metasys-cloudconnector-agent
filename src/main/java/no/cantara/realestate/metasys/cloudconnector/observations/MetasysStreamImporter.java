@@ -76,8 +76,14 @@ public class MetasysStreamImporter implements StreamListener {
                 log.trace("MappedId found for metasysObjectId: {} mappedIds: {}", metasysObjectId, mappedIds.toString());
                 for (MappedSensorId mappedId : mappedIds) {
                     ObservedValue observedValue = observedValueEvent.getObservedValue();
-                    ObservationMessage observationMessage = new MetasysObservationMessage(observedValue, mappedId);
-                    distributionClient.publish(observationMessage);
+                    if (observedValue instanceof ObservedValueNumber) {
+                        //FIXME implement test for this scenario
+
+                        ObservationMessage observationMessage = new MetasysObservationMessage((ObservedValueNumber) observedValue, mappedId);
+                        distributionClient.publish(observationMessage);
+                    } else {
+                        log.trace("ObservedValue is not a number. Not publishing to distributionClient. ObservedValue: {}", observedValue);
+                    }
                     //TODO publish metrics metricsDistributionClient.publish(observationMessage);
                 }
             } else {

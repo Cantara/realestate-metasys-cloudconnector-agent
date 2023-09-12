@@ -2,16 +2,16 @@ package no.cantara.realestate.metasys.cloudconnector.automationserver.stream;
 
 import java.time.Instant;
 
-public class ObservedValue {
+public abstract class ObservedValue<T> {
     private String id;
-    private Number value;
+    protected final T value;
 
     private Instant observedAt;
     private Instant receivedAt;
 
     private String itemReference;
 
-    public ObservedValue(String id, Number value, String itemReference) {
+    public ObservedValue(String id, T value, String itemReference) {
         this.id = id;
         this.value = value;
         this.itemReference = itemReference;
@@ -25,13 +25,7 @@ public class ObservedValue {
         this.id = id;
     }
 
-    public Number getValue() {
-        return value;
-    }
-
-    public void setValue(Number value) {
-        this.value = value;
-    }
+    public abstract T getValue();
 
     public Instant getObservedAt() {
         return observedAt;
