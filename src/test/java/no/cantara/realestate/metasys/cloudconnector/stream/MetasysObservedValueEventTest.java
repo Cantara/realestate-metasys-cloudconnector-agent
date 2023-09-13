@@ -39,7 +39,7 @@ class MetasysObservedValueEventTest {
                         "item": {
                           "presentValue": "binarypvEnumSet.bacbinActive",
                           "id": "61abb522-7173-57f6-9dc2-11e89d51aa54",
-                          "itemReference": "tbdw-adx-01:building001-434402-OS01/BACnet IP.E433_101-OU001.R1027.-RB601"
+                          "itemReference": "metasysserver1:building2-434402-OS01/BACnet IP.E433_301-OU001.R3037.-RY601"
                         },
                         "condition": {
                           "presentValue": {
@@ -52,7 +52,7 @@ class MetasysObservedValueEventTest {
         MetasysObservedValueEvent event = new MetasysObservedValueEvent("id", "comment", data);
         assertEquals("61abb522-7173-57f6-9dc2-11e89d51aa54", event.getObservedValue().getId());
         assertEquals("metasysserver1:building2-434402-OS01/BACnet IP.E433_301-OU001.R3037.-RY601", event.getObservedValue().getItemReference());
-        assertEquals("statusEnumSet.changingStatus", event.getObservedValue().getValue());
+        assertEquals("binarypvEnumSet.bacbinActive", event.getObservedValue().getValue());
 
     }
 }
