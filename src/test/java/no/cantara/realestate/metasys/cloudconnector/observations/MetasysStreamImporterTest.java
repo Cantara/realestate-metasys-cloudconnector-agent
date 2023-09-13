@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.Mockito.*;
 
 class MetasysStreamImporterTest {
@@ -176,5 +177,19 @@ class MetasysStreamImporterTest {
         //Test onEventMethod
         metasysStreamImporter.onEvent(streamEvent);
         verify(distributionClient, times(0)).publish(any(ObservationMessage.class));
+    }
+
+    @Test
+    void onEventOpenStreamEvent() {
+        Instant expires = Instant.parse("2023-09-12T13:39:46Z");
+        UserToken userToken = mock(UserToken.class);
+        when(userToken.getExpires()).thenReturn(expires);
+        when(sdClient.getUserToken()).thenReturn(userToken);
+        assertNotEquals(expires, metasysStreamImporter.getExpires());
+        String openStreamData = "";
+        StreamEvent openStreamEvent = new MetasysOpenStreamEvent("1223567", openStreamData);
+        metasysStreamImporter.onEvent(openStreamEvent);
+        //Verify that UserToken is refreshed
+        assertEquals(expires, metasysStreamImporter.getExpires());
     }
 }
