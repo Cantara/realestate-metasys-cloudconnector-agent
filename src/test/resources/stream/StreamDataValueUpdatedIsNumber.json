@@ -1,0 +1,14 @@
+{
+  "item": {
+    "presentValue": 408,
+    "id": "61abb522-7173-57f6-9dc2-11e89d51ctbd",
+    "itemReference": "tbdw-adx-01:building001-434402-OS01/BACnet IP.E433_101-OU001.R1027.-RY601"
+  },
+  "condition": {
+    "presentValue": {
+      "reliability": "reliabilityEnumSet.reliable",
+      "priority": "writePriorityEnumSet.priorityDefault"
+    }
+  }
+}
+

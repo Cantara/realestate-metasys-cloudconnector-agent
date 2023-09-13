@@ -1,0 +1,4 @@
+
+event:object.values.update
+data:{"item":{"presentValue":"binarypvEnumSet.bacbinActive","id":"61abb522-7173-57f6-9dc2-11e89d51aa54","itemReference":"tbdw-adx-01:building001-434402-OS01/BACnet IP.E433_101-OU001.R1027.-RB601"},"condition":{"presentValue":{"reliability":"reliabilityEnumSet.reliable","priority":"writePriorityEnumSet.priorityDefault"}}}
+id:4859b514-da6e-4182-8757-20187b0f107b:12

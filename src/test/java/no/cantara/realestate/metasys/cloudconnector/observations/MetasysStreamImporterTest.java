@@ -3,21 +3,30 @@ package no.cantara.realestate.metasys.cloudconnector.observations;
 import no.cantara.config.ApplicationProperties;
 import no.cantara.config.testsupport.ApplicationPropertiesTestHelper;
 import no.cantara.realestate.distribution.ObservationDistributionClient;
+import no.cantara.realestate.mappingtable.MappedSensorId;
+import no.cantara.realestate.mappingtable.SensorId;
+import no.cantara.realestate.mappingtable.UniqueKey;
+import no.cantara.realestate.mappingtable.metasys.MetasysSensorId;
+import no.cantara.realestate.mappingtable.metasys.MetasysUniqueKey;
+import no.cantara.realestate.mappingtable.rec.SensorRecObject;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.UserToken;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysOpenStreamEvent;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysStreamClient;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.*;
 import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionClient;
+import no.cantara.realestate.observations.ObservationMessage;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.Mockito.*;
 
 class MetasysStreamImporterTest {
@@ -111,5 +120,76 @@ class MetasysStreamImporterTest {
         //Verify that the refreshTokenTask is scheduled
         assertEquals(1, executorService.getQueue().size());
 
+    }
+
+    @Test
+    void onEventPresentValueIsNumber() {
+        String expectedMessageFormat = """
+                {
+                  "item": {
+                    "presentValue": 408,
+                    "id": "61abb522-7173-57f6-9dc2-11e89d51ctbd",
+                    "itemReference": "tbdw-adx-01:building001-434402-OS01/BACnet IP.E433_101-OU001.R1027.-RY601"
+                  },
+                  "condition": {
+                    "presentValue": {
+                      "reliability": "reliabilityEnumSet.reliable",
+                      "priority": "writePriorityEnumSet.priorityDefault"
+                    }
+                  }
+                }
+                """;
+        String metasysObjectId = "61abb522-7173-57f6-9dc2-11e89d51ctbd";
+        ObservedValueNumber observedValueNumber = new ObservedValueNumber(metasysObjectId, 408, "tbdw-adx-01:building001-434402-OS01/BACnet IP.E433_101-OU001.R1027.-RY601");
+        UniqueKey key = new MetasysUniqueKey(metasysObjectId);
+        SensorRecObject rec = mock(SensorRecObject.class);
+        SensorId sensorId = new MetasysSensorId(metasysObjectId, "metasysObjectReferene");
+        MappedSensorId mappedSensorId = new MappedSensorId(sensorId, rec);
+        when(idRepository.find(eq(key))).thenReturn(List.of(mappedSensorId));
+        StreamEvent streamEvent = new MetasysObservedValueEvent("1", "object.values.update", "comment", observedValueNumber);
+        //Test onEventMethod
+        metasysStreamImporter.onEvent(streamEvent);
+        MetasysObservationMessage observationMessage = new MetasysObservationMessage(observedValueNumber, mappedSensorId);
+        verify(distributionClient, times(1)).publish(eq(observationMessage));
+    }
+
+    @Test
+    void onEventPresentValueSensorIsMissingFromIdRepository() {
+        String metasysObjectId = "61abb522-7173-57f6-9dc2-11e89d51ctbd";
+        ObservedValueNumber observedValueNumber = new ObservedValueNumber(metasysObjectId, 408, "tbdw-adx-01:building001-434402-OS01/BACnet IP.E433_101-OU001.R1027.-RY601");
+        when(idRepository.find(any(UniqueKey.class))).thenReturn(new ArrayList<>());
+        StreamEvent streamEvent = new MetasysObservedValueEvent("1", "object.values.update", "comment", observedValueNumber);
+        //Test onEventMethod
+        metasysStreamImporter.onEvent(streamEvent);
+        verify(distributionClient, times(0)).publish(any(ObservationMessage.class));
+    }
+
+    @Test
+    void onEventPresentValueIsString() {
+        String metasysObjectId = "61abb522-7173-57f6-9dc2-11e89d51ctbd";
+        ObservedValueString observedValueString = new ObservedValueString(metasysObjectId, "anyString", "tbdw-adx-01:building001-434402-OS01/BACnet IP.E433_101-OU001.R1027.-RY601");
+        UniqueKey key = new MetasysUniqueKey(metasysObjectId);
+        SensorRecObject rec = mock(SensorRecObject.class);
+        SensorId sensorId = new MetasysSensorId(metasysObjectId, "metasysObjectReferene");
+        MappedSensorId mappedSensorId = new MappedSensorId(sensorId, rec);
+        when(idRepository.find(eq(key))).thenReturn(List.of(mappedSensorId));
+        StreamEvent streamEvent = new MetasysObservedValueEvent("1", "object.values.update", "comment", observedValueString);
+        //Test onEventMethod
+        metasysStreamImporter.onEvent(streamEvent);
+        verify(distributionClient, times(0)).publish(any(ObservationMessage.class));
+    }
+
+    @Test
+    void onEventOpenStreamEvent() {
+        Instant expires = Instant.parse("2023-09-12T13:39:46Z");
+        UserToken userToken = mock(UserToken.class);
+        when(userToken.getExpires()).thenReturn(expires);
+        when(sdClient.getUserToken()).thenReturn(userToken);
+        assertNotEquals(expires, metasysStreamImporter.getExpires());
+        String openStreamData = "";
+        StreamEvent openStreamEvent = new MetasysOpenStreamEvent("1223567", openStreamData);
+        metasysStreamImporter.onEvent(openStreamEvent);
+        //Verify that UserToken is refreshed
+        assertEquals(expires, metasysStreamImporter.getExpires());
     }
 }

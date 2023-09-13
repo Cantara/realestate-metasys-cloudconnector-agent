@@ -12,7 +12,7 @@ public class ParsedObservedValue  {
 
 
     String id;
-    Number value;
+    Object value;
     String itemReference;
 
 
@@ -20,39 +20,22 @@ public class ParsedObservedValue  {
     }
 
     @JsonProperty("item")
-    private void unpackNameFromNestedObject(Map<String, Object> item) {
+    protected void unpackNameFromNestedObject(Map<String, Object> item) {
         this.id = (String) item.get("id");
         this.itemReference = (String) item.get("itemReference");
-        this.value = (Number) item.get("presentValue");
+        this.value = item.get("presentValue");
         log.trace("ParsedObservedValue: id={}, itemReference={}, value={}", id, itemReference, value);
     }
 
-    public String getId() {
-        return id;
-    }
 
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public Number getValue() {
-        return value;
-    }
-
-    public void setValue(Number value) {
-        this.value = value;
-    }
-
-    public String getItemReference() {
-        return itemReference;
-    }
-
-    public void setItemReference(String itemReference) {
-        this.itemReference = itemReference;
-    }
 
     public ObservedValue toObservedValue() {
-        ObservedValue observedValue = new ObservedValue(getId(), getValue(),getItemReference());
+        ObservedValue observedValue = null;
+        if (value != null && value instanceof Number) {
+            observedValue = new ObservedValueNumber(id,(Number) value,itemReference);
+        } else {
+            observedValue = new ObservedValueString(id,(String) value,itemReference);
+        }
         return observedValue;
     }
 }

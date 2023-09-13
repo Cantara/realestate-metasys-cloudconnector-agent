@@ -4,7 +4,7 @@ import no.cantara.realestate.mappingtable.MappedSensorId;
 import no.cantara.realestate.mappingtable.SensorId;
 import no.cantara.realestate.mappingtable.rec.SensorRecObject;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysTrendSample;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.ObservedValue;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.ObservedValueNumber;
 import no.cantara.realestate.metasys.cloudconnector.sensors.MeasurementUnit;
 import no.cantara.realestate.metasys.cloudconnector.sensors.SensorType;
 import no.cantara.realestate.observations.ObservationMessage;
@@ -12,13 +12,14 @@ import no.cantara.realestate.observations.ObservationMessage;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.Objects;
 
 public class MetasysObservationMessage extends ObservationMessage {
 
     private final MetasysTrendSample trendSample;
     private final MappedSensorId mappedSensorId;
 
-    private final ObservedValue observedValue;
+    private final ObservedValueNumber observedValue;
 
     public MetasysObservationMessage(MetasysTrendSample trendSample, MappedSensorId mappedSensorId) {
         this.trendSample = trendSample;
@@ -27,7 +28,7 @@ public class MetasysObservationMessage extends ObservationMessage {
         buildObservation();
     }
 
-    public MetasysObservationMessage(ObservedValue observedValue, MappedSensorId mappedSensorId) {
+    public MetasysObservationMessage(ObservedValueNumber observedValue, MappedSensorId mappedSensorId) {
         this.observedValue = observedValue;
         this.mappedSensorId = mappedSensorId;
         trendSample = null;
@@ -79,5 +80,27 @@ public class MetasysObservationMessage extends ObservationMessage {
         Instant receivedAt = Instant.now();
         setValue(value);
         setReceivedAt(receivedAt);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        MetasysObservationMessage that = (MetasysObservationMessage) o;
+        return Objects.equals(trendSample, that.trendSample) && Objects.equals(mappedSensorId, that.mappedSensorId) && Objects.equals(observedValue, that.observedValue);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(trendSample, mappedSensorId, observedValue);
+    }
+
+    @Override
+    public String toString() {
+        return "MetasysObservationMessage{" +
+                "trendSample=" + trendSample +
+                ", mappedSensorId=" + mappedSensorId +
+                ", observedValue=" + observedValue +
+                "} " + super.toString();
     }
 }
