@@ -24,7 +24,7 @@ import static org.slf4j.LoggerFactory.getLogger;
 public class RasaRestClient {
     private static final Logger log = getLogger(RasaRestClient.class);
     public static final String RASA_REST_WEBHOOK = "http://localhost:5005/webhooks/rest/webhook";
-    private final HttpClient httpClient;
+    private final ClosableHttpClient httpClient;
 
     public RasaRestClient() {
         this(HttpClients.createDefault());
@@ -38,7 +38,6 @@ public class RasaRestClient {
         log.trace("Send message to Rasa. Sender {}, message {}", sender, message);
         String body = null;
         HttpPost request = null;
-        CloseableHttpClient httpClient = HttpClients.createDefault();
         List<NameValuePair> nvps = new ArrayList<>();
         nvps.add(new BasicNameValuePair("sender", sender));
         nvps.add(new BasicNameValuePair("message", message));
