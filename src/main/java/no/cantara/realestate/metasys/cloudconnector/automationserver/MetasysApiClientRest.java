@@ -163,6 +163,18 @@ public class MetasysApiClientRest implements SdClient {
                         }
 
                     }
+                } else {
+                    String reason = response.getReasonPhrase();
+                    String body = "";
+                    try {
+                        HttpEntity entity = response.getEntity();
+                        if (entity != null) {
+                            body = EntityUtils.toString(entity);
+                        }
+                    } catch (Exception e) {
+                        //log.warn("Failed to read body from response. Reason: {}", e.getMessage());
+                    }
+                    log.debug("Failed to fetch trendsamples for objectId: {}. Status: {}. Reason: {}, Body: {}", objectId, httpCode, reason, body);
                 }
             } catch (Exception e) {
                 setUnhealthy();
