@@ -139,6 +139,22 @@
       <version>${slack-api-client.version}</version>
     </dependency>
 
+    <!-- Metrics -->
+    <dependency>
+      <groupId>io.opentelemetry</groupId>
+      <artifactId>opentelemetry-api</artifactId>
+      <version>1.32.0</version>
+    </dependency>
+    <dependency>
+      <groupId>io.opentelemetry</groupId>
+      <artifactId>opentelemetry-sdk</artifactId>
+      <version>1.33.0</version>
+    </dependency>
+    <dependency>
+      <groupId>io.opentelemetry</groupId>
+      <artifactId>opentelemetry-semconv</artifactId>
+      <version>1.30.1-alpha</version>
+    </dependency>
 
     <!-- Test -->
     <dependency>

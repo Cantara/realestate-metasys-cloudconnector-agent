@@ -43,6 +43,17 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
     private boolean enableScheduledImport;
     private NotificationService notificationService;
 
+    public static final String INSTRUMENTATION_SCOPE_NAME_KEY = "opentelemetry.instrumentationScopeName";
+    public static final String INSTRUMENTATION_SCOPE_NAME_VALUE = "no.cantara.realestate";
+
+
+    public MetasysCloudconnectorApplication(ApplicationProperties config) {
+        super("MetasysCloudconnector",
+                readMetaInfMavenPomVersion("no.cantara.realestate", "metasys-cloudconnector-app"),
+                config
+        );
+    }
+
 
     public static void main(String[] args) {
         ApplicationProperties config = new MetasysCloudconnectorApplicationFactory()
@@ -84,12 +95,7 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         }
     }
 
-    public MetasysCloudconnectorApplication(ApplicationProperties config) {
-        super("MetasysCloudconnector",
-                readMetaInfMavenPomVersion("no.cantara.realestate", "metasys-cloudconnector-app"),
-                config
-        );
-    }
+
 
     @Override
     protected void doInit() {

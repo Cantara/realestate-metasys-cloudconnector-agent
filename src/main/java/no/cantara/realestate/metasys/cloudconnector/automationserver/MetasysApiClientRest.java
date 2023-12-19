@@ -1,6 +1,14 @@
 package no.cantara.realestate.metasys.cloudconnector.automationserver;
 
+import io.opentelemetry.api.GlobalOpenTelemetry;
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanKind;
+import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.context.Scope;
 import jakarta.ws.rs.core.HttpHeaders;
+import no.cantara.realestate.RealEstateException;
 import no.cantara.realestate.json.RealEstateObjectMapper;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorException;
 import no.cantara.realestate.metasys.cloudconnector.notifications.NotificationService;
@@ -29,7 +37,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static io.opentelemetry.api.common.AttributeKey.longKey;
+import static io.opentelemetry.api.common.AttributeKey.stringKey;
 import static no.cantara.realestate.mappingtable.Main.getConfigValue;
+import static no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnectorApplication.INSTRUMENTATION_SCOPE_NAME_VALUE;
 import static no.cantara.realestate.metasys.cloudconnector.utils.UrlEncoder.urlEncode;
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -51,22 +62,19 @@ public class MetasysApiClientRest implements SdClient {
     private final MetasysApiLogonService logonService;
     private long numberOfTrendSamplesReceived = 0;
     private boolean isHealthy = true;
+    final Tracer tracer;
+    final Meter meter;
 
     public MetasysApiClientRest(URI apiUri, NotificationService notificationService) {
-        this.apiUri = apiUri;
-        logonService = null;
-        this.notificationService = notificationService;
-        /*RestClientBuilder.newBuilder()
-                .baseUri(apiUri)
-                .build(MetasysApiLogonService.class);
-
-         */
+        this(apiUri, null, notificationService);
     }
 
     protected MetasysApiClientRest(URI apiUri, MetasysApiLogonService logonService, NotificationService notificationService) {
         this.apiUri = apiUri;
         this.logonService = logonService;
         this.notificationService = notificationService;
+        tracer = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_SCOPE_NAME_VALUE);
+        meter = GlobalOpenTelemetry.getMeter(INSTRUMENTATION_SCOPE_NAME_VALUE);
     }
 
     public static void main(String[] args) throws URISyntaxException, SdLogonFailedException {
@@ -89,30 +97,73 @@ public class MetasysApiClientRest implements SdClient {
 
     @Override
     public Set<MetasysTrendSample> findTrendSamples(String bearerToken, String trendId) throws URISyntaxException {
+        Span span = tracer.spanBuilder("findTrendSamples").setSpanKind(SpanKind.CLIENT).startSpan();
         String apiUrl = getConfigValue("sd.api.url"); //getConfigProperty("sd.api.url");
 
-        URI apiUri = new URI(apiUrl);
-        TrendSampleService trendSampleService = RestClientBuilder.newBuilder()
-                .baseUri(apiUri)
-                .build(TrendSampleService.class);
-        return trendSampleService.findTrendSamples("Bearer " + bearerToken, trendId.toString());
+        Set<MetasysTrendSample> trendSamples;
+
+        try (Scope ignored = span.makeCurrent()) {
+            URI apiUri = new URI(apiUrl);
+            TrendSampleService trendSampleService = RestClientBuilder.newBuilder()
+                    .baseUri(apiUri)
+                    .build(TrendSampleService.class);
+            trendSamples =  trendSampleService.findTrendSamples("Bearer " + bearerToken, trendId.toString());
+        } catch (URISyntaxException e) {
+            RealEstateException re = new RealEstateException("Failed to fetch trendsamples for trendId " + trendId
+                    + ". URI to BAS/SD server failed: " + apiUrl, e);
+            log.warn(re.getMessage(), re);
+            span.recordException(re);
+            span.addEvent("Failed to fetch trendsamples");
+            throw e;
+        } catch (Exception e) {
+            RealEstateException re = new RealEstateException("Failed to fetch trendsamples for trendId " + trendId
+                    + ". Reason: " + e.getMessage(), e);
+            span.recordException(re);
+            log.debug("Failed to fetch trendsamples for trendId: {}. Reason: {}", trendId, e.getMessage());
+            span.addEvent("Failed to fetch trendsamples");
+            throw re;
+        } finally {
+            span.end();
+        }
+        return trendSamples;
     }
 
     @Override
     public Set<MetasysTrendSample> findTrendSamples(String trendId, int take, int skip) throws URISyntaxException, SdLogonFailedException {
+        Span span = tracer.spanBuilder("findTrendSamplesPaged").setSpanKind(SpanKind.CLIENT).startSpan();
+        Set<MetasysTrendSample> trendSamples;
         String apiUrl = getConfigValue("sd.api.url");
-        String prefixedUrlEncodedTrendId = encodeAndPrefix(trendId);
-        String bearerToken = findAccessToken();
-        URI apiUri = new URI(apiUrl);
-        TrendSampleService trendSampleService = RestClientBuilder.newBuilder()
-                .baseUri(apiUri)
-                .build(TrendSampleService.class);
-        return trendSampleService.findTrendSamples("Bearer " + bearerToken, prefixedUrlEncodedTrendId, take, skip);
+        try (Scope ignored = span.makeCurrent()) {
+            String prefixedUrlEncodedTrendId = encodeAndPrefix(trendId);
+            String bearerToken = findAccessToken();
+            URI apiUri = new URI(apiUrl);
+            TrendSampleService trendSampleService = RestClientBuilder.newBuilder()
+                    .baseUri(apiUri)
+                    .build(TrendSampleService.class);
+            trendSamples = trendSampleService.findTrendSamples("Bearer " + bearerToken, prefixedUrlEncodedTrendId, take, skip);
+        } catch (URISyntaxException e) {
+            RealEstateException re = new RealEstateException("Failed to fetch trendsamples for trendId " + trendId
+                    + ". URI to BAS/SD server failed: " + apiUrl, e);
+            log.warn(re.getMessage(), re);
+            span.recordException(re);
+            span.addEvent("Failed to fetch trendsamples");
+            throw e;
+        } catch (Exception e) {
+            RealEstateException re = new RealEstateException("Failed to fetch trendsamples for trendId " + trendId
+                    + ". Reason: " + e.getMessage(), e);
+            span.recordException(re);
+            log.debug("Failed to fetch trendsamples for trendId: {}. Reason: {}", trendId, e.getMessage());
+            span.addEvent("Failed to fetch trendsamples");
+            throw re;
+        } finally {
+            span.end();
+        }
+        return trendSamples;
     }
 
     @Override
     public Set<MetasysTrendSample> findTrendSamplesByDate(String objectId, int take, int skip, Instant onAndAfterDateTime) throws URISyntaxException, SdLogonFailedException {
-
+        Span span = tracer.spanBuilder("findTrendSamplesByDate").setSpanKind(SpanKind.CLIENT).startSpan();
         String apiUrl = getConfigValue("sd.api.url");
         String prefixedUrlEncodedTrendId = encodeAndPrefix(objectId);
         String bearerToken = findAccessToken();
@@ -120,7 +171,7 @@ public class MetasysApiClientRest implements SdClient {
         CloseableHttpClient httpClient = HttpClients.createDefault();
         HttpGet request = null;
         List<MetasysTrendSample> trendSamples = new ArrayList<>();
-        try {
+        try (Scope ignored = span.makeCurrent()) {
 
             String startTime = onAndAfterDateTime.toString();
             int page=1;
@@ -154,14 +205,19 @@ public class MetasysApiClientRest implements SdClient {
                         log.trace("Received body: {}", body);
                         MetasysTrendSampleResult trendSampleResult = TrendSamplesMapper.mapFromJson(body);
                         log.trace("Found: {} trends from trendId: {}", trendSampleResult.getTotal(), objectId);
-                         trendSamples = trendSampleResult.getItems();
+                        trendSamples = trendSampleResult.getItems();
                         if (trendSamples != null) {
                             for (MetasysTrendSample trendSample : trendSamples) {
                                 trendSample.setTrendId(objectId);
                                 log.trace("imported trendSample: {}", trendSample);
                             }
                         }
-
+                        Long size = 0l;
+                        if (trendSamples != null) {
+                            size = Long.valueOf(trendSamples.size());
+                        }
+                        Attributes attributes = Attributes.of(stringKey("objectId"), objectId, longKey("trendSamples.size"), size);
+                        span.addEvent("Fetched trendsamples", attributes);
                     }
                 } else {
                     String reason = response.getReasonPhrase();
@@ -172,19 +228,35 @@ public class MetasysApiClientRest implements SdClient {
                             body = EntityUtils.toString(entity);
                         }
                     } catch (Exception e) {
+                        span.recordException(e);
                         //log.warn("Failed to read body from response. Reason: {}", e.getMessage());
                     }
                     log.debug("Failed to fetch trendsamples for objectId: {}. Status: {}. Reason: {}, Body: {}", objectId, httpCode, reason, body);
+
+                    Attributes attributes = Attributes.of(stringKey("objectId"), objectId,
+                            stringKey("http.status_code"), Integer.valueOf(httpCode).toString(),
+                            stringKey("http.reason"), reason,
+                            stringKey("http.body"), body);
+                    span.addEvent("Failed to fetch trendsamples", attributes);
                 }
             } catch (Exception e) {
                 setUnhealthy();
-                throw new MetasysCloudConnectorException("Failed to fetch trendsamples for objectId " + objectId
+                MetasysCloudConnectorException mce =  new MetasysCloudConnectorException("Failed to fetch trendsamples for objectId " + objectId
                         + ", after date "+ onAndAfterDateTime + ". Reason: " + e.getMessage(), e);
+                Attributes attributes = Attributes.of(stringKey("objectId"), objectId);
+                span.recordException(mce, attributes);
+                log.debug("Failed to fetch trendsamples for objectId: {}. Reason: {}", objectId, e.getMessage());
+                throw mce;
             }
         } catch (Exception e) {
             setUnhealthy();
-            throw new MetasysCloudConnectorException("Failed to fetch trendsamples for objectId " + objectId
+            MetasysCloudConnectorException mce = new MetasysCloudConnectorException("Failed to fetch trendsamples for objectId " + objectId
                     + ", after date "+ onAndAfterDateTime + ". Reason: " + e.getMessage(), e);
+            span.recordException(mce);
+            log.debug("Failed to fetch trendsamples for objectId: {}. Reason: {}", objectId, e.getMessage());
+            throw mce;
+        }  finally {
+            span.end();
         }
 
         /*
@@ -235,7 +307,7 @@ public class MetasysApiClientRest implements SdClient {
                 HttpEntity entity = response.getEntity();
                 statusCode = response.getCode();
                 if (statusCode == 202) {
-                   log.trace("Subscribing ok for objectId: {}", objectId);
+                    log.trace("Subscribing ok for objectId: {}", objectId);
                 } else {
                     String body = "";
                     if (entity != null) {
