@@ -1,9 +1,11 @@
 package no.cantara.realestate.metasys.cloudconnector.stream;
 
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysObservedValueEvent;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.ObservedValueBoolean;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MetasysObservedValueEventTest {
     String data ="""
@@ -52,7 +54,8 @@ class MetasysObservedValueEventTest {
         MetasysObservedValueEvent event = new MetasysObservedValueEvent("id", "comment", data);
         assertEquals("61abb522-7173-57f6-9dc2-11e89d51aa54", event.getObservedValue().getId());
         assertEquals("metasysserver1:building2-434402-OS01/BACnet IP.E433_301-OU001.R3037.-RY601", event.getObservedValue().getItemReference());
-        assertEquals("binarypvEnumSet.bacbinActive", event.getObservedValue().getValue());
+        assertTrue(event.getObservedValue() instanceof ObservedValueBoolean);
+        assertEquals(true, event.getObservedValue().getValue());
 
     }
 }
