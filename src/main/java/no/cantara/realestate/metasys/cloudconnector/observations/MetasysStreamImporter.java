@@ -78,6 +78,10 @@ public class MetasysStreamImporter implements StreamListener {
                     if (observedValue instanceof ObservedValueNumber) {
                         ObservationMessage observationMessage = new MetasysObservationMessage((ObservedValueNumber) observedValue, mappedId);
                         distributionClient.publish(observationMessage);
+                    } else if (observedValue instanceof ObservedValueBoolean) {
+                        ObservedValueNumber observedValueNumber = new ObservedValueNumber(observedValue.getId(), ((ObservedValueBoolean) observedValue).getValue() ? 1 : 0, observedValue.getItemReference());
+                        ObservationMessage observationMessage = new MetasysObservationMessage(observedValueNumber, mappedId);
+                        distributionClient.publish(observationMessage);
                     } else {
                         log.trace("ObservedValue is not a number. Not publishing to distributionClient. ObservedValue: {}", observedValue);
                     }

@@ -21,6 +21,34 @@ class ParsedObservedValueTest {
     }
 
     @Test
+    void unpackNameFromNestedObjectPresence() {
+        //From Json
+        String receivedJson = """
+                {
+                  "item": {
+                    "presentValue": "binarypvEnumSet.bacbinInactive",
+                    "id": "metasyDBId-d48f4ab5aa54",
+                    "itemReference": "eg-bacnetObjectName"
+                  },
+                  "condition": {
+                    "presentValue": {
+                      "reliability": "reliabilityEnumSet.reliable",
+                      "priority": "writePrioorityDefault"
+                    }
+                  }
+                }                                                                                                                                                                                                                                                                                       }
+                """;
+        Map<String, Object> item = Map.of("id", "metasyDBId-d48f4ab5aa54", "itemReference", "eg-bacnetObjectName", "presentValue", "binarypvEnumSet.bacbinInactive");
+        ParsedObservedValue parsedObservedValue = new ParsedObservedValue();
+        parsedObservedValue.unpackNameFromNestedObject(item);
+        ObservedValue observedValue = parsedObservedValue.toObservedValue();
+        assertEquals("metasyDBId-d48f4ab5aa54", observedValue.getId());
+        assertEquals("eg-bacnetObjectName", observedValue.getItemReference());
+        assertEquals(false, observedValue.getValue());
+
+    }
+
+    @Test
     void unpackNameFromNestedObjectString() {
         Map<String, Object> item = Map.of("id", "id", "itemReference", "itemReference", "presentValue", "bacnetChanged");
         ParsedObservedValue parsedObservedValue = new ParsedObservedValue();

@@ -7,7 +7,7 @@ import java.util.Map;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
-public class ParsedObservedValue  {
+public class ParsedObservedValue {
     private static final Logger log = getLogger(ParsedObservedValue.class);
 
 
@@ -28,13 +28,34 @@ public class ParsedObservedValue  {
     }
 
 
-
     public ObservedValue toObservedValue() {
         ObservedValue observedValue = null;
         if (value != null && value instanceof Number) {
-            observedValue = new ObservedValueNumber(id,(Number) value,itemReference);
+            observedValue = new ObservedValueNumber(id, (Number) value, itemReference);
         } else {
-            observedValue = new ObservedValueString(id,(String) value,itemReference);
+            String stringValue = value.toString();
+            switch (stringValue) {
+                case "binarypvEnumSet.bacbinInactive":
+                    observedValue = new ObservedValueBoolean(id, false, itemReference);
+                    break;
+                case "binarypvEnumSet.bacbinActive":
+                    observedValue = new ObservedValueBoolean(id, true, itemReference);
+                    break;
+                case "reliabilityEnumSet.reliable":
+                    observedValue = new ObservedValueBoolean(id, true, itemReference);
+                    break;
+                case "reliabilityEnumSet.notReliable":
+                    observedValue = new ObservedValueBoolean(id, false, itemReference);
+                    break;
+                case "writePrioorityDefault":
+                    observedValue = new ObservedValueBoolean(id, false, itemReference);
+                    break;
+                case "bacnetChanged":
+                    observedValue = new ObservedValueString(id, "bacnetChanged", itemReference);
+                    break;
+                default:
+                    observedValue = new ObservedValueString(id, (String) value, itemReference);
+            }
         }
         return observedValue;
     }
