@@ -17,7 +17,6 @@ public class MetasysObservedValueEvent extends StreamEvent {
             } else {
                 observedValue.setObservedAt(observedValue.getReceivedAt());
             }
-            observedValue.setObservedAt(Instant.now());
         }
     }
 
