@@ -29,6 +29,7 @@ public class RecCsvCreatorAzureDigitalTwin {
 //        }
         String configDirectory = config.get("importdata.directory");
         String filename = "MetasysRecImported.csv";
+        log.info("Writing {} Metasys sensor mappings to {}/{}", twins.size(),configDirectory,filename);
         writeMappingToFile(configDirectory, filename, false, twins);
         log.info("Wrote {} Metasys sensor mappings to {}", twins.size(), filename);
     }
