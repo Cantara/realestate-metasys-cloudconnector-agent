@@ -107,8 +107,11 @@ public class MetasysStreamImporter implements StreamListener {
     public void startSubscribing(List<MappedIdQuery> idQueries) throws SdLogonFailedException {
         log.trace("Start subscribing to MetasysStream");
         this.idQueries = idQueries;
-        if (idQueries != null && idQueries.size() > 0) {
-            MappedIdQuery idQuery = idQueries.get(0);
+        if (idQueries == null || idQueries.size() == 0) {
+            log.warn("No idQueries found for Stream import.");
+            return;
+        }
+        for (MappedIdQuery idQuery : idQueries) {
             List<MappedSensorId> mappedSensorIds = idRepository.find(idQuery);
             log.trace("Subscribing to {} mappedSensorIds for idQuery: {}", mappedSensorIds.size(), idQuery);
             for (MappedSensorId mappedSensorId : mappedSensorIds) {
@@ -126,8 +129,6 @@ public class MetasysStreamImporter implements StreamListener {
                     throw e;
                 }
             }
-        } else {
-            log.warn("No idQueries found. Skipping subscription.");
         }
     }
 
