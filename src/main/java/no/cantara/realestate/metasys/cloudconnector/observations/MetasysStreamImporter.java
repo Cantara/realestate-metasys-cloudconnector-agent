@@ -65,7 +65,7 @@ public class MetasysStreamImporter implements StreamListener {
             log.trace("StreamEvent received: {}. Class: {}", event, event.getClass());
         }
         if (event instanceof MetasysObservedValueEvent) {
-            log.debug("MetasysStreamImporter received: {}", event);
+            log.debug("MetasysStreamImporter received event: {}", event);
             MetasysObservedValueEvent observedValueEvent = (MetasysObservedValueEvent) event;
             setLastKnownEventId(observedValueEvent.getId());
             String metasysObjectId = observedValueEvent.getObservedValue().getId();
@@ -105,10 +105,12 @@ public class MetasysStreamImporter implements StreamListener {
     }
 
     public void startSubscribing(List<MappedIdQuery> idQueries) throws SdLogonFailedException {
+        log.trace("Start subscribing to MetasysStream");
         this.idQueries = idQueries;
         if (idQueries != null && idQueries.size() > 0) {
             MappedIdQuery idQuery = idQueries.get(0);
             List<MappedSensorId> mappedSensorIds = idRepository.find(idQuery);
+            log.trace("Subscribing to {} mappedSensorIds for idQuery: {}", mappedSensorIds.size(), idQuery);
             for (MappedSensorId mappedSensorId : mappedSensorIds) {
                 MetasysSensorId sensorId = (MetasysSensorId) mappedSensorId.getSensorId();
                 String metasysObjectId = sensorId.getMetasysObjectId();
@@ -130,12 +132,14 @@ public class MetasysStreamImporter implements StreamListener {
     }
 
     public void openStream() {
+        log.trace("Open stream to Metasys");
         streamUrl = ApplicationProperties.getInstance().get("sd.api.url") + "/stream";
         if (streamClient != null && !streamClient.isStreamOpen()) {
             UserToken userToken = sdClient.getUserToken();
             if (userToken != null) {
                 String accessToken = userToken.getAccessToken();
                 streamClient.openStream(streamUrl, accessToken, null, this);
+                log.trace("Metasys stream opened.");
                 isHealthy = true;
                 expires = userToken.getExpires();
                 Long refreshTokenIntervalInSeconds = Duration.between(Instant.now(), expires).get(ChronoUnit.SECONDS);
