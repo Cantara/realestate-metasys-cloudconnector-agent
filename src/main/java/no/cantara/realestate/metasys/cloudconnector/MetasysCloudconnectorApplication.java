@@ -73,8 +73,9 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
     private void startImportingObservations() {
         // Start import scheduler and stream
         if (enableStream) {
+            log.info("Stream import is enabled.");
             List<String> importAllFromRealestates = findListOfRealestatesToImportFrom();
-            log.info("Importallres: {}", importAllFromRealestates);
+            log.info("Stream import all from these RealEstates: {}", importAllFromRealestates);
             List<MappedIdQuery> idQueries = new ArrayList<>();
             if (importAllFromRealestates != null && importAllFromRealestates.size() > 0) {
                 for (String realestate : importAllFromRealestates) {
@@ -84,14 +85,19 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
             }
 
             try {
+                log.info("Stream import with these queries: {}", idQueries);
                 get(MetasysStreamImporter.class).startSubscribing(idQueries);
             } catch (SdLogonFailedException e) {
                 setUnhealthy();
                 log.warn("Failed to start subscribing to stream. Reason: {}", e.getMessage());
             }
+        } else {
+            log.info("Stream import is disabled.");
         }
         if (enableScheduledImport) {
             get(ScheduledImportManager.class).startScheduledImportOfTrendIds();
+        } else {
+            log.info("Scheduled import is disabled.");
         }
     }
 
