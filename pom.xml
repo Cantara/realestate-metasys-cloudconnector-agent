@@ -5,7 +5,7 @@
 
   <groupId>no.cantara.realestate</groupId>
   <artifactId>metasys-cloudconnector-app</artifactId>
-  <version>0.7.5</version>
+  <version>0.7.6-SNAPSHOT</version>
   <name>metasys-cloudconnector-agent</name>
   <url>https://github.com/Cantara/realestate-metasys-cloudconnector-agent</url>
 
@@ -18,7 +18,7 @@
     <developerConnection>scm:git:ssh://git@github.com/cantara/realestate-metasys-cloudconnector-agent.git</developerConnection>
     <connection>scm:git:https://github.com/cantara/realestate-metasys-cloudconnector-agent.git</connection>
     <url>https://github.com/cantara/realestate-metasys-cloudconnector-agent</url>
-    <tag>v0.7.5</tag>
+    <tag>HEAD</tag>
   </scm>
 
   <properties>
