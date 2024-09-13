@@ -61,6 +61,7 @@ public class MetasysApiClientRest implements SdClient {
     private UserToken userToken = null;
     private final MetasysApiLogonService logonService;
     private long numberOfTrendSamplesReceived = 0;
+    private Instant whenLastTrendSampleReceived = null;
     private boolean isHealthy = true;
     final Tracer tracer;
     final Meter meter;
@@ -125,6 +126,7 @@ public class MetasysApiClientRest implements SdClient {
         } finally {
             span.end();
         }
+        updateWhenLastTrendSampleReceived();
         return trendSamples;
     }
 
@@ -158,6 +160,7 @@ public class MetasysApiClientRest implements SdClient {
         } finally {
             span.end();
         }
+        updateWhenLastTrendSampleReceived();
         return trendSamples;
     }
 
@@ -286,6 +289,7 @@ public class MetasysApiClientRest implements SdClient {
 
          */
         isHealthy = true;
+        updateWhenLastTrendSampleReceived();
         return new HashSet<>(trendSamples);
     }
 
@@ -564,5 +568,12 @@ public class MetasysApiClientRest implements SdClient {
 
     public UserToken getUserToken() {
         return userToken;
+    }
+
+    protected synchronized void updateWhenLastTrendSampleReceived() {
+        whenLastTrendSampleReceived = Instant.ofEpochMilli(System.currentTimeMillis());
+    }
+    public Instant getWhenLastTrendSampleReceived() {
+        return whenLastTrendSampleReceived;
     }
 }

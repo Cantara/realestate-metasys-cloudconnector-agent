@@ -26,4 +26,6 @@ public interface SdClient {
     UserToken getUserToken();
 
     UserToken refreshToken() throws SdLogonFailedException;
+
+    Instant getWhenLastTrendSampleReceived();
 }

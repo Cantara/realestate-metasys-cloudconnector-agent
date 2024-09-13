@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.verify.VerificationTimes;
 
+import java.time.Instant;
+
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockserver.integration.ClientAndServer.startClientAndServer;
 import static org.mockserver.model.HttpRequest.request;
@@ -36,7 +38,7 @@ class MetasysStreamClientTest {
     @Test
     void hasReceivedMessagesLatelyCheck() {
         long now = System.currentTimeMillis();
-        metasysStreamClient.setLastEventReceievedAt(now);
+        metasysStreamClient.setLastEventReceievedAt(Instant.ofEpochMilli(now));
         assertTrue(metasysStreamClient.hasReceivedMessagesRecently());
     }
 

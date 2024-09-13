@@ -159,6 +159,7 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
             get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isHealthy: ", streamClient::isHealthy);
             get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isLoggedIn: ", streamClient::isLoggedIn);
             get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isStreamOpen: ", streamClient::isStreamOpen);
+            get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-whenLastObservationImported", streamClient::getWhenLastMessageImported);
             get(StingrayHealthService.class).registerHealthProbe(streamImporter.getName() + "-isHealthy: ", streamImporter::isHealthy);
             get(StingrayHealthService.class).registerHealthProbe(streamImporter.getName() + "-subscriptionId: ", streamImporter::getSubscriptionId);
 

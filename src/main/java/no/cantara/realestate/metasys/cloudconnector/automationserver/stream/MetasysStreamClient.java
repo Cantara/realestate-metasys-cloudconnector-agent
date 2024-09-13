@@ -23,7 +23,7 @@ public class MetasysStreamClient {
 
     private boolean isLoggedIn = false;
     private boolean isStreamOpen = false;
-    private long lastEventReceievedAt = -1;
+    private Instant lastEventReceievedAt = null;
     private Thread streamThread = null;
 
     public MetasysStreamClient() {
@@ -110,7 +110,7 @@ public class MetasysStreamClient {
                         log.trace("Received Event: id: {}, name: {}, comment: {}, \ndata: {}", inboundEvent.getId(), inboundEvent.getName(), inboundEvent.getComment(), data);
                         StreamEvent streamEvent = EventInputMapper.toStreamEvent(inboundEvent);
                         streamListener.onEvent(streamEvent);
-                        lastEventReceievedAt = System.currentTimeMillis();
+                        lastEventReceievedAt = Instant.ofEpochMilli(System.currentTimeMillis());
                     } catch (Exception e) {
                         //FIXME improve error handling
                         log.error("Failed to read data from inboundEvent: {}", inboundEvent, e);
@@ -169,12 +169,15 @@ public class MetasysStreamClient {
         return isLoggedIn;
     }
 
-    protected void setLastEventReceievedAt(long lastEventReceievedAt) {
+    protected void setLastEventReceievedAt(Instant lastEventReceievedAt) {
         this.lastEventReceievedAt = lastEventReceievedAt;
     }
 
     protected boolean hasReceivedMessagesRecently() {
-        return Instant.ofEpochMilli(lastEventReceievedAt).isAfter(Instant.now().minusSeconds(30));
+        return lastEventReceievedAt.isAfter(Instant.now().minusSeconds(30));
+    }
+    public Instant getWhenLastMessageImported() {
+        return lastEventReceievedAt;
     }
 
     public boolean isHealthy() {

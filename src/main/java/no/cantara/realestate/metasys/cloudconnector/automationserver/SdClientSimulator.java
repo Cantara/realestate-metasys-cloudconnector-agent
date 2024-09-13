@@ -22,6 +22,7 @@ public class SdClientSimulator implements SdClient {
 
     private Set<String> simulatedTrendIds = new HashSet<>();
     private long numberOfTrendSamplesReceived = 0;
+    private Instant whenLastTrendSampleReceived = null;
 
 
     public SdClientSimulator() {
@@ -191,6 +192,7 @@ public class SdClientSimulator implements SdClient {
             tsMap = new ConcurrentHashMap<>();
         }
         simulatedSDApiData.put(trendId.toString(), tsMap);
+        whenLastTrendSampleReceived = Instant.ofEpochMilli(System.currentTimeMillis());
         tsMap.put(ti, ts);
 //        log.info("   - added trendSample for {} - new size: {}", trendId, tsMap.size());
     }
@@ -219,5 +221,10 @@ public class SdClientSimulator implements SdClient {
     @Override
     public UserToken getUserToken() {
         return new UserToken();
+    }
+
+    @Override
+    public Instant getWhenLastTrendSampleReceived() {
+        return whenLastTrendSampleReceived;
     }
 }
