@@ -121,14 +121,14 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
                 log.info("Found implementation of ObservationDistributionClient on classpath: {}", distributionClient.toString());
                 observationDistributionClient = distributionClient;
             }
-            get(StingrayHealthService.class).registerHealthProbe(observationDistributionClient.getName() +"-isConnected: ", observationDistributionClient::isConnectionEstablished);
-            get(StingrayHealthService.class).registerHealthProbe(observationDistributionClient.getName() +"-numberofMessagesObserved: ", observationDistributionClient::getNumberOfMessagesObserved);
+            get(StingrayHealthService.class).registerHealthProbe(observationDistributionClient.getName() +"-isConnected", observationDistributionClient::isConnectionEstablished);
+            get(StingrayHealthService.class).registerHealthProbe(observationDistributionClient.getName() +"-numberofMessagesObserved", observationDistributionClient::getNumberOfMessagesObserved);
         }
         if (observationDistributionClient == null) {
             log.warn("No implementation of ObservationDistributionClient was found on classpath. Creating a ObservationDistributionServiceStub explicitly.");
             observationDistributionClient = new ObservationDistributionServiceStub();
-            get(StingrayHealthService.class).registerHealthProbe(observationDistributionClient.getName() +"-isConnected: ", observationDistributionClient::isConnectionEstablished);
-            get(StingrayHealthService.class).registerHealthProbe(observationDistributionClient.getName() +"-numberofMessagesDistributed: ", observationDistributionClient::getNumberOfMessagesObserved);
+            get(StingrayHealthService.class).registerHealthProbe(observationDistributionClient.getName() +"-isConnected", observationDistributionClient::isConnectionEstablished);
+            get(StingrayHealthService.class).registerHealthProbe(observationDistributionClient.getName() +"-numberofMessagesDistributed", observationDistributionClient::getNumberOfMessagesObserved);
         }
         observationDistributionClient.openConnection();
         log.info("Establishing and verifying connection to Azure.");
@@ -144,9 +144,9 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         ObservationDistributionResource observationDistributionResource = initAndRegisterJaxRsWsComponent(ObservationDistributionResource.class, () -> createObservationDistributionResource(finalObservationDistributionClient));
 
         get(StingrayHealthService.class).registerHealthProbe("mappedIdRepository.size", mappedIdRepository::size);
-        get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-isHealthy: ", sdClient::isHealthy);
-        get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-isLogedIn: ", sdClient::isLoggedIn);
-        get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-numberofTrendsSamples: ", sdClient::getNumberOfTrendSamplesReceived);
+        get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-isHealthy", sdClient::isHealthy);
+        get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-isLogedIn", sdClient::isLoggedIn);
+        get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-numberofTrendsSamples", sdClient::getNumberOfTrendSamplesReceived);
         get(StingrayHealthService.class).registerHealthProbe("observationDistribution.message.count", observationDistributionResource::getDistributedCount);
         //Random Example
         init(Random.class, this::createRandom);
@@ -156,12 +156,12 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         if (enableStream) {
             MetasysStreamClient streamClient =  new MetasysStreamClient();
             MetasysStreamImporter streamImporter = init(MetasysStreamImporter.class, () -> wireMetasysStreamImporter(streamClient, sdClient, mappedIdRepository, finalObservationDistributionClient, metricsDistributionClient));
-            get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isHealthy: ", streamClient::isHealthy);
-            get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isLoggedIn: ", streamClient::isLoggedIn);
-            get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isStreamOpen: ", streamClient::isStreamOpen);
+            get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isHealthy", streamClient::isHealthy);
+            get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isLoggedIn", streamClient::isLoggedIn);
+            get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isStreamOpen", streamClient::isStreamOpen);
             get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-whenLastObservationImported", streamClient::getWhenLastMessageImported);
-            get(StingrayHealthService.class).registerHealthProbe(streamImporter.getName() + "-isHealthy: ", streamImporter::isHealthy);
-            get(StingrayHealthService.class).registerHealthProbe(streamImporter.getName() + "-subscriptionId: ", streamImporter::getSubscriptionId);
+            get(StingrayHealthService.class).registerHealthProbe(streamImporter.getName() + "-isHealthy", streamImporter::isHealthy);
+            get(StingrayHealthService.class).registerHealthProbe(streamImporter.getName() + "-subscriptionId", streamImporter::getSubscriptionId);
 
             try {
                 streamImporter.openStream();
@@ -225,9 +225,9 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
                 sdClient.logon();
                 log.info("Running with a live REST SD.");
             } catch (URISyntaxException e) {
-                throw new MetasysCloudConnectorException("Failed to connect SD Client to URL: " + apiUrl, e);
+                throw new MetasysCloudConnectorException("Failed to connect SD Client to URL" + apiUrl, e);
             } catch (SdLogonFailedException e) {
-                throw new MetasysCloudConnectorException("Failed to logon SD Client. URL used: " + apiUrl, e);
+                throw new MetasysCloudConnectorException("Failed to logon SD Client. URL used" + apiUrl, e);
             }
         } else {
             URI simulatorUri = URI.create("https://simulator.totto.org:8080/SD");
