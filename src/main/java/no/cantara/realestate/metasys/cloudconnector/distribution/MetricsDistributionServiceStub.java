@@ -1,11 +1,11 @@
 package no.cantara.realestate.metasys.cloudconnector.distribution;
 
 import no.cantara.realestate.mappingtable.MappedSensorId;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysTrendSample;
+import no.cantara.realestate.observations.TrendSample;
 
 import java.util.Set;
 
-public class MetricsDistributionServiceStub implements MetricsDistributionClient {
+public class MetricsDistributionServiceStub implements MetasysMetricsDistributionClient {
     public MetricsDistributionServiceStub(String measurementName) {
     }
 
@@ -30,7 +30,7 @@ public class MetricsDistributionServiceStub implements MetricsDistributionClient
     }
 
     @Override
-    public void populate(Set<MetasysTrendSample> trendSamples, MappedSensorId mappedSensorId) {
+    public void populate(Set<TrendSample> trendSamples, MappedSensorId mappedSensorId) {
 
     }
 }

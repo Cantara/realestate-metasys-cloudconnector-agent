@@ -1,5 +1,7 @@
 package no.cantara.realestate.metasys.cloudconnector.automationserver;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import no.cantara.realestate.json.RealEstateObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -34,9 +36,28 @@ class TrendSamplesMapperTest {
         assertEquals(1, result.getTotal());
         MetasysTrendSample sample = result.getItems().get(0);
         assertNotNull(sample);
-        assertEquals(9398.001, sample.getValue());
+        assertEquals(9398.001, sample.getNumericValue());
         assertEquals("05ccd193-a3f9-5db7-9c72-61987ca3d8dd", sample.getObjectId());
         assertEquals("attributeEnumSet.presentValue", result.getAttribute());
         assertNull(sample.getTrendId());
+    }
+
+    @Test
+    void testMetasysTrendSample() throws JsonProcessingException {
+        String trendSampleJson = """
+                {
+                    "value": {
+                    	"value": 9398.001,
+                    	"units": "https://metasysserver/api/v4/enumSets/507/members/19"
+                    },
+                    "timestamp": "2020-09-16T05:20:00Z",
+                    "isReliable": true
+                }
+                """;
+        MetasysTrendSample trendSample = RealEstateObjectMapper.getInstance().getObjectMapper().readValue(trendSampleJson, MetasysTrendSample.class);
+        assertEquals(9398.001, trendSample.getNumericValue());
+        assertEquals("2020-09-16T05:20:00Z", trendSample.getSampleDate().toString());
+        assertTrue(trendSample.getReliable());
+
     }
 }

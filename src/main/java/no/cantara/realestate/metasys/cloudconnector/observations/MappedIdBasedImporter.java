@@ -1,6 +1,7 @@
 package no.cantara.realestate.metasys.cloudconnector.observations;
 
 import no.cantara.config.ApplicationProperties;
+import no.cantara.realestate.automationserver.BasClient;
 import no.cantara.realestate.distribution.ObservationDistributionClient;
 import no.cantara.realestate.mappingtable.MappedSensorId;
 import no.cantara.realestate.mappingtable.metasys.MetasysSensorId;
@@ -12,8 +13,6 @@ import no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnectorApplica
 import no.cantara.realestate.metasys.cloudconnector.StatusType;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysApiClientRest;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysTrendSample;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClient;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
 import no.cantara.realestate.metasys.cloudconnector.distribution.*;
 import no.cantara.realestate.metasys.cloudconnector.notifications.NotificationService;
 import no.cantara.realestate.metasys.cloudconnector.notifications.SlackNotificationService;
@@ -21,6 +20,8 @@ import no.cantara.realestate.metasys.cloudconnector.sensors.MetasysConfigImporte
 import no.cantara.realestate.metasys.cloudconnector.sensors.SensorType;
 import no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealthResource;
 import no.cantara.realestate.observations.ObservationMessage;
+import no.cantara.realestate.observations.TrendSample;
+import no.cantara.realestate.security.LogonFailedException;
 import org.slf4j.Logger;
 
 import java.net.URI;
@@ -37,16 +38,16 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
     public static final int FIRST_IMPORT_LATEST_SECONDS = 60 * 60 * 24;
 
     private final MappedIdQuery mappedIdQuery;
-    private final SdClient basClient;
+    private final BasClient basClient;
     private final ObservationDistributionClient distributionClient;
-    private final MetricsDistributionClient metricsClient;
+    private final MetasysMetricsDistributionClient metricsClient;
     private final MappedIdRepository mappedIdRepository;
     private List<MappedSensorId> importableTrendIds = new ArrayList<>();
     private final Map<String, Instant> lastSuccessfulImportAt;
     private Timer metricsDistributor;
     private int numberOfSuccessfulImports = 0;
 
-    public MappedIdBasedImporter(MappedIdQuery mappedIdQuery, SdClient basClient, ObservationDistributionClient distributionClient, MetricsDistributionClient metricsClient, MappedIdRepository mappedIdRepository) {
+    public MappedIdBasedImporter(MappedIdQuery mappedIdQuery, BasClient basClient, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsClient, MappedIdRepository mappedIdRepository) {
         this.mappedIdQuery = mappedIdQuery;
         this.basClient = basClient;
         this.distributionClient = distributionClient;
@@ -78,7 +79,7 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
                     }
                 }
             }, 2000, 1000);
-        } catch (SdLogonFailedException e) {
+        } catch (LogonFailedException e) {
             //FIXME add alerting and health
             TemporaryHealthResource.addRegisteredError("Logon to Metasys Failed");
             TemporaryHealthResource.setUnhealthy();
@@ -149,7 +150,7 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
 
                     log.trace("Try import of trendId: {} from: {}", trendId, importFrom);
                     try {
-                        Set<MetasysTrendSample> trendSamples = basClient.findTrendSamplesByDate(trendId, take, skip, importFrom);
+                        Set<TrendSample> trendSamples = (Set<TrendSample>) basClient.findTrendSamplesByDate(trendId, take, skip, importFrom);
                         if (trendSamples != null) {
                             log.trace("Found {} samples for trendId: {}", trendSamples.size(), trendId);
                             if (trendSamples.size() > 0) {
@@ -157,8 +158,8 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
                             }
 
                             successfulImport++;
-                            for (MetasysTrendSample trendSample : trendSamples) {
-                                ObservationMessage observationMessage = new MetasysObservationMessage(trendSample, mappedSensorId);
+                            for (TrendSample trendSample : trendSamples) {
+                                ObservationMessage observationMessage = new MetasysObservationMessage((MetasysTrendSample) trendSample, mappedSensorId);
                                 distributionClient.publish(observationMessage);
                             }
                             metricsClient.populate(trendSamples, mappedSensorId);
@@ -170,7 +171,7 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
                         MetasysCloudConnectorException se = new MetasysCloudConnectorException("Import of trend: {} is not possible now. Reason: {}", e, StatusType.RETRY_NOT_POSSIBLE);
                         log.warn("Import of trend: {} is not possible now. URI to SD server is misconfigured. Reason: {} ", trendId, e.getMessage());
                         throw se;
-                    } catch (SdLogonFailedException e) {
+                    } catch (LogonFailedException e) {
                         MetasysCloudConnectorException se = new MetasysCloudConnectorException("Failed to logon to SD server.", e, StatusType.RETRY_NOT_POSSIBLE);
                         log.warn("Import of trend: {} is not possible now. Reason: {} ", trendId, e.getMessage());
                         throw se;
@@ -226,11 +227,11 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
         String apiUrl = config.get("sd_api_url");
         URI apiUri = new URI(apiUrl);
         NotificationService notificationService = new SlackNotificationService();
-        SdClient sdClient = new MetasysApiClientRest(apiUri, notificationService);
+        BasClient sdClient = new MetasysApiClientRest(apiUri, notificationService);
 
         String measurementName = config.get("MEASUREMENT_NAME");
         ObservationDistributionClient observationClient = new ObservationDistributionServiceStub();//Simulator
-        MetricsDistributionClient metricsClient = new MetricsDistributionServiceStub(measurementName);//Simulator
+        MetasysMetricsDistributionClient metricsClient = new MetricsDistributionServiceStub(measurementName);//Simulator
 
         MappedIdQuery tfm2RecQuery = new MetasysMappedIdQueryBuilder().realEstate("RE1")
                 .sensorType(SensorType.co2.name())

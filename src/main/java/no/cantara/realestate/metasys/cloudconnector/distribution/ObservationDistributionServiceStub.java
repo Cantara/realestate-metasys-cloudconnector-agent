@@ -101,7 +101,7 @@ public class ObservationDistributionServiceStub implements ObservationDistributi
             try {
                 ObservationMessage observationMessage = (ObservationMessage) messageTemplate.clone();
 
-                Number value = trendSample.getValue();
+                Number value = trendSample.getNumericValue();
                 if (value instanceof BigDecimal) {
                     value = ((BigDecimal) value).setScale(2, RoundingMode.CEILING);
                 }

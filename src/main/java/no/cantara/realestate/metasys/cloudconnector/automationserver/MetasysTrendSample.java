@@ -1,5 +1,8 @@
 package no.cantara.realestate.metasys.cloudconnector.automationserver;
 
+import no.cantara.realestate.observations.TrendSample;
+import no.cantara.realestate.observations.Value;
+
 import javax.json.bind.annotation.JsonbProperty;
 import java.time.Instant;
 import java.util.Objects;
@@ -14,12 +17,13 @@ import java.util.Objects;
 		"isReliable": true
 	},
  */
-public class MetasysTrendSample {
+public class MetasysTrendSample extends TrendSample {
     private String trendId = null;
 
     private Boolean isReliable;
     @JsonbProperty("timestamp")
     private Instant sampleDate;
+    @JsonbProperty("value")
     private Value value;
     private String objectId;
 
@@ -51,13 +55,7 @@ public class MetasysTrendSample {
         return sampleDate;
     }
 
-//    public void setSampleDate(Instant sampleDate) {
-//        this.sampleDate = sampleDate;
-//    }
-
     public void setTimestamp(String timestamp) {
-//        DateTimeFormatter formatter = DateTimeFormatter.ISO_LOCAL_DATE;
-//        LocalDate parsedDate = LocalDate.parse(timestamp, formatter);
         this.sampleDate = Instant.parse(timestamp);
     }
 
@@ -65,18 +63,11 @@ public class MetasysTrendSample {
         return true; //FIXME validate MetasysTrendSample
     }
 
-    public Number getValue() {
-        Number valNum = null;
-        if (value != null) {
-            valNum = value.getValue();
-        }
-        return valNum;
+    public Value getValue() {
+        return value;
     }
-    public void setValueDeep(Integer valueDeep) {
-        if (value == null) {
-            value = new Value();
-        }
-        value.setValue(valueDeep);
+    public void setValue(Value value) {
+        super.setValue(value);
     }
 
     public void setObjectId(String objectId) {

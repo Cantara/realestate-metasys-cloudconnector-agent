@@ -2,6 +2,7 @@ package no.cantara.realestate.metasys.cloudconnector;
 
 import com.codahale.metrics.health.HealthCheck;
 import no.cantara.config.ApplicationProperties;
+import no.cantara.realestate.automationserver.BasClient;
 import no.cantara.realestate.azure.AzureObservationDistributionClient;
 import no.cantara.realestate.distribution.ObservationDistributionClient;
 import no.cantara.realestate.mappingtable.repository.MappedIdQuery;
@@ -9,11 +10,10 @@ import no.cantara.realestate.mappingtable.repository.MappedIdQueryBuilder;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepositoryImpl;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysApiClientRest;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClientSimulator;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysStreamClient;
-import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionClient;
+import no.cantara.realestate.metasys.cloudconnector.distribution.MetasysMetricsDistributionClient;
 import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionServiceStub;
 import no.cantara.realestate.metasys.cloudconnector.distribution.ObservationDistributionResource;
 import no.cantara.realestate.metasys.cloudconnector.distribution.ObservationDistributionServiceStub;
@@ -23,6 +23,7 @@ import no.cantara.realestate.metasys.cloudconnector.observations.*;
 import no.cantara.realestate.metasys.cloudconnector.sensors.MetasysConfigImporter;
 import no.cantara.realestate.metasys.cloudconnector.sensors.SensorType;
 import no.cantara.realestate.observations.ObservationMessage;
+import no.cantara.realestate.security.LogonFailedException;
 import no.cantara.stingray.application.AbstractStingrayApplication;
 import no.cantara.stingray.application.health.StingrayHealthService;
 import no.cantara.stingray.security.StingraySecurity;
@@ -112,7 +113,7 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         boolean doImportData = config.asBoolean("import.data");
         enableStream = config.asBoolean("sd.stream.enabled");
         enableScheduledImport = config.asBoolean("sd.scheduledImport.enabled");
-        SdClient sdClient = createSdClient(config);
+        BasClient sdClient = createSdClient(config);
 
         ServiceLoader<ObservationDistributionClient> observationDistributionClients = ServiceLoader.load(ObservationDistributionClient.class);
         ObservationDistributionClient observationDistributionClient = null;
@@ -137,7 +138,7 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
             observationDistributionClient.publish(stubMessage);
         }
         String measurementsName = config.get("measurements.name");
-        MetricsDistributionClient metricsDistributionClient = new MetricsDistributionServiceStub(measurementsName);
+        MetasysMetricsDistributionClient metricsDistributionClient = new MetricsDistributionServiceStub(measurementsName);
         MappedIdRepository mappedIdRepository = init(MappedIdRepository.class, () -> createMappedIdRepository(doImportData));
         ObservationDistributionClient finalObservationDistributionClient = observationDistributionClient;
         ScheduledImportManager scheduledImportManager = init(ScheduledImportManager.class, () -> wireScheduledImportManager(sdClient, finalObservationDistributionClient, metricsDistributionClient, mappedIdRepository));
@@ -206,14 +207,14 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
     }
 
 
-    protected MetasysStreamImporter wireMetasysStreamImporter(MetasysStreamClient streamClient, SdClient sdClient, MappedIdRepository mappedIdRepository, ObservationDistributionClient distributionClient, MetricsDistributionClient metricsClient) {
+    protected MetasysStreamImporter wireMetasysStreamImporter(MetasysStreamClient streamClient, BasClient sdClient, MappedIdRepository mappedIdRepository, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsClient) {
         MetasysStreamImporter streamImporter = new MetasysStreamImporter(streamClient, sdClient, mappedIdRepository, distributionClient, metricsClient);
 
         return streamImporter;
     }
 
-    private SdClient createSdClient(ApplicationProperties config) {
-        SdClient sdClient;
+    private BasClient createSdClient(ApplicationProperties config) {
+        BasClient sdClient;
         String useSDProdValue = config.get("sd.api.prod");
 
         if (Boolean.valueOf(useSDProdValue)) {
@@ -226,7 +227,7 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
                 log.info("Running with a live REST SD.");
             } catch (URISyntaxException e) {
                 throw new MetasysCloudConnectorException("Failed to connect SD Client to URL" + apiUrl, e);
-            } catch (SdLogonFailedException e) {
+            } catch (LogonFailedException e) {
                 throw new MetasysCloudConnectorException("Failed to logon SD Client. URL used" + apiUrl, e);
             }
         } else {
@@ -249,7 +250,7 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         return mappedIdRepository;
     }
 
-    private ScheduledImportManager wireScheduledImportManager(SdClient sdClient, ObservationDistributionClient distributionClient, MetricsDistributionClient metricsClient, MappedIdRepository mappedIdRepository) {
+    private ScheduledImportManager wireScheduledImportManager(BasClient sdClient, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsClient, MappedIdRepository mappedIdRepository) {
 
         ScheduledImportManager scheduledImportManager = null;
 

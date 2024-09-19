@@ -1,6 +1,7 @@
 package no.cantara.realestate.metasys.cloudconnector.observations;
 
 import no.cantara.config.ApplicationProperties;
+import no.cantara.realestate.automationserver.BasClient;
 import no.cantara.realestate.distribution.ObservationDistributionClient;
 import no.cantara.realestate.mappingtable.MappedSensorId;
 import no.cantara.realestate.mappingtable.UniqueKey;
@@ -8,12 +9,12 @@ import no.cantara.realestate.mappingtable.metasys.MetasysSensorId;
 import no.cantara.realestate.mappingtable.metasys.MetasysUniqueKey;
 import no.cantara.realestate.mappingtable.repository.MappedIdQuery;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.UserToken;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.*;
-import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionClient;
+import no.cantara.realestate.metasys.cloudconnector.distribution.MetasysMetricsDistributionClient;
 import no.cantara.realestate.observations.ObservationMessage;
+import no.cantara.realestate.security.LogonFailedException;
+import no.cantara.realestate.security.UserToken;
 import org.slf4j.Logger;
 
 import java.net.URISyntaxException;
@@ -32,10 +33,10 @@ public class MetasysStreamImporter implements StreamListener {
     private static final Logger log = getLogger(MetasysStreamImporter.class);
     private static final long REAUTHENTICATE_WITHIN_MILLIS = 30000;
     private final MetasysStreamClient streamClient;
-    private final SdClient sdClient;
+    private final BasClient sdClient;
     private final MappedIdRepository idRepository;
     private final ObservationDistributionClient distributionClient;
-    private final MetricsDistributionClient metricsDistributionClient;
+    private final MetasysMetricsDistributionClient metricsDistributionClient;
     private String subscriptionId = null;
 
     private boolean isHealthy = false;
@@ -48,7 +49,7 @@ public class MetasysStreamImporter implements StreamListener {
     private boolean reAuthorizationIsScheduled;
     private List<MappedIdQuery> idQueries;
 
-    public MetasysStreamImporter(MetasysStreamClient streamClient, SdClient sdClient, MappedIdRepository idRepository, ObservationDistributionClient distributionClient, MetricsDistributionClient metricsDistributionClient) {
+    public MetasysStreamImporter(MetasysStreamClient streamClient, BasClient sdClient, MappedIdRepository idRepository, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsDistributionClient) {
         this.streamClient = streamClient;
         this.sdClient = sdClient;
         this.idRepository = idRepository;
@@ -124,7 +125,7 @@ public class MetasysStreamImporter implements StreamListener {
                     log.info("Subscription returned httpStatus: {}", httpStatus);
                 } catch (URISyntaxException e) {
                     log.warn("SD URL is misconfigured. Failed to subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
-                } catch (SdLogonFailedException e) {
+                } catch (LogonFailedException e) {
                     log.warn("Failed to logon to SD system. Could not subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
                     throw e;
                 }
@@ -180,7 +181,7 @@ public class MetasysStreamImporter implements StreamListener {
                     }
                 }
             } else {
-                log.warn("UserToken is null. Cannot reauthorizeSubscription");
+                log.warn("MetasysUserToken is null. Cannot reauthorizeSubscription");
                 isHealthy = false;
             }
         } else {
@@ -206,7 +207,7 @@ public class MetasysStreamImporter implements StreamListener {
                         log.info("Refresh of accessToken successful. New userToken expires at: {}", reAuthentiacateduserToken.getExpires());
                     }
                 } catch (Exception e) {
-                    log.warn("Exception trying to refresh UserToken <hidden>", e);
+                    log.warn("Exception trying to refresh MetasysUserToken <hidden>", e);
                 }
             };
             scheduledExecutorService.scheduleAtFixedRate(refreshTokenTask, initialDelay, reSubscribeIntervalInSeconds, TimeUnit.SECONDS);
@@ -236,7 +237,7 @@ public class MetasysStreamImporter implements StreamListener {
                     }
                     reauthorizeSubscription();
                 } catch (Exception e) {
-                    log.warn("Exception trying to reauthenticate with UserToken <hidden>", e);
+                    log.warn("Exception trying to reauthenticate with MetasysUserToken <hidden>", e);
                 }
             };
             scheduledExecutorService.scheduleAtFixedRate(task1, initialDelay, reSubscribeIntervalInSeconds, TimeUnit.SECONDS);

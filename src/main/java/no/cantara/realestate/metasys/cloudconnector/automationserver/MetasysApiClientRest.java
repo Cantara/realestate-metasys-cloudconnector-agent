@@ -9,11 +9,16 @@ import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Scope;
 import jakarta.ws.rs.core.HttpHeaders;
 import no.cantara.realestate.RealEstateException;
+import no.cantara.realestate.automationserver.BasClient;
 import no.cantara.realestate.json.RealEstateObjectMapper;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorException;
 import no.cantara.realestate.metasys.cloudconnector.notifications.NotificationService;
 import no.cantara.realestate.metasys.cloudconnector.notifications.SlackNotificationService;
 import no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealthResource;
+import no.cantara.realestate.observations.PresentValue;
+import no.cantara.realestate.security.LogonFailedException;
+import no.cantara.realestate.security.UserToken;
+import no.cantara.realestate.sensors.SensorId;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -44,7 +49,7 @@ import static no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnector
 import static no.cantara.realestate.metasys.cloudconnector.utils.UrlEncoder.urlEncode;
 import static org.slf4j.LoggerFactory.getLogger;
 
-public class MetasysApiClientRest implements SdClient {
+public class MetasysApiClientRest implements BasClient {
     private static final Logger log = getLogger(MetasysApiClientRest.class);
     private static final String METASYS_SUBSCRIBE_HEADER = "METASYS-SUBSCRIBE";
     private final URI apiUri;
@@ -58,7 +63,7 @@ public class MetasysApiClientRest implements SdClient {
 
     private static final String LATEST_BY_DATE = "SampleDateDescending";
     private final NotificationService notificationService;
-    private UserToken userToken = null;
+    private MetasysUserToken userToken = null;
     private final MetasysApiLogonService logonService;
     private long numberOfTrendSamplesReceived = 0;
     private Instant whenLastTrendSampleReceived = null;
@@ -78,7 +83,7 @@ public class MetasysApiClientRest implements SdClient {
         meter = GlobalOpenTelemetry.getMeter(INSTRUMENTATION_SCOPE_NAME_VALUE);
     }
 
-    public static void main(String[] args) throws URISyntaxException, SdLogonFailedException {
+    public static void main(String[] args) throws URISyntaxException, LogonFailedException {
 
         String trendId = getConfigValue("trend.id");
         String apiUrl = getConfigValue("sd.api.url");
@@ -131,7 +136,7 @@ public class MetasysApiClientRest implements SdClient {
     }
 
     @Override
-    public Set<MetasysTrendSample> findTrendSamples(String trendId, int take, int skip) throws URISyntaxException, SdLogonFailedException {
+    public Set<MetasysTrendSample> findTrendSamples(String trendId, int take, int skip) throws URISyntaxException, LogonFailedException {
         Span span = tracer.spanBuilder("findTrendSamplesPaged").setSpanKind(SpanKind.CLIENT).startSpan();
         Set<MetasysTrendSample> trendSamples;
         String apiUrl = getConfigValue("sd.api.url");
@@ -165,7 +170,7 @@ public class MetasysApiClientRest implements SdClient {
     }
 
     @Override
-    public Set<MetasysTrendSample> findTrendSamplesByDate(String objectId, int take, int skip, Instant onAndAfterDateTime) throws URISyntaxException, SdLogonFailedException {
+    public Set<MetasysTrendSample> findTrendSamplesByDate(String objectId, int take, int skip, Instant onAndAfterDateTime) throws URISyntaxException, LogonFailedException {
         Span span = tracer.spanBuilder("findTrendSamplesByDate").setSpanKind(SpanKind.CLIENT).startSpan();
         String apiUrl = getConfigValue("sd.api.url");
         String prefixedUrlEncodedTrendId = encodeAndPrefix(objectId);
@@ -294,7 +299,7 @@ public class MetasysApiClientRest implements SdClient {
     }
 
     @Override
-    public Integer subscribePresentValueChange(String subscriptionId, String objectId) throws URISyntaxException, SdLogonFailedException {
+    public Integer subscribePresentValueChange(String subscriptionId, String objectId) throws URISyntaxException, LogonFailedException {
         Integer statusCode = null;
         String apiUrl = getConfigValue("sd.api.url"); //getConfigProperty("sd.api.url");
 
@@ -333,7 +338,7 @@ public class MetasysApiClientRest implements SdClient {
 
     }
 
-    public String findObjectId(String metasysDbReference) throws SdLogonFailedException, URISyntaxException {
+    public String findObjectId(String metasysDbReference) throws LogonFailedException, URISyntaxException {
         String encodedDbReference = urlEncode(metasysDbReference);
         String bearerToken = findAccessToken();
         ObjectIdentifiersService objectIdentifiersService = RestClientBuilder.newBuilder()
@@ -351,7 +356,7 @@ public class MetasysApiClientRest implements SdClient {
         }
     }
 
-    private String findAccessToken() throws SdLogonFailedException {
+    private String findAccessToken() throws LogonFailedException {
         try {
             String accessToken = null;
             if (userToken == null || tokenNeedRefresh()) {
@@ -364,7 +369,7 @@ public class MetasysApiClientRest implements SdClient {
             }
 
             return accessToken;
-        } catch (SdLogonFailedException e){
+        } catch (LogonFailedException e){
             notificationService.sendAlarm(METASYS_API,LOGON_FAILED);
             isHealthy = false;
             throw e;
@@ -383,8 +388,8 @@ public class MetasysApiClientRest implements SdClient {
         return willSoonExpire;
     }
 
-    public UserToken refreshToken() throws SdLogonFailedException {
-        UserToken refreshedUserToken = null;
+    public MetasysUserToken refreshToken() throws LogonFailedException {
+        MetasysUserToken refreshedUserToken = null;
         CloseableHttpClient httpClient = HttpClients.createDefault();
         String refreshTokenUrl = apiUri + "refreshToken";
         HttpGet request = null;
@@ -408,7 +413,7 @@ public class MetasysApiClientRest implements SdClient {
                     if (entity != null) {
                         String body = EntityUtils.toString(entity);
                         log.trace("Received body: {}", body);
-                        userToken = RealEstateObjectMapper.getInstance().getObjectMapper().readValue(body, UserToken.class);
+                        userToken = RealEstateObjectMapper.getInstance().getObjectMapper().readValue(body, MetasysUserToken.class);
                         log.trace("Converted to userToken: {}", userToken);
                         refreshedUserToken = userToken;
                         setHealthy();
@@ -418,7 +423,7 @@ public class MetasysApiClientRest implements SdClient {
                             ". accessToken: " + truncatedAccessToken +
                             ". ResponseCode: " + httpCode +
                             ". ReasonPhrase: " + response.getReasonPhrase();
-                    SdLogonFailedException logonFailedException = new SdLogonFailedException(msg);
+                    LogonFailedException logonFailedException = new LogonFailedException(msg);
                     log.warn("Failed to refresh accessToken on Metasys. Reason {}", logonFailedException.getMessage());
                     setUnhealthy();
                     TemporaryHealthResource.addRegisteredError("Failed to refresh accessToken on Metasys. Reason: " + logonFailedException.getMessage());
@@ -431,7 +436,7 @@ public class MetasysApiClientRest implements SdClient {
         } catch (IOException e) {
             notificationService.sendAlarm(METASYS_API,HOST_UNREACHABLE);
             String msg = "Failed to refresh accessToken on Metasys at uri: " + refreshTokenUrl + ", with accessToken: " + truncatedAccessToken;
-            SdLogonFailedException logonFailedException = new SdLogonFailedException(msg, e);
+            LogonFailedException logonFailedException = new LogonFailedException(msg, e);
             log.warn(msg);
             setUnhealthy();
             TemporaryHealthResource.addRegisteredError(msg + " Reason: " + logonFailedException.getMessage());
@@ -440,7 +445,7 @@ public class MetasysApiClientRest implements SdClient {
             notificationService.sendWarning(METASYS_API,"Parsing of AccessToken information failed.");
             String msg = "Failed to refresh accessToken on Metasys at uri: " + refreshTokenUrl + ", with accessToken: " + truncatedAccessToken +
                     ". Failure parsing the response.";
-            SdLogonFailedException logonFailedException = new SdLogonFailedException(msg, e);
+            LogonFailedException logonFailedException = new LogonFailedException(msg, e);
             log.warn(msg);
             setUnhealthy();
             TemporaryHealthResource.addRegisteredError(msg + " Reason: " + logonFailedException.getMessage());
@@ -456,12 +461,12 @@ public class MetasysApiClientRest implements SdClient {
     }
 
     @Override
-    public void logon() throws SdLogonFailedException {
+    public void logon() throws LogonFailedException {
         String username = getConfigValue("sd.api.username");
         String password = getConfigValue("sd.api.password");
         logon(username, password);
     }
-    protected void logon(String username, String password) throws SdLogonFailedException {
+    protected void logon(String username, String password) throws LogonFailedException {
         log.trace("Logon: {}", username);
         String jsonBody = "{ \"username\": \"" + username + "\",\"password\": \"" + password + "\"}";
         CloseableHttpClient httpClient = HttpClients.createDefault();
@@ -480,7 +485,7 @@ public class MetasysApiClientRest implements SdClient {
                     if (entity != null) {
                         String body = EntityUtils.toString(entity);
                         log.trace("Received body: {}", body);
-                        userToken = RealEstateObjectMapper.getInstance().getObjectMapper().readValue(body, UserToken.class);
+                        userToken = RealEstateObjectMapper.getInstance().getObjectMapper().readValue(body, MetasysUserToken.class);
                         log.trace("Converted to userToken: {}", userToken);
                         setHealthy();
                         notificationService.clearService(METASYS_API);
@@ -490,7 +495,7 @@ public class MetasysApiClientRest implements SdClient {
                             ". Username: " + username +
                             ". ResponseCode: " + httpCode +
                             ". ReasonPhrase: " + response.getReasonPhrase();
-                    SdLogonFailedException logonFailedException = new SdLogonFailedException(msg);
+                    LogonFailedException logonFailedException = new LogonFailedException(msg);
                     log.warn("Failed to logon to Metasys. Reason {}", logonFailedException.getMessage());
                     setUnhealthy();
                     notificationService.sendWarning(METASYS_API,LOGON_FAILED);
@@ -504,7 +509,7 @@ public class MetasysApiClientRest implements SdClient {
         } catch (IOException e) {
             notificationService.sendAlarm(METASYS_API,HOST_UNREACHABLE);
             String msg = "Failed to logon to Metasys at uri: " + loginUri + ", with username: " + username;
-            SdLogonFailedException logonFailedException = new SdLogonFailedException(msg, e);
+            LogonFailedException logonFailedException = new LogonFailedException(msg, e);
             log.warn(msg);
             setUnhealthy();
             TemporaryHealthResource.addRegisteredError(msg + " Reason: " + logonFailedException.getMessage());
@@ -513,7 +518,7 @@ public class MetasysApiClientRest implements SdClient {
             notificationService.sendWarning(METASYS_API,"Parsing of login information failed.");
             String msg = "Failed to logon to Metasys at uri: " + loginUri + ", with username: " + username +
                     ". Failure parsing the response.";
-            SdLogonFailedException logonFailedException = new SdLogonFailedException(msg, e);
+            LogonFailedException logonFailedException = new LogonFailedException(msg, e);
             log.warn(msg);
             setUnhealthy();
             TemporaryHealthResource.addRegisteredError(msg + " Reason: " + logonFailedException.getMessage());
@@ -566,6 +571,13 @@ public class MetasysApiClientRest implements SdClient {
         }
     }
 
+    @Override
+    public PresentValue findPresentValue(SensorId sensorId) throws URISyntaxException, LogonFailedException {
+        //FIXME Implement findPresentValue
+        throw new UnsupportedOperationException("findPresentValue not implemented");
+    }
+
+    @Override
     public UserToken getUserToken() {
         return userToken;
     }

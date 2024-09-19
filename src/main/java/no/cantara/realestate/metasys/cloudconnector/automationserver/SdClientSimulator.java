@@ -1,5 +1,11 @@
 package no.cantara.realestate.metasys.cloudconnector.automationserver;
 
+import no.cantara.realestate.automationserver.BasClient;
+import no.cantara.realestate.observations.PresentValue;
+import no.cantara.realestate.observations.TrendSample;
+import no.cantara.realestate.security.LogonFailedException;
+import no.cantara.realestate.security.UserToken;
+import no.cantara.realestate.sensors.SensorId;
 import org.slf4j.Logger;
 
 import java.net.URISyntaxException;
@@ -13,7 +19,7 @@ import java.util.concurrent.*;
 import static no.cantara.realestate.metasys.cloudconnector.utils.UrlEncoder.urlEncode;
 import static org.slf4j.LoggerFactory.getLogger;
 
-public class SdClientSimulator implements SdClient {
+public class SdClientSimulator implements BasClient {
 
     private static final Logger log = getLogger(SdClientSimulator.class);
     private Map<String, Map<Instant, MetasysTrendSample>> simulatedSDApiData = new ConcurrentHashMap();
@@ -32,10 +38,10 @@ public class SdClientSimulator implements SdClient {
     }
 
     @Override
-    public Set<MetasysTrendSample> findTrendSamples(String bearerToken, String trendId) throws URISyntaxException {
+    public Set<TrendSample> findTrendSamples(String bearerToken, String trendId) throws URISyntaxException {
         String prefixedUrlEncodedTrendId = encodeAndPrefix(trendId);
         Instant i = Instant.now().minus(1, ChronoUnit.DAYS);
-        Set<MetasysTrendSample> trendSamples = new HashSet<>();
+        Set<TrendSample> trendSamples = new HashSet<>();
         Map<Instant, MetasysTrendSample> trendTimeSamples = simulatedSDApiData.get(prefixedUrlEncodedTrendId);
         for (Instant t : trendTimeSamples.keySet()) {
             if (t.isAfter(i)) {
@@ -100,12 +106,12 @@ public class SdClientSimulator implements SdClient {
 
 
     @Override
-    public void logon() throws SdLogonFailedException {
+    public void logon() throws LogonFailedException {
         return;
     }
 
     @Override
-    public UserToken refreshToken() throws SdLogonFailedException {
+    public MetasysUserToken refreshToken() throws LogonFailedException {
         return null;
     }
 
@@ -169,7 +175,7 @@ public class SdClientSimulator implements SdClient {
     }
 
     @Override
-    public Integer subscribePresentValueChange(String subscriptionId, String objectId) throws URISyntaxException, SdLogonFailedException {
+    public Integer subscribePresentValueChange(String subscriptionId, String objectId) throws URISyntaxException, LogonFailedException {
         if (subscriptionId == null || objectId == null) {
             return 400;
         }
@@ -218,13 +224,19 @@ public class SdClientSimulator implements SdClient {
         return numberOfTrendSamplesReceived;
     }
 
+//    @Override
+//    public MetasysUserToken getUserToken() {
+//        return new MetasysUserToken();
+//    }
+
     @Override
-    public UserToken getUserToken() {
-        return new UserToken();
+    public PresentValue findPresentValue(SensorId sensorId) throws URISyntaxException, LogonFailedException {
+        return null;
     }
 
     @Override
-    public Instant getWhenLastTrendSampleReceived() {
-        return whenLastTrendSampleReceived;
+    public UserToken getUserToken() {
+        throw new UnsupportedOperationException("Not implemented");
     }
+
 }

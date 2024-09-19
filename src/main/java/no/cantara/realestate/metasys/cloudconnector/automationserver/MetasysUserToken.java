@@ -1,9 +1,11 @@
 package no.cantara.realestate.metasys.cloudconnector.automationserver;
 
+import no.cantara.realestate.security.UserToken;
+
 import javax.json.bind.annotation.JsonbProperty;
 import java.time.Instant;
 
-public class UserToken {
+public class MetasysUserToken extends UserToken {
     @JsonbProperty("accessToken")
     private String accessToken;
     @JsonbProperty("expires")
@@ -11,7 +13,7 @@ public class UserToken {
     private int validSeconds = -1;
     private Instant createdAt;
 
-    public UserToken() {
+    public MetasysUserToken() {
         createdAt = Instant.now();
     }
 
@@ -52,7 +54,7 @@ public class UserToken {
 
     @Override
     public String toString() {
-        return "UserToken{" +
+        return "MetasysUserToken{" +
                 "accessToken='" + accessToken + '\'' +
                 ", expires=" + expires +
                 ", validSeconds=" + validSeconds +

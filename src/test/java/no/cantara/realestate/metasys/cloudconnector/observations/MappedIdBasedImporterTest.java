@@ -2,6 +2,7 @@ package no.cantara.realestate.metasys.cloudconnector.observations;
 
 import no.cantara.config.ApplicationProperties;
 import no.cantara.config.testsupport.ApplicationPropertiesTestHelper;
+import no.cantara.realestate.automationserver.BasClient;
 import no.cantara.realestate.distribution.ObservationDistributionClient;
 import no.cantara.realestate.mappingtable.MappedSensorId;
 import no.cantara.realestate.mappingtable.metasys.MetasysSensorId;
@@ -9,9 +10,8 @@ import no.cantara.realestate.mappingtable.rec.SensorRecObject;
 import no.cantara.realestate.mappingtable.repository.MappedIdQuery;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
 import no.cantara.realestate.mappingtable.tfm.Tfm;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
-import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionClient;
+import no.cantara.realestate.metasys.cloudconnector.distribution.MetasysMetricsDistributionClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -27,16 +27,16 @@ class MappedIdBasedImporterTest {
 
     private ApplicationProperties config;
     private MappedIdBasedImporter importer;
-    private SdClient mockBasClient;
+    private BasClient mockBasClient;
 
     @BeforeEach
     void setUp() {
         ApplicationPropertiesTestHelper.enableMutableSingleton();
         config = ApplicationProperties.builder().buildAndSetStaticSingleton();
         MappedIdQuery mockIdQuery = mock(MappedIdQuery.class);
-        mockBasClient = mock(SdClient.class);
+        mockBasClient = mock(BasClient.class);
         ObservationDistributionClient mockDistributionClient = mock(ObservationDistributionClient.class);
-        MetricsDistributionClient mockMetricsClient = mock(MetricsDistributionClient.class);
+        MetasysMetricsDistributionClient mockMetricsClient = mock(MetasysMetricsDistributionClient.class);
         MappedIdRepository mockRepository = mock(MappedIdRepository.class);
         importer = new MappedIdBasedImporter(mockIdQuery, mockBasClient, mockDistributionClient, mockMetricsClient, mockRepository);
     }

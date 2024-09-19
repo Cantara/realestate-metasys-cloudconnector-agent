@@ -64,7 +64,7 @@ public class MetasysObservationMessage extends ObservationMessage {
         Number value = null;
         Instant observedAt = null;
         if (trendSample != null) {
-            value = trendSample.getValue();
+            value = trendSample.getNumericValue();
             if (value instanceof BigDecimal) {
                 value = ((BigDecimal) value).setScale(2, RoundingMode.CEILING);
             }

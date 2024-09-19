@@ -4,6 +4,7 @@ import java.net.URISyntaxException;
 import java.time.Instant;
 import java.util.Set;
 
+@Deprecated // Extend BasClient instead
 public interface SdClient {
     Set<MetasysTrendSample> findTrendSamples(String bearerToken, String trendId) throws URISyntaxException;
 
@@ -23,9 +24,9 @@ public interface SdClient {
 
     long getNumberOfTrendSamplesReceived();
 
-    UserToken getUserToken();
+    MetasysUserToken getUserToken();
 
-    UserToken refreshToken() throws SdLogonFailedException;
+    MetasysUserToken refreshToken() throws SdLogonFailedException;
 
     Instant getWhenLastTrendSampleReceived();
 }
