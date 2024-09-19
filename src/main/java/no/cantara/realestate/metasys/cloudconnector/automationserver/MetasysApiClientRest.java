@@ -64,7 +64,6 @@ public class MetasysApiClientRest implements BasClient {
     private static final String LATEST_BY_DATE = "SampleDateDescending";
     private final NotificationService notificationService;
     private MetasysUserToken userToken = null;
-    private final MetasysApiLogonService logonService;
     private long numberOfTrendSamplesReceived = 0;
     private Instant whenLastTrendSampleReceived = null;
     private boolean isHealthy = true;
@@ -72,12 +71,7 @@ public class MetasysApiClientRest implements BasClient {
     final Meter meter;
 
     public MetasysApiClientRest(URI apiUri, NotificationService notificationService) {
-        this(apiUri, null, notificationService);
-    }
-
-    protected MetasysApiClientRest(URI apiUri, MetasysApiLogonService logonService, NotificationService notificationService) {
         this.apiUri = apiUri;
-        this.logonService = logonService;
         this.notificationService = notificationService;
         tracer = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_SCOPE_NAME_VALUE);
         meter = GlobalOpenTelemetry.getMeter(INSTRUMENTATION_SCOPE_NAME_VALUE);
