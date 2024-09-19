@@ -11,7 +11,7 @@ import no.cantara.realestate.mappingtable.repository.MappedIdQuery;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.*;
-import no.cantara.realestate.metasys.cloudconnector.distribution.MetasysMetricsDistributionClient;
+import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
 import no.cantara.realestate.observations.ObservationMessage;
 import no.cantara.realestate.security.LogonFailedException;
 import no.cantara.realestate.security.UserToken;

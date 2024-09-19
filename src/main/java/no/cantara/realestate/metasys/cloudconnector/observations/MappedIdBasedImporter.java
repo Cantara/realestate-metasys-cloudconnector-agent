@@ -13,7 +13,8 @@ import no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnectorApplica
 import no.cantara.realestate.metasys.cloudconnector.StatusType;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysApiClientRest;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysTrendSample;
-import no.cantara.realestate.metasys.cloudconnector.distribution.*;
+import no.cantara.realestate.metasys.cloudconnector.distribution.ObservationDistributionServiceStub;
+import no.cantara.realestate.metasys.cloudconnector.metrics.*;
 import no.cantara.realestate.metasys.cloudconnector.notifications.NotificationService;
 import no.cantara.realestate.metasys.cloudconnector.notifications.SlackNotificationService;
 import no.cantara.realestate.metasys.cloudconnector.sensors.MetasysConfigImporter;

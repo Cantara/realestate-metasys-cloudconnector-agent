@@ -11,7 +11,7 @@ import no.cantara.realestate.mappingtable.repository.MappedIdQuery;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
 import no.cantara.realestate.mappingtable.tfm.Tfm;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
-import no.cantara.realestate.metasys.cloudconnector.distribution.MetasysMetricsDistributionClient;
+import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

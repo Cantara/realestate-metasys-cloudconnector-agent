@@ -13,10 +13,10 @@ import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysApiC
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClientSimulator;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysStreamClient;
-import no.cantara.realestate.metasys.cloudconnector.distribution.MetasysMetricsDistributionClient;
-import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionServiceStub;
 import no.cantara.realestate.metasys.cloudconnector.distribution.ObservationDistributionResource;
 import no.cantara.realestate.metasys.cloudconnector.distribution.ObservationDistributionServiceStub;
+import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
+import no.cantara.realestate.metasys.cloudconnector.metrics.MetricsDistributionServiceStub;
 import no.cantara.realestate.metasys.cloudconnector.notifications.NotificationService;
 import no.cantara.realestate.metasys.cloudconnector.notifications.SlackNotificationService;
 import no.cantara.realestate.metasys.cloudconnector.observations.*;

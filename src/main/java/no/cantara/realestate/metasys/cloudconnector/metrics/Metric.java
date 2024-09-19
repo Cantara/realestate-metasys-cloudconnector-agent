@@ -1,4 +1,4 @@
-package no.cantara.realestate.metasys.cloudconnector.distribution;
+package no.cantara.realestate.metasys.cloudconnector.metrics;
 
 import java.util.HashMap;
 import java.util.Map;
