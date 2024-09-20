@@ -34,7 +34,7 @@
     <stingray.version>1.10.25</stingray.version>
     <mappingtable.version>0.4.11</mappingtable.version>
     <mockserver.version>5.15.0</mockserver.version>
-    <slack-api-client.version>1.43.0</slack-api-client.version>
+    <slack-api-client.version>1.43.1</slack-api-client.version>
   </properties>
 
   <dependencies>
