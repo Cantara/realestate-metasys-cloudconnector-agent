@@ -199,46 +199,72 @@ public class MetasysApiClientRest implements BasClient {
             CloseableHttpResponse response = httpClient.execute(request);
             try {
                 int httpCode = response.getCode();
-                if (httpCode == 200) {
-                    HttpEntity entity = response.getEntity();
-                    if (entity != null) {
-                        String body = EntityUtils.toString(entity);
-                        log.trace("Received body: {}", body);
-                        MetasysTrendSampleResult trendSampleResult = TrendSamplesMapper.mapFromJson(body);
-                        log.trace("Found: {} trends from trendId: {}", trendSampleResult.getTotal(), objectId);
-                        trendSamples = trendSampleResult.getItems();
-                        if (trendSamples != null) {
-                            for (MetasysTrendSample trendSample : trendSamples) {
-                                trendSample.setTrendId(objectId);
-                                log.trace("imported trendSample: {}", trendSample);
-                            }
-                        }
-                        Long size = 0l;
-                        if (trendSamples != null) {
-                            size = Long.valueOf(trendSamples.size());
-                        }
-                        Attributes attributes = Attributes.of(stringKey("objectId"), objectId, longKey("trendSamples.size"), size);
-                        span.addEvent("Fetched trendsamples", attributes);
-                    }
-                } else {
-                    String reason = response.getReasonPhrase();
-                    String body = "";
-                    try {
-                        HttpEntity entity = response.getEntity();
+                HttpEntity entity = null;
+                String reason = null;
+                String body = "";
+                Attributes attributes = null;
+                switch (httpCode) {
+                    case 200:
+                        entity = response.getEntity();
                         if (entity != null) {
                             body = EntityUtils.toString(entity);
+                            log.trace("Received body: {}", body);
+                            MetasysTrendSampleResult trendSampleResult = TrendSamplesMapper.mapFromJson(body);
+                            log.trace("Found: {} trends from trendId: {}", trendSampleResult.getTotal(), objectId);
+                            trendSamples = trendSampleResult.getItems();
+                            if (trendSamples != null) {
+                                for (MetasysTrendSample trendSample : trendSamples) {
+                                    trendSample.setTrendId(objectId);
+                                    log.trace("imported trendSample: {}", trendSample);
+                                }
+                            }
+                            Long size = 0l;
+                            if (trendSamples != null) {
+                                size = Long.valueOf(trendSamples.size());
+                            }
+                            attributes = Attributes.of(stringKey("objectId"), objectId, longKey("trendSamples.size"), size);
+                            span.addEvent("Fetched trendsamples", attributes);
                         }
-                    } catch (Exception e) {
-                        span.recordException(e);
-                        //log.warn("Failed to read body from response. Reason: {}", e.getMessage());
-                    }
-                    log.debug("Failed to fetch trendsamples for objectId: {}. Status: {}. Reason: {}, Body: {}", objectId, httpCode, reason, body);
+                        break;
+                    case 403:
+                        reason = response.getReasonPhrase();
+                        log.debug("AccessToken not valid. Not able to get trendsamples for objectId: {}. Status: {}. Reason: {}", objectId, httpCode, reason);
 
-                    Attributes attributes = Attributes.of(stringKey("objectId"), objectId,
-                            stringKey("http.status_code"), Integer.valueOf(httpCode).toString(),
-                            stringKey("http.reason"), reason,
-                            stringKey("http.body"), body);
-                    span.addEvent("Failed to fetch trendsamples", attributes);
+                        attributes = Attributes.of(stringKey("objectId"), objectId,
+                                stringKey("http.status_code"), Integer.valueOf(httpCode).toString(),
+                                stringKey("http.reason"), reason);
+                        span.addEvent("AccessToken not valid.", attributes);
+                        invalidateUserToken();
+                        break;
+                    case 404:
+                        reason = response.getReasonPhrase();
+                        log.debug("Failed to fetch trendsamples for objectId: {}. Status: {}. Reason: {}", objectId, httpCode, reason);
+
+                        attributes = Attributes.of(stringKey("objectId"), objectId,
+                                stringKey("http.status_code"), Integer.valueOf(httpCode).toString(),
+                                stringKey("http.reason"), reason);
+                        span.addEvent("Failed to fetch trendsamples", attributes);
+                        break;
+                    default:
+                        reason = response.getReasonPhrase();
+                        try {
+                            entity = response.getEntity();
+                            if (entity != null) {
+                                body = EntityUtils.toString(entity);
+                            }
+                        } catch (Exception e) {
+                            span.recordException(e);
+                            //log.warn("Failed to read body from response. Reason: {}", e.getMessage());
+                        }
+                        log.debug("Failed to fetch trendsamples for objectId: {}. Status: {}. Reason: {}, Body: {}", objectId, httpCode, reason, body);
+
+                        attributes = Attributes.of(stringKey("objectId"), objectId,
+                                stringKey("http.status_code"), Integer.valueOf(httpCode).toString(),
+                                stringKey("http.reason"), reason,
+                                stringKey("http.body"), body);
+                        span.addEvent("Failed to fetch trendsamples", attributes);
+                        throw new MetasysCloudConnectorException("Failed to fetch trendsamples for objectId " + objectId + ". Status: " + httpCode
+                                + ". Reason: " + reason + ". Body: " + body);
                 }
             } catch (Exception e) {
                 setUnhealthy();
@@ -349,14 +375,15 @@ public class MetasysApiClientRest implements BasClient {
         }
     }
 
-    private String findAccessToken() throws LogonFailedException {
+    protected synchronized String findAccessToken() throws LogonFailedException {
+        UserToken activeUserToken = getUserToken();
         try {
             String accessToken = null;
-            if (userToken == null || tokenNeedRefresh()) {
+            if (activeUserToken == null || tokenNeedRefresh()) {
                 logon();
             }
-            if (userToken != null) {
-                accessToken = userToken.getAccessToken();
+            if (activeUserToken != null) {
+                accessToken = activeUserToken.getAccessToken();
             } else {
                 notificationService.clearService(METASYS_API);
             }
@@ -370,18 +397,20 @@ public class MetasysApiClientRest implements BasClient {
     }
 
     boolean tokenNeedRefresh() {
-        if (userToken == null) {
+        UserToken activeUserToken = getUserToken();
+        if (activeUserToken == null) {
             return true;
         }
         Instant now = Instant.now();
-        boolean willSoonExpire = userToken.getExpires().isBefore(now.plusSeconds(30));
+        boolean willSoonExpire = activeUserToken.getExpires().isBefore(now.plusSeconds(30));
         if (willSoonExpire) {
-            log.debug("AccessToken will soon expire. Need refreshing. Expires: {}", userToken.getExpires().toString());
+            log.debug("AccessToken will soon expire. Need refreshing. Expires: {}", activeUserToken.getExpires().toString());
         }
         return willSoonExpire;
     }
 
     public MetasysUserToken refreshToken() throws LogonFailedException {
+        invalidateUserToken();
         MetasysUserToken refreshedUserToken = null;
         CloseableHttpClient httpClient = HttpClients.createDefault();
         String refreshTokenUrl = apiUri + "refreshToken";
@@ -390,7 +419,8 @@ public class MetasysApiClientRest implements BasClient {
         try {
 
             request = new HttpGet(refreshTokenUrl);
-            String accessToken = userToken.getAccessToken();
+            UserToken activeUserToken = getUserToken();
+            String accessToken = activeUserToken.getAccessToken();
             if (accessToken != null && accessToken.length() > 11) {
                 truncatedAccessToken = accessToken.substring(0, 10) + "...";
             } else {
@@ -406,9 +436,9 @@ public class MetasysApiClientRest implements BasClient {
                     if (entity != null) {
                         String body = EntityUtils.toString(entity);
                         log.trace("Received body: {}", body);
-                        userToken = RealEstateObjectMapper.getInstance().getObjectMapper().readValue(body, MetasysUserToken.class);
-                        log.trace("Converted to userToken: {}", userToken);
-                        refreshedUserToken = userToken;
+                        refreshedUserToken = RealEstateObjectMapper.getInstance().getObjectMapper().readValue(body, MetasysUserToken.class);
+                        log.trace("Converted http body to userToken: {}", refreshedUserToken);
+//                        refreshedUserToken = updatedUserToken;
                         setHealthy();
                     }
                 } else {
@@ -453,13 +483,22 @@ public class MetasysApiClientRest implements BasClient {
         return refreshedUserToken;
     }
 
+    protected synchronized void updateUserToken(MetasysUserToken userToken) {
+        this.userToken = userToken;
+    }
+
+    protected synchronized void invalidateUserToken() {
+        userToken = null;
+    }
+
     @Override
     public void logon() throws LogonFailedException {
         String username = getConfigValue("sd.api.username");
         String password = getConfigValue("sd.api.password");
         logon(username, password);
     }
-    protected void logon(String username, String password) throws LogonFailedException {
+    protected synchronized void logon(String username, String password) throws LogonFailedException {
+        invalidateUserToken();
         log.trace("Logon: {}", username);
         String jsonBody = "{ \"username\": \"" + username + "\",\"password\": \"" + password + "\"}";
         CloseableHttpClient httpClient = HttpClients.createDefault();
@@ -478,8 +517,9 @@ public class MetasysApiClientRest implements BasClient {
                     if (entity != null) {
                         String body = EntityUtils.toString(entity);
                         log.trace("Received body: {}", body);
-                        userToken = RealEstateObjectMapper.getInstance().getObjectMapper().readValue(body, MetasysUserToken.class);
-                        log.trace("Converted to userToken: {}", userToken);
+                        MetasysUserToken updatedUserToken = RealEstateObjectMapper.getInstance().getObjectMapper().readValue(body, MetasysUserToken.class);
+                        log.trace("Converted http body to userToken: {}", updatedUserToken);
+                        updateUserToken(updatedUserToken);
                         setHealthy();
                         notificationService.clearService(METASYS_API);
                     }
@@ -527,7 +567,7 @@ public class MetasysApiClientRest implements BasClient {
 
     @Override
     public boolean isLoggedIn() {
-        return userToken != null;
+        return getUserToken() != null;
     }
 
     @Override
@@ -571,7 +611,7 @@ public class MetasysApiClientRest implements BasClient {
     }
 
     @Override
-    public UserToken getUserToken() {
+    public synchronized UserToken getUserToken() {
         return userToken;
     }
 
