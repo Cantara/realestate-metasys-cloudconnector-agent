@@ -2,7 +2,6 @@ package no.cantara.realestate.metasys.cloudconnector.automationserver;
 
 import no.cantara.realestate.automationserver.BasClient;
 import no.cantara.realestate.observations.PresentValue;
-import no.cantara.realestate.observations.TrendSample;
 import no.cantara.realestate.security.LogonFailedException;
 import no.cantara.realestate.security.UserToken;
 import no.cantara.realestate.sensors.SensorId;
@@ -10,7 +9,6 @@ import org.slf4j.Logger;
 
 import java.net.URISyntaxException;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -35,51 +33,6 @@ public class SdClientSimulator implements BasClient {
         log.info("SD Rest API Simulator started");
         scheduled_simulator_started = false;
         initializeMapAndStartSimulation();
-    }
-
-    @Override
-    public Set<TrendSample> findTrendSamples(String bearerToken, String trendId) throws URISyntaxException {
-        String prefixedUrlEncodedTrendId = encodeAndPrefix(trendId);
-        Instant i = Instant.now().minus(1, ChronoUnit.DAYS);
-        Set<TrendSample> trendSamples = new HashSet<>();
-        Map<Instant, MetasysTrendSample> trendTimeSamples = simulatedSDApiData.get(prefixedUrlEncodedTrendId);
-        for (Instant t : trendTimeSamples.keySet()) {
-            if (t.isAfter(i)) {
-                trendSamples.add(trendTimeSamples.get(t));
-                addNumberOfTrendSamplesReceived();
-            }
-        }
-        log.info("findTrendSamples returned:{} trendSamples", trendSamples.size());
-        return trendSamples;
-    }
-
-    synchronized void addNumberOfTrendSamplesReceived() {
-        if (numberOfTrendSamplesReceived < Long.MAX_VALUE) {
-            numberOfTrendSamplesReceived ++;
-        } else {
-            numberOfTrendSamplesReceived = 1;
-        }
-    }
-
-    @Override
-    public Set<MetasysTrendSample> findTrendSamples(String trendId, int take, int skip) throws URISyntaxException {
-        String prefixedUrlEncodedTrendId = encodeAndPrefix(trendId);
-        Instant i = Instant.now().minus(1, ChronoUnit.DAYS);
-        Set<MetasysTrendSample> trendSamples = new HashSet<>();
-        Map<Instant, MetasysTrendSample> trendTimeSamples = simulatedSDApiData.get(prefixedUrlEncodedTrendId);
-        int count = 0;
-        for (Instant t : trendTimeSamples.keySet()) {
-            if (t.isAfter(i)) {
-                trendSamples.add(trendTimeSamples.get(t));
-                count++;
-                if (count > take) {
-                    break;
-                }
-            }
-        }
-        log.info("findTrendSamples returned:{} trendSamples", trendSamples.size());
-
-        return trendSamples;
     }
 
     @Override
@@ -192,7 +145,7 @@ public class SdClientSimulator implements BasClient {
         Instant ti = Instant.now();
         ts.setTimestamp(ti.toString());
         Integer randomValue = ThreadLocalRandom.current().nextInt(50);
-        ts.setValueDeep(randomValue);
+        ts.setValue(randomValue);
         Map<Instant, MetasysTrendSample> tsMap = simulatedSDApiData.get(trendId);
         if (tsMap == null) {
             tsMap = new ConcurrentHashMap<>();
@@ -224,10 +177,6 @@ public class SdClientSimulator implements BasClient {
         return numberOfTrendSamplesReceived;
     }
 
-//    @Override
-//    public MetasysUserToken getUserToken() {
-//        return new MetasysUserToken();
-//    }
 
     @Override
     public PresentValue findPresentValue(SensorId sensorId) throws URISyntaxException, LogonFailedException {
@@ -236,7 +185,7 @@ public class SdClientSimulator implements BasClient {
 
     @Override
     public UserToken getUserToken() {
-        throw new UnsupportedOperationException("Not implemented");
+        return new MetasysUserToken();
     }
 
 }

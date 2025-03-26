@@ -1,5 +1,6 @@
 package no.cantara.realestate.metasys.cloudconnector.automationserver;
 
+import com.fasterxml.jackson.annotation.JsonSetter;
 import no.cantara.realestate.observations.TrendSample;
 import no.cantara.realestate.observations.Value;
 
@@ -22,9 +23,9 @@ public class MetasysTrendSample extends TrendSample {
 
     private Boolean isReliable;
     @JsonbProperty("timestamp")
-    private Instant sampleDate;
+    private Instant observedAt;
     @JsonbProperty("value")
-    private Value value;
+    private MetasysValue valueObject;
     private String objectId;
 
     public MetasysTrendSample() {
@@ -51,22 +52,29 @@ public class MetasysTrendSample extends TrendSample {
         isReliable = reliable;
     }
 
-    public Instant getSampleDate() {
-        return sampleDate;
-    }
 
     public void setTimestamp(String timestamp) {
-        this.sampleDate = Instant.parse(timestamp);
+       super.setObservedAt(timestamp);
     }
 
     public boolean isValid() {
         return true; //FIXME validate MetasysTrendSample
     }
 
-    public Value getValue() {
-        return value;
+    public Value getValueObject() {
+        return valueObject;
     }
-    public void setValue(Value value) {
+
+    @JsonSetter("value")
+    public void setValueObject(MetasysValue valueObject) {
+        this.valueObject = valueObject;
+        if (valueObject != null && valueObject.getValue() != null) {
+            if (valueObject.getValue() instanceof Number)
+            setValue((Number) valueObject.getValue());
+        }
+    }
+
+    public void setValue(Number value) {
         super.setValue(value);
     }
 
@@ -86,13 +94,13 @@ public class MetasysTrendSample extends TrendSample {
         return Objects.equals(getTrendId(), that.getTrendId()) &&
                 Objects.equals(objectId, that.objectId) &&
                 Objects.equals(isReliable, that.isReliable) &&
-                Objects.equals(getSampleDate(), that.getSampleDate()) &&
+                Objects.equals(getObservedAt(), that.getObservedAt()) &&
                 Objects.equals(getValue(), that.getValue());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getTrendId(), isReliable, getSampleDate(), getValue());
+        return Objects.hash(getTrendId(), isReliable, getObservedAt(), getValue());
     }
 
     @Override
@@ -101,8 +109,8 @@ public class MetasysTrendSample extends TrendSample {
                 "trendId='" + trendId + '\'' +
                 ", objectId='" + objectId + '\'' +
                 ", isReliable=" + isReliable +  '\'' +
-                ", sampleDate=" + sampleDate +
-                ", value=" + value +
+                ", observedAt=" + getObservedAt() +
+                ", value=" + getValue() +
                 '}';
     }
 }

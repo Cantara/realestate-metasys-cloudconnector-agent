@@ -2,6 +2,7 @@ package no.cantara.realestate.metasys.cloudconnector.automationserver;
 
 import java.util.Set;
 
+@Deprecated // Use explicitly defined implementations instead
 public interface TrendSampleService {
     Set<MetasysTrendSample> findTrendSamples(String s, String prefixedUrlEncodedTrendId, int take, int skip);
 

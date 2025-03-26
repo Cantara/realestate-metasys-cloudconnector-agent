@@ -50,7 +50,7 @@ public class RecCsvCreatorEnerginetAzureTable {
                 String name = row.getOrDefault("name", null);
                 String tfm = row.getOrDefault("Tfm", null);
                 String description = name;
-                String metasysObjectId = row.getOrDefault("metasysObjectId", null);
+                String metasysObjectId = row.getOrDefault("MetasysObjectId", null);
                 String realestate = null;
                 String building = null;
                 String floor = null;

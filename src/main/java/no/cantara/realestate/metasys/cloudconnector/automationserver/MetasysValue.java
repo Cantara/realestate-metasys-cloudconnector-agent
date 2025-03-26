@@ -6,9 +6,9 @@ import javax.json.bind.annotation.JsonbProperty;
 
 
 public class MetasysValue extends Value {
-    @JsonbProperty("value.value")
-    private Value value;
-    @JsonbProperty("value.units")
+    @JsonbProperty("value")
+    private Number value;
+    @JsonbProperty("units")
     private String units;
 
     public MetasysValue() {
@@ -31,6 +31,9 @@ public class MetasysValue extends Value {
 //    public void setUnits(String units) {
 //        this.units = units;
 //    }
+
+
+
 
     @Override
     public String toString() {

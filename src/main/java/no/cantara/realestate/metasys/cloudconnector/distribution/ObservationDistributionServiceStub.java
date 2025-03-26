@@ -101,12 +101,12 @@ public class ObservationDistributionServiceStub implements ObservationDistributi
             try {
                 ObservationMessage observationMessage = (ObservationMessage) messageTemplate.clone();
 
-                Number value = trendSample.getNumericValue();
+                Number value = trendSample.getValue();
                 if (value instanceof BigDecimal) {
                     value = ((BigDecimal) value).setScale(2, RoundingMode.CEILING);
                 }
                 observationMessage.setValue(value);
-                Instant observedAt = trendSample.getSampleDate();
+                Instant observedAt = trendSample.getObservedAt();
                 observationMessage.setObservationTime(observedAt);
                 Instant receivedAt = Instant.now();
                 observationMessage.setReceivedAt(receivedAt);

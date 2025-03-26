@@ -45,6 +45,7 @@ public enum SensorType {
                     case "rh":
                         mapped = humidity;
                         break;
+                    case "rb":
                     case "presence":
                     case "tilstedeværelse":
                         mapped = tilstedevarelse;

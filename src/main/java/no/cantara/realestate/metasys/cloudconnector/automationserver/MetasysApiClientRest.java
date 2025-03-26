@@ -8,7 +8,6 @@ import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Scope;
 import jakarta.ws.rs.core.HttpHeaders;
-import no.cantara.realestate.RealEstateException;
 import no.cantara.realestate.automationserver.BasClient;
 import no.cantara.realestate.json.RealEstateObjectMapper;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorException;
@@ -85,7 +84,7 @@ public class MetasysApiClientRest implements BasClient {
 
         MetasysApiClientRest apiClient = new MetasysApiClientRest(apiUri, new SlackNotificationService());
         String bearerToken = apiClient.findAccessToken();
-        Set<MetasysTrendSample> trends = apiClient.findTrendSamples(bearerToken, trendId);
+        Set<MetasysTrendSample> trends = apiClient.findTrendSamplesByDate(trendId, 10, 0,null);
         for (MetasysTrendSample trend : trends) {
             if (trend != null) {
                 log.info("Trend id={}, value={}, valid={}", trend.getTrendId(), trend.getValue(), trend.isValid());
@@ -95,73 +94,73 @@ public class MetasysApiClientRest implements BasClient {
         }
     }
 
-    @Override
-    public Set<MetasysTrendSample> findTrendSamples(String bearerToken, String trendId) throws URISyntaxException {
-        Span span = tracer.spanBuilder("findTrendSamples").setSpanKind(SpanKind.CLIENT).startSpan();
-        String apiUrl = getConfigValue("sd.api.url"); //getConfigProperty("sd.api.url");
-
-        Set<MetasysTrendSample> trendSamples;
-
-        try (Scope ignored = span.makeCurrent()) {
-            URI apiUri = new URI(apiUrl);
-            TrendSampleService trendSampleService = RestClientBuilder.newBuilder()
-                    .baseUri(apiUri)
-                    .build(TrendSampleService.class);
-            trendSamples =  trendSampleService.findTrendSamples("Bearer " + bearerToken, trendId.toString());
-        } catch (URISyntaxException e) {
-            RealEstateException re = new RealEstateException("Failed to fetch trendsamples for trendId " + trendId
-                    + ". URI to BAS/SD server failed: " + apiUrl, e);
-            log.warn(re.getMessage(), re);
-            span.recordException(re);
-            span.addEvent("Failed to fetch trendsamples");
-            throw e;
-        } catch (Exception e) {
-            RealEstateException re = new RealEstateException("Failed to fetch trendsamples for trendId " + trendId
-                    + ". Reason: " + e.getMessage(), e);
-            span.recordException(re);
-            log.debug("Failed to fetch trendsamples for trendId: {}. Reason: {}", trendId, e.getMessage());
-            span.addEvent("Failed to fetch trendsamples");
-            throw re;
-        } finally {
-            span.end();
-        }
-        updateWhenLastTrendSampleReceived();
-        return trendSamples;
-    }
-
-    @Override
-    public Set<MetasysTrendSample> findTrendSamples(String trendId, int take, int skip) throws URISyntaxException, LogonFailedException {
-        Span span = tracer.spanBuilder("findTrendSamplesPaged").setSpanKind(SpanKind.CLIENT).startSpan();
-        Set<MetasysTrendSample> trendSamples;
-        String apiUrl = getConfigValue("sd.api.url");
-        try (Scope ignored = span.makeCurrent()) {
-            String prefixedUrlEncodedTrendId = encodeAndPrefix(trendId);
-            String bearerToken = findAccessToken();
-            URI apiUri = new URI(apiUrl);
-            TrendSampleService trendSampleService = RestClientBuilder.newBuilder()
-                    .baseUri(apiUri)
-                    .build(TrendSampleService.class);
-            trendSamples = trendSampleService.findTrendSamples("Bearer " + bearerToken, prefixedUrlEncodedTrendId, take, skip);
-        } catch (URISyntaxException e) {
-            RealEstateException re = new RealEstateException("Failed to fetch trendsamples for trendId " + trendId
-                    + ". URI to BAS/SD server failed: " + apiUrl, e);
-            log.warn(re.getMessage(), re);
-            span.recordException(re);
-            span.addEvent("Failed to fetch trendsamples");
-            throw e;
-        } catch (Exception e) {
-            RealEstateException re = new RealEstateException("Failed to fetch trendsamples for trendId " + trendId
-                    + ". Reason: " + e.getMessage(), e);
-            span.recordException(re);
-            log.debug("Failed to fetch trendsamples for trendId: {}. Reason: {}", trendId, e.getMessage());
-            span.addEvent("Failed to fetch trendsamples");
-            throw re;
-        } finally {
-            span.end();
-        }
-        updateWhenLastTrendSampleReceived();
-        return trendSamples;
-    }
+//    @Override
+//    public Set<MetasysTrendSample> findTrendSamples(String bearerToken, String trendId) throws URISyntaxException {
+//        Span span = tracer.spanBuilder("findTrendSamples").setSpanKind(SpanKind.CLIENT).startSpan();
+//        String apiUrl = getConfigValue("sd.api.url"); //getConfigProperty("sd.api.url");
+//
+//        Set<MetasysTrendSample> trendSamples;
+//
+//        try (Scope ignored = span.makeCurrent()) {
+//            URI apiUri = new URI(apiUrl);
+//            TrendSampleService trendSampleService = RestClientBuilder.newBuilder()
+//                    .baseUri(apiUri)
+//                    .build(TrendSampleService.class);
+//            trendSamples =  trendSampleService.findTrendSamples("Bearer " + bearerToken, trendId.toString());
+//        } catch (URISyntaxException e) {
+//            RealEstateException re = new RealEstateException("Failed to fetch trendsamples for trendId " + trendId
+//                    + ". URI to BAS/SD server failed: " + apiUrl, e);
+//            log.warn(re.getMessage(), re);
+//            span.recordException(re);
+//            span.addEvent("Failed to fetch trendsamples");
+//            throw e;
+//        } catch (Exception e) {
+//            RealEstateException re = new RealEstateException("Failed to fetch trendsamples for trendId " + trendId
+//                    + ". Reason: " + e.getMessage(), e);
+//            span.recordException(re);
+//            log.debug("Failed to fetch trendsamples for trendId: {}. Reason: {}", trendId, e.getMessage());
+//            span.addEvent("Failed to fetch trendsamples");
+//            throw re;
+//        } finally {
+//            span.end();
+//        }
+//        updateWhenLastTrendSampleReceived();
+//        return trendSamples;
+//    }
+//
+//    @Override
+//    public Set<MetasysTrendSample> findTrendSamples(String trendId, int take, int skip) throws URISyntaxException, LogonFailedException {
+//        Span span = tracer.spanBuilder("findTrendSamplesPaged").setSpanKind(SpanKind.CLIENT).startSpan();
+//        Set<MetasysTrendSample> trendSamples;
+//        String apiUrl = getConfigValue("sd.api.url");
+//        try (Scope ignored = span.makeCurrent()) {
+//            String prefixedUrlEncodedTrendId = encodeAndPrefix(trendId);
+//            String bearerToken = findAccessToken();
+//            URI apiUri = new URI(apiUrl);
+//            TrendSampleService trendSampleService = RestClientBuilder.newBuilder()
+//                    .baseUri(apiUri)
+//                    .build(TrendSampleService.class);
+//            trendSamples = trendSampleService.findTrendSamples("Bearer " + bearerToken, prefixedUrlEncodedTrendId, take, skip);
+//        } catch (URISyntaxException e) {
+//            RealEstateException re = new RealEstateException("Failed to fetch trendsamples for trendId " + trendId
+//                    + ". URI to BAS/SD server failed: " + apiUrl, e);
+//            log.warn(re.getMessage(), re);
+//            span.recordException(re);
+//            span.addEvent("Failed to fetch trendsamples");
+//            throw e;
+//        } catch (Exception e) {
+//            RealEstateException re = new RealEstateException("Failed to fetch trendsamples for trendId " + trendId
+//                    + ". Reason: " + e.getMessage(), e);
+//            span.recordException(re);
+//            log.debug("Failed to fetch trendsamples for trendId: {}. Reason: {}", trendId, e.getMessage());
+//            span.addEvent("Failed to fetch trendsamples");
+//            throw re;
+//        } finally {
+//            span.end();
+//        }
+//        updateWhenLastTrendSampleReceived();
+//        return trendSamples;
+//    }
 
     @Override
     public Set<MetasysTrendSample> findTrendSamplesByDate(String objectId, int take, int skip, Instant onAndAfterDateTime) throws URISyntaxException, LogonFailedException {
