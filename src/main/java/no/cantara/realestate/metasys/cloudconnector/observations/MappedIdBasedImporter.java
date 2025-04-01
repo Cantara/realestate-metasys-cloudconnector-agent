@@ -300,4 +300,13 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
     protected void addImportableTrendId(MappedSensorId mappedSensorId) {
         importableTrendIds.add(mappedSensorId);
     }
+
+    @Override
+    public String toString() {
+        return "MappedIdBasedImporter{" +
+                "numberOfSuccessfulImports=" + numberOfSuccessfulImports +
+                ", numberOfFailedImports=" + numberOfFailedImports +
+                ", mappedIdQuery=" + mappedIdQuery +
+                '}';
+    }
 }
