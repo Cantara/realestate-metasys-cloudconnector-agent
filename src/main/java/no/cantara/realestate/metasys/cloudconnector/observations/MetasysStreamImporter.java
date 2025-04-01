@@ -122,7 +122,7 @@ public class MetasysStreamImporter implements StreamListener {
                 log.trace("Subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId);
                 try {
                     Integer httpStatus = sdClient.subscribePresentValueChange(getSubscriptionId(), metasysObjectId);
-                    log.info("Subscription returned httpStatus: {}", httpStatus);
+                    log.debug("Subscription to metasysObjectId: {} subscriptionId: {}, returned httpStatus: {}", metasysObjectId, subscriptionId, httpStatus);
                 } catch (URISyntaxException e) {
                     log.warn("SD URL is misconfigured. Failed to subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
                 } catch (LogonFailedException e) {
