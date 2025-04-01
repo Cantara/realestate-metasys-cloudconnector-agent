@@ -15,6 +15,7 @@ import no.cantara.realestate.metasys.cloudconnector.notifications.NotificationSe
 import no.cantara.realestate.metasys.cloudconnector.notifications.SlackNotificationService;
 import no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealthResource;
 import no.cantara.realestate.observations.PresentValue;
+import no.cantara.realestate.security.InvalidTokenException;
 import no.cantara.realestate.security.LogonFailedException;
 import no.cantara.realestate.security.UserToken;
 import no.cantara.realestate.sensors.SensorId;
@@ -83,7 +84,7 @@ public class MetasysApiClientRest implements BasClient {
         URI apiUri = new URI(apiUrl);
 
         MetasysApiClientRest apiClient = new MetasysApiClientRest(apiUri, new SlackNotificationService());
-        String bearerToken = apiClient.findAccessToken();
+//        String bearerToken = apiClient.findAccessToken();
         Set<MetasysTrendSample> trends = apiClient.findTrendSamplesByDate(trendId, 10, 0,null);
         for (MetasysTrendSample trend : trends) {
             if (trend != null) {
@@ -163,10 +164,13 @@ public class MetasysApiClientRest implements BasClient {
 //    }
 
     @Override
-    public Set<MetasysTrendSample> findTrendSamplesByDate(String objectId, int take, int skip, Instant onAndAfterDateTime) throws URISyntaxException, LogonFailedException {
+    public Set<MetasysTrendSample> findTrendSamplesByDate(String objectId, int take, int skip, Instant onAndAfterDateTime) throws URISyntaxException, InvalidTokenException {
+        if (onAndAfterDateTime == null) {
+            throw new IllegalArgumentException("onAndAfterDateTime cannot be null");
+        }
         Span span = tracer.spanBuilder("findTrendSamplesByDate").setSpanKind(SpanKind.CLIENT).startSpan();
         String apiUrl = getConfigValue("sd.api.url");
-        String prefixedUrlEncodedTrendId = encodeAndPrefix(objectId);
+//        String prefixedUrlEncodedTrendId = encodeAndPrefix(objectId);
         String bearerToken = findAccessToken();
         URI samplesUri = new URI(apiUrl + "objects/" + objectId+"/trendedAttributes/presentValue/samples");
         CloseableHttpClient httpClient = HttpClients.createDefault();
@@ -218,14 +222,15 @@ public class MetasysApiClientRest implements BasClient {
                                     log.trace("imported trendSample: {}", trendSample);
                                 }
                             }
-                            Long size = 0l;
+                            Long size = 0L;
                             if (trendSamples != null) {
-                                size = Long.valueOf(trendSamples.size());
+                                size = (long) trendSamples.size();
                             }
                             attributes = Attributes.of(stringKey("objectId"), objectId, longKey("trendSamples.size"), size);
                             span.addEvent("Fetched trendsamples", attributes);
                         }
                         break;
+                    case 401:
                     case 403:
                         reason = response.getReasonPhrase();
                         log.debug("AccessToken not valid. Not able to get trendsamples for objectId: {}. Status: {}. Reason: {}", objectId, httpCode, reason);
@@ -235,7 +240,7 @@ public class MetasysApiClientRest implements BasClient {
                                 stringKey("http.reason"), reason);
                         span.addEvent("AccessToken not valid.", attributes);
                         invalidateUserToken();
-                        break;
+                        throw new InvalidTokenException(reason);
                     case 404:
                         reason = response.getReasonPhrase();
                         log.debug("Failed to fetch trendsamples for objectId: {}. Status: {}. Reason: {}", objectId, httpCode, reason);
@@ -375,7 +380,7 @@ public class MetasysApiClientRest implements BasClient {
         }
     }
 
-    protected synchronized String findAccessToken() throws LogonFailedException {
+    protected String findAccessToken() throws LogonFailedException {
         UserToken activeUserToken = getUserToken();
         try {
             String accessToken = null;
@@ -483,11 +488,11 @@ public class MetasysApiClientRest implements BasClient {
         return refreshedUserToken;
     }
 
-    protected synchronized void updateUserToken(MetasysUserToken userToken) {
+    protected  void updateUserToken(MetasysUserToken userToken) {
         this.userToken = userToken;
     }
 
-    protected synchronized void invalidateUserToken() {
+    protected  void invalidateUserToken() {
         userToken = null;
     }
 
@@ -497,7 +502,7 @@ public class MetasysApiClientRest implements BasClient {
         String password = getConfigValue("sd.api.password");
         logon(username, password);
     }
-    protected synchronized void logon(String username, String password) throws LogonFailedException {
+    protected  void logon(String username, String password) throws LogonFailedException {
         invalidateUserToken();
         log.trace("Logon: {}", username);
         String jsonBody = "{ \"username\": \"" + username + "\",\"password\": \"" + password + "\"}";
@@ -596,7 +601,7 @@ public class MetasysApiClientRest implements BasClient {
         return numberOfTrendSamplesReceived;
     }
 
-    synchronized void addNumberOfTrendSamplesReceived() {
+     void addNumberOfTrendSamplesReceived() {
         if (numberOfTrendSamplesReceived < Long.MAX_VALUE) {
             numberOfTrendSamplesReceived ++;
         } else {
@@ -611,11 +616,11 @@ public class MetasysApiClientRest implements BasClient {
     }
 
     @Override
-    public synchronized UserToken getUserToken() {
+    public  UserToken getUserToken() {
         return userToken;
     }
 
-    protected synchronized void updateWhenLastTrendSampleReceived() {
+    protected  void updateWhenLastTrendSampleReceived() {
         whenLastTrendSampleReceived = Instant.ofEpochMilli(System.currentTimeMillis());
     }
     public Instant getWhenLastTrendSampleReceived() {

@@ -22,6 +22,7 @@ import no.cantara.realestate.metasys.cloudconnector.sensors.SensorType;
 import no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealthResource;
 import no.cantara.realestate.observations.ObservationMessage;
 import no.cantara.realestate.observations.TrendSample;
+import no.cantara.realestate.security.InvalidTokenException;
 import no.cantara.realestate.security.LogonFailedException;
 import org.slf4j.Logger;
 
@@ -47,6 +48,7 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
     private final Map<String, Instant> lastSuccessfulImportAt;
     private Timer metricsDistributor;
     private int numberOfSuccessfulImports = 0;
+    private int numberOfFailedImports = 0;
 
     public MappedIdBasedImporter(MappedIdQuery mappedIdQuery, BasClient basClient, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsClient, MappedIdRepository mappedIdRepository) {
         this.mappedIdQuery = mappedIdQuery;
@@ -151,7 +153,14 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
 
                     log.trace("Try import of trendId: {} from: {}", trendId, importFrom);
                     try {
-                        Set<TrendSample> trendSamples = (Set<TrendSample>) basClient.findTrendSamplesByDate(trendId, take, skip, importFrom);
+                        Set<TrendSample> trendSamples;
+                        try {
+                            trendSamples = (Set<TrendSample>) basClient.findTrendSamplesByDate(trendId, take, skip, importFrom);
+                        } catch (InvalidTokenException e) {
+                            log.warn("Invalid token. Try to re-logon to Metasys.");
+                            basClient.logon();
+                            trendSamples = (Set<TrendSample>) basClient.findTrendSamplesByDate(trendId, take, skip, importFrom);
+                        }
                         if (trendSamples != null) {
                             log.trace("Found {} samples for trendId: {}", trendSamples.size(), trendId);
                             if (trendSamples.size() > 0) {
@@ -171,15 +180,24 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
                     } catch (URISyntaxException e) {
                         MetasysCloudConnectorException se = new MetasysCloudConnectorException("Import of trend: {} is not possible now. Reason: {}", e, StatusType.RETRY_NOT_POSSIBLE);
                         log.warn("Import of trend: {} is not possible now. URI to SD server is misconfigured. Reason: {} ", trendId, e.getMessage());
+                        reportFailedImport(trendId);
                         throw se;
+                    } catch (InvalidTokenException e) {
+                        MetasysCloudConnectorException ite = new MetasysCloudConnectorException("Failed to fetch observations " +
+                                "due to invalid token. Re-logon did not help.", e, StatusType.RETRY_NOT_POSSIBLE);
+                        log.warn("Import of trend: {} is not possible now. Reason: {} ", trendId, e.getMessage());
+                        reportFailedImport(trendId);
+                        throw ite;
                     } catch (LogonFailedException e) {
                         MetasysCloudConnectorException se = new MetasysCloudConnectorException("Failed to logon to SD server.", e, StatusType.RETRY_NOT_POSSIBLE);
                         log.warn("Import of trend: {} is not possible now. Reason: {} ", trendId, e.getMessage());
+                        reportFailedImport(trendId);
                         throw se;
                     } catch (Exception e) {
                         MetasysCloudConnectorException se = new MetasysCloudConnectorException("Failed to import trendId " + trendId, e, StatusType.RETRY_MAY_FIX_ISSUE);
                         log.trace("Failed to import trendId {} for tfm2rec: {}. Reason: {}", trendId, mappedSensorId, se.getMessage());
                         log.trace("cause:", e);
+                        reportFailedImport(trendId);
                         failedImport++;
                     }
                 }
@@ -212,12 +230,25 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
         setNumberOfSuccessfulImports(successful + 1);
     }
 
+    void reportFailedImport(String trendId) {
+        int failed = getNumberOfFailedImports();
+        setNumberOfFailedImports(failed + 1);
+    }
+
     public synchronized int getNumberOfSuccessfulImports() {
         return numberOfSuccessfulImports;
     }
 
     public synchronized void setNumberOfSuccessfulImports(int numberOfSuccessfulImports) {
         this.numberOfSuccessfulImports = numberOfSuccessfulImports;
+    }
+
+    public synchronized int getNumberOfFailedImports() {
+        return numberOfFailedImports;
+    }
+
+    public synchronized void setNumberOfFailedImports(int numberOfFailedImports) {
+        this.numberOfFailedImports = numberOfFailedImports;
     }
 
 
