@@ -57,7 +57,7 @@ class MetasysStreamImporterTest {
     @Test
     void scheduleRefreshAccessToken() throws SdLogonFailedException, InterruptedException {
         MetasysUserToken stubUserToken = new MetasysUserToken();
-        stubUserToken.setExpires(Instant.now().plusSeconds(90));
+        stubUserToken.setExpires(Instant.now().plusSeconds(20));
         when(sdClient.getUserToken()).thenReturn(stubUserToken);
         metasysStreamImporter.scheduleRefreshToken(1L);
         Thread.sleep(1100);
@@ -72,7 +72,7 @@ class MetasysStreamImporterTest {
         MetasysOpenStreamEvent stubEvent = new MetasysOpenStreamEvent(id, data);
         ScheduledThreadPoolExecutor executorService = (ScheduledThreadPoolExecutor) metasysStreamImporter.getScheduledExecutorService();
         MetasysUserToken stubUserToken = new MetasysUserToken();
-        stubUserToken.setExpires(Instant.now().plusSeconds(90));
+        stubUserToken.setExpires(Instant.now().plusSeconds(20));
         when(sdClient.getUserToken()).thenReturn(stubUserToken);
         //Find list of not executed tasks
 //        List<Runnable> notExecutedTasks = executorService.shutdownNow();

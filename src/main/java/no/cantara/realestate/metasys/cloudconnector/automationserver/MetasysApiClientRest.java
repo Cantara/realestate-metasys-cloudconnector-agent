@@ -414,7 +414,7 @@ public class MetasysApiClientRest implements BasClient {
         return willSoonExpire;
     }
 
-    public MetasysUserToken refreshToken() throws LogonFailedException {
+    public synchronized MetasysUserToken refreshToken() throws LogonFailedException {
         invalidateUserToken();
         MetasysUserToken refreshedUserToken = null;
         CloseableHttpClient httpClient = HttpClients.createDefault();

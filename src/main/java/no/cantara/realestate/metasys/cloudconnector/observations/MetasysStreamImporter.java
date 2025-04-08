@@ -202,9 +202,17 @@ public class MetasysStreamImporter implements StreamListener {
             Runnable refreshTokenTask = () -> {
                 try {
                     log.warn("Stream Subscription will soon expire. Need to refresh accessToken ");
-                    UserToken reAuthentiacateduserToken = sdClient.refreshToken();
-                    if (reAuthentiacateduserToken != null && reAuthentiacateduserToken.getExpires() != null) {
-                        log.info("Refresh of accessToken successful. New userToken expires at: {}", reAuthentiacateduserToken.getExpires());
+                    UserToken userToken = sdClient.getUserToken();
+                    if (userToken == null ||
+                            userToken.getExpires() == null ||
+                            userToken.getExpires().isBefore(Instant.now().plusSeconds(reSubscribeIntervalInSeconds + 30))) {
+                        log.trace("Need to reauthenticate. Current UserToken: {}", userToken);
+                        UserToken reAuthentiacateduserToken = sdClient.refreshToken();
+                        if (reAuthentiacateduserToken != null && reAuthentiacateduserToken.getExpires() != null) {
+                            log.trace("Refresh of accessToken successful. New userToken expires at: {}", reAuthentiacateduserToken.getExpires());
+                        }
+                    } else {
+                         log.trace("No need to reauthenticate. UserToken expires at: {}", userToken.getExpires());
                     }
                 } catch (Exception e) {
                     log.warn("Exception trying to refresh MetasysUserToken <hidden>", e);
@@ -230,7 +238,14 @@ public class MetasysStreamImporter implements StreamListener {
             Runnable task1 = () -> {
                 try {
                     log.warn("Stream Subscription will soon expire. Need to re-subscribe ");
-                    sdClient.logon();
+                    UserToken userToken = sdClient.getUserToken();
+                    if (userToken != null && userToken.getExpires() != null) {
+                        userToken.getExpires().isAfter(Instant.now().plusSeconds(reSubscribeIntervalInSeconds + 30));
+                        log.trace("No need to reauthenticate. UserToken expires at: {}", userToken.getExpires());
+                    } else {
+                        log.trace("Need to reauthenticate. Current UserToken: {}", userToken);
+                        sdClient.logon();
+                    }
                     UserToken reAuthentiacateduserToken = sdClient.getUserToken();
                     if (reAuthentiacateduserToken != null && reAuthentiacateduserToken.getExpires() != null) {
                         log.info("Resubscribe successful. New userToken expires at: {}", reAuthentiacateduserToken.getExpires());
