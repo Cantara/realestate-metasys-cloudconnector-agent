@@ -14,7 +14,10 @@ import no.cantara.realestate.metasys.cloudconnector.StatusType;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysApiClientRest;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysTrendSample;
 import no.cantara.realestate.metasys.cloudconnector.distribution.ObservationDistributionServiceStub;
-import no.cantara.realestate.metasys.cloudconnector.metrics.*;
+import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysLogonFailed;
+import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
+import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysTrendsFetchedOk;
+import no.cantara.realestate.metasys.cloudconnector.metrics.MetricsDistributionServiceStub;
 import no.cantara.realestate.metasys.cloudconnector.notifications.NotificationService;
 import no.cantara.realestate.metasys.cloudconnector.notifications.SlackNotificationService;
 import no.cantara.realestate.metasys.cloudconnector.sensors.MetasysConfigImporter;
@@ -64,13 +67,13 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
         try {
             importableTrendIds = mappedIdRepository.find(mappedIdQuery);
             log.debug("Found {} trendIds to import. Query: {}", importableTrendIds.size(), mappedIdQuery);
-            if (!basClient.isLoggedIn()) {
-                basClient.logon();
-            }
+//            if (!basClient.isLoggedIn()) {
+//                basClient.logon();
+//            }
             metricsClient.openDb();
             lastImportedObservationTypes.loadLastUpdatedStatus();
             TemporaryHealthResource.lastImportedObservationTypes = lastImportedObservationTypes;
-            metricsClient.sendMetrics(new MetasysLogonOk());
+//            metricsClient.sendMetrics(new MetasysLogonOk());
             metricsDistributor = new Timer();
             metricsDistributor.schedule(new TimerTask() {
                 @Override
@@ -83,6 +86,7 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
                 }
             }, 2000, 1000);
         } catch (LogonFailedException e) {
+            //FIXME hvorfor får jeg logon failed her?
             //FIXME add alerting and health
             TemporaryHealthResource.addRegisteredError("Logon to Metasys Failed");
             TemporaryHealthResource.setUnhealthy();

@@ -200,8 +200,8 @@ public class MetasysApiClientRest implements BasClient {
             request = new HttpGet(uri);
             request.addHeader(HttpHeaders.CONTENT_TYPE, "application/json");
             request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);
-            CloseableHttpResponse response = httpClient.execute(request);
-            try {
+
+            try (CloseableHttpResponse response = httpClient.execute(request)) {
                 int httpCode = response.getCode();
                 HttpEntity entity = null;
                 String reason = null;
@@ -380,7 +380,7 @@ public class MetasysApiClientRest implements BasClient {
         }
     }
 
-    protected String findAccessToken() throws LogonFailedException {
+    protected synchronized String findAccessToken() throws LogonFailedException {
         UserToken activeUserToken = getUserToken();
         try {
             String accessToken = null;
@@ -488,21 +488,22 @@ public class MetasysApiClientRest implements BasClient {
         return refreshedUserToken;
     }
 
-    protected  void updateUserToken(MetasysUserToken userToken) {
+    protected synchronized void updateUserToken(MetasysUserToken userToken) {
         this.userToken = userToken;
     }
 
-    protected  void invalidateUserToken() {
-        userToken = null;
+    protected synchronized void invalidateUserToken() {
+        updateUserToken(null);
     }
 
     @Override
-    public void logon() throws LogonFailedException {
+    public synchronized void logon() throws LogonFailedException {
+        //FIXME ensure multiple instances of this class does not logon multiple times
         String username = getConfigValue("sd.api.username");
         String password = getConfigValue("sd.api.password");
         logon(username, password);
     }
-    protected  void logon(String username, String password) throws LogonFailedException {
+    protected synchronized void logon(String username, String password) throws LogonFailedException {
         invalidateUserToken();
         log.trace("Logon: {}", username);
         String jsonBody = "{ \"username\": \"" + username + "\",\"password\": \"" + password + "\"}";
@@ -616,7 +617,7 @@ public class MetasysApiClientRest implements BasClient {
     }
 
     @Override
-    public  UserToken getUserToken() {
+    public synchronized UserToken getUserToken() {
         return userToken;
     }
 
