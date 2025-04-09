@@ -19,7 +19,7 @@ public class MetricsDistributionServiceStub implements MetasysMetricsDistributio
 
     @Override
     public void sendMetrics(Metric metric) {
-        String key = metric.getField();
+        String key = metric.getMeasurementName();
         try {
             Number value = metric.getValue();
             if (value != null) {
