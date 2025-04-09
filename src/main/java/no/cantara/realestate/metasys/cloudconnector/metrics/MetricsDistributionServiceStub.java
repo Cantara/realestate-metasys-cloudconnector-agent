@@ -12,6 +12,7 @@ import static org.slf4j.LoggerFactory.getLogger;
 public class MetricsDistributionServiceStub implements MetasysMetricsDistributionClient {
     private static final Logger log = getLogger(MetricsDistributionServiceStub.class);
     TelemetryClient telemetryClient;
+
     public MetricsDistributionServiceStub(String measurementName) {
         telemetryClient = new TelemetryClient();
     }
@@ -20,8 +21,10 @@ public class MetricsDistributionServiceStub implements MetasysMetricsDistributio
     public void sendMetrics(Metric metric) {
         String key = metric.getField();
         try {
-            Double value = (Double) metric.getValue();
-            telemetryClient.trackMetric(key, value);
+            Number value = metric.getValue();
+            if (value != null) {
+                telemetryClient.trackMetric(key, value.doubleValue());
+            }
         } catch (Exception e) {
             log.trace("Failed to send metric: {}. Reason: {}", metric, e.getMessage());
         }
