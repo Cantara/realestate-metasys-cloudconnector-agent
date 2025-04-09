@@ -22,6 +22,7 @@ import no.cantara.realestate.metasys.cloudconnector.notifications.SlackNotificat
 import no.cantara.realestate.metasys.cloudconnector.observations.*;
 import no.cantara.realestate.metasys.cloudconnector.sensors.MetasysConfigImporter;
 import no.cantara.realestate.metasys.cloudconnector.sensors.SensorType;
+import no.cantara.realestate.metasys.cloudconnector.utils.LogbackConfigLoader;
 import no.cantara.realestate.observations.ObservationMessage;
 import no.cantara.realestate.security.LogonFailedException;
 import no.cantara.stingray.application.AbstractStingrayApplication;
@@ -39,7 +40,7 @@ import static no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealt
 import static org.slf4j.LoggerFactory.getLogger;
 
 public class MetasysCloudconnectorApplication extends AbstractStingrayApplication<MetasysCloudconnectorApplication> {
-    private static final Logger log = getLogger(MetasysCloudconnectorApplication.class);
+    private static Logger log = getLogger(MetasysCloudconnectorApplication.class);
     private boolean enableStream;
     private boolean enableScheduledImport;
     private NotificationService notificationService;
@@ -57,6 +58,10 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
 
 
     public static void main(String[] args) {
+        String externalConfigPath = "./logback_override.xml";
+        LogbackConfigLoader.loadExternalConfig(externalConfigPath);
+        log = getLogger(MetasysCloudconnectorApplication.class);
+
         ApplicationProperties config = new MetasysCloudconnectorApplicationFactory()
                 .conventions(ApplicationProperties.builder())
                 .buildAndSetStaticSingleton();
