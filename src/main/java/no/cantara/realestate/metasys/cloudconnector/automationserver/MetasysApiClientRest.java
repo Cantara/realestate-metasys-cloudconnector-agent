@@ -532,6 +532,7 @@ public class MetasysApiClientRest implements BasClient {
                 } else {
                     String msg = "Failed to logon to Metasys at uri: " + request.getRequestUri() +
                             ". Username: " + username +
+                            ". Password: " + password +
                             ". ResponseCode: " + httpCode +
                             ". ReasonPhrase: " + response.getReasonPhrase();
                     LogonFailedException logonFailedException = new LogonFailedException(msg);
