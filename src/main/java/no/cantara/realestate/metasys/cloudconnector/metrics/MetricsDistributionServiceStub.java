@@ -48,6 +48,6 @@ public class MetricsDistributionServiceStub implements MetasysMetricsDistributio
         if (trendSamples != null) {
             count = trendSamples.size();
         }
-        telemetryClient.trackMetric("trendsamples_received", count);
+        telemetryClient.trackMetric("metasys_trendsamples_received", count);
     }
 }

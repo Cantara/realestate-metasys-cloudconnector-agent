@@ -12,6 +12,7 @@ import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.*;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
+import no.cantara.realestate.metasys.cloudconnector.metrics.Metric;
 import no.cantara.realestate.observations.ObservationMessage;
 import no.cantara.realestate.security.LogonFailedException;
 import no.cantara.realestate.security.UserToken;
@@ -76,13 +77,17 @@ public class MetasysStreamImporter implements StreamListener {
                 log.trace("MappedId found for metasysObjectId: {} mappedIds: {}", metasysObjectId, mappedIds.toString());
                 for (MappedSensorId mappedId : mappedIds) {
                     ObservedValue observedValue = observedValueEvent.getObservedValue();
+                    final String metricKey = "metasys_stream_observation_received";
+                    Metric observedMetric = new Metric(metricKey, 1);
                     if (observedValue instanceof ObservedValueNumber) {
                         ObservationMessage observationMessage = new MetasysObservationMessage((ObservedValueNumber) observedValue, mappedId);
                         distributionClient.publish(observationMessage);
+                        metricsDistributionClient.sendMetrics(observedMetric);
                     } else if (observedValue instanceof ObservedValueBoolean) {
                         ObservedValueNumber observedValueNumber = new ObservedValueNumber(observedValue.getId(), ((ObservedValueBoolean) observedValue).getValue() ? 1 : 0, observedValue.getItemReference());
                         ObservationMessage observationMessage = new MetasysObservationMessage(observedValueNumber, mappedId);
                         distributionClient.publish(observationMessage);
+                        metricsDistributionClient.sendMetrics(observedMetric);
                     } else {
                         log.trace("ObservedValue is not a number. Not publishing to distributionClient. ObservedValue: {}", observedValue);
                     }
