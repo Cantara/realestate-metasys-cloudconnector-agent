@@ -31,6 +31,7 @@ import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.http.message.BasicNameValuePair;
 import org.apache.hc.core5.net.URIBuilder;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
 import java.io.IOException;
@@ -426,16 +427,19 @@ public class MetasysApiClientRest implements BasClient {
             request = new HttpGet(refreshTokenUrl);
             UserToken activeUserToken = getUserToken();
             if (activeUserToken == null) {
-                log.info("Try to refresh when accessToken is null. Logon instead.");
+                log.debug("Try to refresh when accessToken is null. Logon instead.");
                 logon();
                 refreshedUserToken = (MetasysUserToken) getUserToken();
-            } else {
-                String accessToken = activeUserToken.getAccessToken();
-                if (accessToken != null && accessToken.length() > 11) {
-                    truncatedAccessToken = accessToken.substring(0, 10) + "...";
+                if (refreshedUserToken == null) {
+                    log.warn("Failed to refresh usertoken. UserToken after logon is null.");
                 } else {
-                    truncatedAccessToken = accessToken;
+                    log.debug("Refreshed token that expires: {}", truncateAccessToken(refreshedUserToken));
                 }
+            } else {
+                log.info("Try to refresh userToken");
+                String accessToken = activeUserToken.getAccessToken();
+                truncatedAccessToken = truncateAccessToken(activeUserToken);
+                log.info("Try to refresh userToken: {}", truncatedAccessToken);
                 request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
 
                 CloseableHttpResponse response = httpClient.execute(request);
@@ -450,6 +454,7 @@ public class MetasysApiClientRest implements BasClient {
                             log.trace("Converted http body to userToken: {}", refreshedUserToken);
 //                        refreshedUserToken = updatedUserToken;
                             setHealthy();
+                            log.debug("Refreshed userToken: {}", truncateAccessToken(refreshedUserToken));
                         }
                     } else {
                         String msg = "Failed to refresh userToken to Metasys at uri: " + request.getRequestUri() +
@@ -492,6 +497,21 @@ public class MetasysApiClientRest implements BasClient {
             }
         }
         return refreshedUserToken;
+    }
+
+    @Nullable
+    private static String truncateAccessToken(UserToken userToken) {
+        String truncatedAccessToken = null;
+        if (userToken != null) {
+            String accessToken = userToken.getAccessToken();
+            if (accessToken != null && accessToken.length() > 11) {
+                truncatedAccessToken = accessToken.substring(0, 10) + "...";
+            } else {
+                truncatedAccessToken = accessToken;
+            }
+            truncatedAccessToken = truncatedAccessToken + " expires: " + userToken.getExpires();
+        }
+        return truncatedAccessToken;
     }
 
     protected synchronized void updateUserToken(MetasysUserToken userToken) {
