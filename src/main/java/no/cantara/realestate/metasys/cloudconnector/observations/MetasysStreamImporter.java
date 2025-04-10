@@ -9,6 +9,7 @@ import no.cantara.realestate.mappingtable.metasys.MetasysSensorId;
 import no.cantara.realestate.mappingtable.metasys.MetasysUniqueKey;
 import no.cantara.realestate.mappingtable.repository.MappedIdQuery;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysTokenManager;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.*;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
@@ -24,9 +25,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -38,26 +36,32 @@ public class MetasysStreamImporter implements StreamListener {
     private final MappedIdRepository idRepository;
     private final ObservationDistributionClient distributionClient;
     private final MetasysMetricsDistributionClient metricsDistributionClient;
+    private final MetasysTokenManager tokenManager;
     private String subscriptionId = null;
 
     private boolean isHealthy = false;
     private List<String> unhealthyMessages = new ArrayList<>();
     private Instant expires;
 
-    private ScheduledThreadPoolExecutor scheduledExecutorService;
+//    private ScheduledThreadPoolExecutor scheduledExecutorService;
     private String streamUrl;
     private String lastKnownEventId;
-    private boolean reAuthorizationIsScheduled;
+//    private boolean reAuthorizationIsScheduled;
     private List<MappedIdQuery> idQueries;
 
     public MetasysStreamImporter(MetasysStreamClient streamClient, BasClient sdClient, MappedIdRepository idRepository, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsDistributionClient) {
+        this(streamClient, sdClient, idRepository, distributionClient, metricsDistributionClient, MetasysTokenManager.getInstance(sdClient));
+    }
+
+    protected MetasysStreamImporter(MetasysStreamClient streamClient, BasClient sdClient, MappedIdRepository idRepository, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsDistributionClient, MetasysTokenManager metasysTokenManager) {
         this.streamClient = streamClient;
         this.sdClient = sdClient;
         this.idRepository = idRepository;
         this.distributionClient = distributionClient;
         this.metricsDistributionClient = metricsDistributionClient;
-        scheduledExecutorService = new ScheduledThreadPoolExecutor(1);
-        scheduledExecutorService.setRemoveOnCancelPolicy(true);
+        this.tokenManager = metasysTokenManager;
+//        scheduledExecutorService = new ScheduledThreadPoolExecutor(1);
+//        scheduledExecutorService.setRemoveOnCancelPolicy(true);
     }
 
     //FIXME
@@ -142,7 +146,7 @@ public class MetasysStreamImporter implements StreamListener {
         log.trace("Open stream to Metasys");
         streamUrl = ApplicationProperties.getInstance().get("sd.api.url") + "/stream";
         if (streamClient != null && !streamClient.isStreamOpen()) {
-            UserToken userToken = sdClient.getUserToken();
+            UserToken userToken = tokenManager.getCurrentToken();
             if (userToken != null) {
                 String accessToken = userToken.getAccessToken();
                 streamClient.openStream(streamUrl, accessToken, null, this);
@@ -153,7 +157,7 @@ public class MetasysStreamImporter implements StreamListener {
                 Long testTime = 600L;
                 refreshTokenIntervalInSeconds = testTime;
                 log.warn("Schedule resubscribe should be within: {}. Will test with only 10 minute delay. Resubscribe within: {} seconds", expires, testTime);
-                scheduleRefreshToken(refreshTokenIntervalInSeconds);
+                //TODO need different approach scheduleRefreshToken(refreshTokenIntervalInSeconds);
             } else {
                 isHealthy = false;
             }
@@ -166,7 +170,7 @@ public class MetasysStreamImporter implements StreamListener {
         log.info("ReAuthorize on thread {}", Thread.currentThread().getName());
         streamUrl = ApplicationProperties.getInstance().get("sd.api.url") + "/stream";
         if (streamClient != null) {
-            UserToken userToken = sdClient.getUserToken();
+            UserToken userToken = tokenManager.getCurrentToken();
             if (userToken != null) {
                 String accessToken = userToken.getAccessToken();
                 try {
@@ -194,6 +198,7 @@ public class MetasysStreamImporter implements StreamListener {
         }
     }
 
+    /*
     protected void scheduleRefreshToken(long reSubscribeIntervalInSeconds) {
         log.trace("Schedule refresh every {} seconds", reSubscribeIntervalInSeconds);
 
@@ -230,6 +235,9 @@ public class MetasysStreamImporter implements StreamListener {
         }
     }
 
+     */
+/*
+FIXME reschedule subscription when user token has expired.
     protected void scheduleResubscribe(long reSubscribeIntervalInSeconds) {
         log.trace("Schedule resubscribe every {} seconds", reSubscribeIntervalInSeconds);
 
@@ -267,6 +275,8 @@ public class MetasysStreamImporter implements StreamListener {
         }
     }
 
+ */
+
     public String getSubscriptionId() {
         return subscriptionId;
     }
@@ -292,9 +302,11 @@ public class MetasysStreamImporter implements StreamListener {
         return expires;
     }
 
+    /*
     protected ScheduledExecutorService getScheduledExecutorService() {
         return scheduledExecutorService;
     }
+    */
 
     public String getStreamUrl() {
         return streamUrl;

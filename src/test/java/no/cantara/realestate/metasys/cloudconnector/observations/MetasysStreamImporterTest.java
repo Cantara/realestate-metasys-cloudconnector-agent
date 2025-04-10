@@ -11,8 +11,8 @@ import no.cantara.realestate.mappingtable.metasys.MetasysSensorId;
 import no.cantara.realestate.mappingtable.metasys.MetasysUniqueKey;
 import no.cantara.realestate.mappingtable.rec.SensorRecObject;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysTokenManager;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysUserToken;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.*;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
 import no.cantara.realestate.observations.ObservationMessage;
@@ -23,7 +23,6 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -37,6 +36,7 @@ class MetasysStreamImporterTest {
     private MappedIdRepository idRepository;
     private ObservationDistributionClient distributionClient;
     private MetasysMetricsDistributionClient metricsDistributionClient;
+    private MetasysTokenManager metasysTokenManager;
 
     @BeforeAll
     static void beforeAll() {
@@ -51,9 +51,14 @@ class MetasysStreamImporterTest {
         idRepository = mock(MappedIdRepository.class);
         distributionClient = mock(ObservationDistributionClient.class);
         metricsDistributionClient = mock(MetasysMetricsDistributionClient.class);
-        metasysStreamImporter = new MetasysStreamImporter(metasysStreamClient, sdClient, idRepository, distributionClient, metricsDistributionClient);
+        metasysTokenManager = mock(MetasysTokenManager.class);
+        MetasysUserToken metasysUserToken = new MetasysUserToken();
+        metasysUserToken.setExpires(Instant.now().plusSeconds(60));
+        when(metasysTokenManager.getCurrentToken()).thenReturn(metasysUserToken);
+        metasysStreamImporter = new MetasysStreamImporter(metasysStreamClient, sdClient, idRepository, distributionClient, metricsDistributionClient, metasysTokenManager);
     }
 
+    /*
     @Test
     void scheduleRefreshAccessToken() throws SdLogonFailedException, InterruptedException {
         MetasysUserToken stubUserToken = new MetasysUserToken();
@@ -64,7 +69,9 @@ class MetasysStreamImporterTest {
         //Will run twice. First time immediately due to interval is less than 30 seconds
         verify(sdClient, times(2)).refreshToken();
     }
+    */
 
+    /*
     @Test
     void verifyRescheduleIsEnabled() throws SdLogonFailedException {
         String id = "1";
@@ -83,7 +90,9 @@ class MetasysStreamImporterTest {
         assertEquals(0, executorService.getActiveCount());
         verify(sdClient, times(0)).refreshToken();
     }
+    */
 
+    /*
     @Test
     void attemptRescheduleTwice() throws SdLogonFailedException {
         String id = "1";
@@ -106,19 +115,20 @@ class MetasysStreamImporterTest {
         assertEquals(1, executorService.getQueue().size());
         verify(sdClient, times(1)).getUserToken();
     }
+    */
 
     @Test
     void openStream() {
         MetasysUserToken stubUserToken = new MetasysUserToken();
         stubUserToken.setAccessToken("dummyToken");
         stubUserToken.setExpires(Instant.now().plusSeconds(90));
-        when(sdClient.getUserToken()).thenReturn(stubUserToken);
+        when(metasysTokenManager.getCurrentToken()).thenReturn(stubUserToken);
         metasysStreamImporter.openStream();
-        ScheduledThreadPoolExecutor executorService = (ScheduledThreadPoolExecutor) metasysStreamImporter.getScheduledExecutorService();
+//        ScheduledThreadPoolExecutor executorService = (ScheduledThreadPoolExecutor) metasysStreamImporter.getScheduledExecutorService();
 
         verify(metasysStreamClient, times(1)).openStream(anyString(), anyString(), isNull(), any(MetasysStreamImporter.class));
         //Verify that the refreshTokenTask is scheduled
-        assertEquals(1, executorService.getQueue().size());
+//        assertEquals(1, executorService.getQueue().size());
 
     }
 

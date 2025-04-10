@@ -12,6 +12,7 @@ import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorExcepti
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnectorApplicationFactory;
 import no.cantara.realestate.metasys.cloudconnector.StatusType;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysApiClientRest;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysTokenManager;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysTrendSample;
 import no.cantara.realestate.metasys.cloudconnector.distribution.ObservationDistributionServiceStub;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysLogonFailed;
@@ -47,6 +48,7 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
     private final ObservationDistributionClient distributionClient;
     private final MetasysMetricsDistributionClient metricsClient;
     private final MappedIdRepository mappedIdRepository;
+    private final MetasysTokenManager tokenManager;
     private List<MappedSensorId> importableTrendIds = new ArrayList<>();
     private final Map<String, Instant> lastSuccessfulImportAt;
     private Timer metricsDistributor;
@@ -54,11 +56,20 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
     private int numberOfFailedImports = 0;
 
     public MappedIdBasedImporter(MappedIdQuery mappedIdQuery, BasClient basClient, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsClient, MappedIdRepository mappedIdRepository) {
+        this(mappedIdQuery, basClient, distributionClient, metricsClient, mappedIdRepository, MetasysTokenManager.getInstance(basClient));
+    }
+
+    /*
+    Used for testing
+     */
+    protected MappedIdBasedImporter(MappedIdQuery mappedIdQuery, BasClient basClient, ObservationDistributionClient distributionClient,
+                                    MetasysMetricsDistributionClient metricsClient, MappedIdRepository mappedIdRepository, MetasysTokenManager metasysTokenManager) {
         this.mappedIdQuery = mappedIdQuery;
         this.basClient = basClient;
         this.distributionClient = distributionClient;
         this.metricsClient = metricsClient;
         this.mappedIdRepository = mappedIdRepository;
+        this.tokenManager = metasysTokenManager;
         lastSuccessfulImportAt = new HashMap<>();
     }
 

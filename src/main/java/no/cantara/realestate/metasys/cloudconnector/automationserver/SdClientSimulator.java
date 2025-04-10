@@ -12,14 +12,17 @@ import java.time.Instant;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.*;
 
+import static no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysTokenManager.REFRESH_TOKEN_BEFORE_EXPIRES_SECONDS;
 import static no.cantara.realestate.metasys.cloudconnector.utils.UrlEncoder.urlEncode;
 import static org.slf4j.LoggerFactory.getLogger;
 
 public class SdClientSimulator implements BasClient {
 
     private static final Logger log = getLogger(SdClientSimulator.class);
+    private static final long USER_TOKEN_TTL_SECONDS = REFRESH_TOKEN_BEFORE_EXPIRES_SECONDS + 60;
     private Map<String, Map<Instant, MetasysTrendSample>> simulatedSDApiData = new ConcurrentHashMap();
     boolean scheduled_simulator_started = true;
     private final int SECONDS_BETWEEN_SCHEDULED_IMPORT_RUNS = 3;
@@ -27,6 +30,7 @@ public class SdClientSimulator implements BasClient {
     private Set<String> simulatedTrendIds = new HashSet<>();
     private long numberOfTrendSamplesReceived = 0;
     private Instant whenLastTrendSampleReceived = null;
+    private UserToken userToken = null;
 
 
     public SdClientSimulator() {
@@ -60,12 +64,20 @@ public class SdClientSimulator implements BasClient {
 
     @Override
     public void logon() throws LogonFailedException {
-        return;
+        userToken = new MetasysUserToken();
+        userToken.setAccessToken(UUID.randomUUID().toString());
+        userToken.setExpires(Instant.now().plusSeconds(USER_TOKEN_TTL_SECONDS));
     }
 
     @Override
-    public MetasysUserToken refreshToken() throws LogonFailedException {
-        return null;
+    public UserToken refreshToken() throws LogonFailedException {
+        if (userToken == null) {
+            logon();
+        } else {
+            userToken.setAccessToken(UUID.randomUUID().toString());
+            userToken.setExpires(Instant.now().plusSeconds(USER_TOKEN_TTL_SECONDS));
+        }
+        return userToken;
     }
 
     String encodeAndPrefix(String trendId) {
@@ -185,7 +197,7 @@ public class SdClientSimulator implements BasClient {
 
     @Override
     public UserToken getUserToken() {
-        return new MetasysUserToken();
+        return userToken;
     }
 
 }
