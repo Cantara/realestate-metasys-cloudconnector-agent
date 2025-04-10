@@ -415,7 +415,7 @@ public class MetasysApiClientRest implements BasClient {
     }
 
     public synchronized MetasysUserToken refreshToken() throws LogonFailedException {
-        invalidateUserToken();
+//        invalidateUserToken();
         MetasysUserToken refreshedUserToken = null;
         CloseableHttpClient httpClient = HttpClients.createDefault();
         String refreshTokenUrl = apiUri + "refreshToken";
@@ -425,41 +425,47 @@ public class MetasysApiClientRest implements BasClient {
 
             request = new HttpGet(refreshTokenUrl);
             UserToken activeUserToken = getUserToken();
-            String accessToken = activeUserToken.getAccessToken();
-            if (accessToken != null && accessToken.length() > 11) {
-                truncatedAccessToken = accessToken.substring(0, 10) + "...";
+            if (activeUserToken == null) {
+                log.info("Try to refresh when accessToken is null. Logon instead.");
+                logon();
+                refreshedUserToken = (MetasysUserToken) getUserToken();
             } else {
-                truncatedAccessToken = accessToken;
-            }
-            request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
-
-            CloseableHttpResponse response = httpClient.execute(request);
-            try {
-                int httpCode = response.getCode();
-                if (httpCode == 200) {
-                    HttpEntity entity = response.getEntity();
-                    if (entity != null) {
-                        String body = EntityUtils.toString(entity);
-                        log.trace("Received body: {}", body);
-                        refreshedUserToken = RealEstateObjectMapper.getInstance().getObjectMapper().readValue(body, MetasysUserToken.class);
-                        log.trace("Converted http body to userToken: {}", refreshedUserToken);
-//                        refreshedUserToken = updatedUserToken;
-                        setHealthy();
-                    }
+                String accessToken = activeUserToken.getAccessToken();
+                if (accessToken != null && accessToken.length() > 11) {
+                    truncatedAccessToken = accessToken.substring(0, 10) + "...";
                 } else {
-                    String msg = "Failed to refresh userToken to Metasys at uri: " + request.getRequestUri() +
-                            ". accessToken: " + truncatedAccessToken +
-                            ". ResponseCode: " + httpCode +
-                            ". ReasonPhrase: " + response.getReasonPhrase();
-                    LogonFailedException logonFailedException = new LogonFailedException(msg);
-                    log.warn("Failed to refresh accessToken on Metasys. Reason {}", logonFailedException.getMessage());
-                    setUnhealthy();
-                    TemporaryHealthResource.addRegisteredError("Failed to refresh accessToken on Metasys. Reason: " + logonFailedException.getMessage());
-                    throw logonFailedException;
+                    truncatedAccessToken = accessToken;
                 }
+                request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
 
-            } finally {
-                response.close();
+                CloseableHttpResponse response = httpClient.execute(request);
+                try {
+                    int httpCode = response.getCode();
+                    if (httpCode == 200) {
+                        HttpEntity entity = response.getEntity();
+                        if (entity != null) {
+                            String body = EntityUtils.toString(entity);
+                            log.trace("Received body: {}", body);
+                            refreshedUserToken = RealEstateObjectMapper.getInstance().getObjectMapper().readValue(body, MetasysUserToken.class);
+                            log.trace("Converted http body to userToken: {}", refreshedUserToken);
+//                        refreshedUserToken = updatedUserToken;
+                            setHealthy();
+                        }
+                    } else {
+                        String msg = "Failed to refresh userToken to Metasys at uri: " + request.getRequestUri() +
+                                ". accessToken: " + truncatedAccessToken +
+                                ". ResponseCode: " + httpCode +
+                                ". ReasonPhrase: " + response.getReasonPhrase();
+                        LogonFailedException logonFailedException = new LogonFailedException(msg);
+                        log.warn("Failed to refresh accessToken on Metasys. Reason {}", logonFailedException.getMessage());
+                        setUnhealthy();
+                        TemporaryHealthResource.addRegisteredError("Failed to refresh accessToken on Metasys. Reason: " + logonFailedException.getMessage());
+                        throw logonFailedException;
+                    }
+
+                } finally {
+                    response.close();
+                }
             }
         } catch (IOException e) {
             notificationService.sendAlarm(METASYS_API,HOST_UNREACHABLE);
