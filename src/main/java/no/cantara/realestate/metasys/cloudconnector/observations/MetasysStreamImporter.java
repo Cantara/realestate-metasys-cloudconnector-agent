@@ -159,6 +159,7 @@ public class MetasysStreamImporter implements StreamListener {
                 log.warn("Schedule resubscribe should be within: {}. Will test with only 10 minute delay. Resubscribe within: {} seconds", expires, testTime);
                 //TODO need different approach scheduleRefreshToken(refreshTokenIntervalInSeconds);
             } else {
+                log.warn("MetasysUserToken is null. Cannot openStream");
                 isHealthy = false;
             }
         } else {

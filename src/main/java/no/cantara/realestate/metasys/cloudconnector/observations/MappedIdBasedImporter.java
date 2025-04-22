@@ -28,6 +28,7 @@ import no.cantara.realestate.observations.ObservationMessage;
 import no.cantara.realestate.observations.TrendSample;
 import no.cantara.realestate.security.InvalidTokenException;
 import no.cantara.realestate.security.LogonFailedException;
+import no.cantara.realestate.security.UserToken;
 import org.slf4j.Logger;
 
 import java.net.URI;
@@ -78,9 +79,6 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
         try {
             importableTrendIds = mappedIdRepository.find(mappedIdQuery);
             log.debug("Found {} trendIds to import. Query: {}", importableTrendIds.size(), mappedIdQuery);
-//            if (!basClient.isLoggedIn()) {
-//                basClient.logon();
-//            }
             metricsClient.openDb();
             lastImportedObservationTypes.loadLastUpdatedStatus();
             TemporaryHealthResource.lastImportedObservationTypes = lastImportedObservationTypes;
@@ -170,15 +168,17 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
                     try {
                         Set<TrendSample> trendSamples;
                         try {
+                            //Ensure thread safety, and re-login if needed
+                            UserToken userToken = tokenManager.getCurrentToken();
                             trendSamples = (Set<TrendSample>) basClient.findTrendSamplesByDate(trendId, take, skip, importFrom);
                         } catch (InvalidTokenException e) {
                             log.warn("Invalid token. Try to re-logon to Metasys.");
-                            synchronized (basClient) {
-                                if (!basClient.isLoggedIn()) {
-                                    log.info("Relogin: {}", trendId);
-                                    basClient.logon();
-                                }
+                            UserToken userToken = tokenManager.getCurrentToken();
+                            if (userToken != null) {
                                 trendSamples = (Set<TrendSample>) basClient.findTrendSamplesByDate(trendId, take, skip, importFrom);
+                            } else {
+                                log.warn("Failed to re-logon to Metasys. No userToken.");
+                                throw new MetasysCloudConnectorException("Missing userToken. Failed to re-logon to Metasys. TrendId: " + trendId, e, StatusType.RETRY_NOT_POSSIBLE);
                             }
                         }
                         if (trendSamples != null) {

@@ -396,15 +396,19 @@ public class MetasysApiClientRest implements BasClient {
         UserToken activeUserToken = getUserToken();
         try {
             String accessToken = null;
-            if (activeUserToken == null || tokenNeedRefresh()) {
+            if (activeUserToken == null) {
+                log.trace("ActiveUserToken is null. Calling Logon");
                 logon();
+                activeUserToken = getUserToken();
+            } else  if (activeUserToken.tokenNeedRefresh()) {
+                log.trace("ActiveUserToken need Refresh. Calling Logon");
+                logon();
+                activeUserToken = getUserToken();
             }
             if (activeUserToken != null) {
                 accessToken = activeUserToken.getAccessToken();
-            } else {
                 notificationService.clearService(METASYS_API);
             }
-
             return accessToken;
         } catch (LogonFailedException e){
             notificationService.sendAlarm(METASYS_API,LOGON_FAILED);

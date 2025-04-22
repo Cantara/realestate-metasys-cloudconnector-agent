@@ -10,8 +10,8 @@ import no.cantara.realestate.mappingtable.rec.SensorRecObject;
 import no.cantara.realestate.mappingtable.repository.MappedIdQuery;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
 import no.cantara.realestate.mappingtable.tfm.Tfm;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
+import no.cantara.realestate.security.UserToken;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -49,9 +49,12 @@ class MappedIdBasedImporterTest {
     }
 
     @Test
-    void trendSamplesIsNull() throws SdLogonFailedException, URISyntaxException {
+    void trendSamplesIsNull() throws URISyntaxException {
         MappedSensorId mappedSensorStub = buildMetasysMappedId("moId", "moR","recId1", "tfm2");
         importer.addImportableTrendId(mappedSensorStub);
+        UserToken userTokenStub = mock(UserToken.class);
+        when(userTokenStub.getExpires()).thenReturn(Instant.now().plusSeconds(30*60));
+        when(mockBasClient.getUserToken()).thenReturn(userTokenStub);
         when(mockBasClient.findTrendSamplesByDate(anyString(),anyInt(),anyInt(),any(Instant.class))).thenReturn(null);
         importer.importAllAfterDateTime(Instant.now());
         verify(mockBasClient, times(1)).findTrendSamplesByDate(anyString(),anyInt(),anyInt(),any());
