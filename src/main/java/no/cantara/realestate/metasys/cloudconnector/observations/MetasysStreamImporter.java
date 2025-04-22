@@ -104,7 +104,7 @@ public class MetasysStreamImporter implements StreamListener {
             this.subscriptionId = ((MetasysOpenStreamEvent) event).getSubscriptionId();
             log.info("Start subscribing to stream with subscriptionId: {}", subscriptionId);
             log.debug("Schedule resubscribe.");
-            UserToken userToken = sdClient.getUserToken();
+            UserToken userToken = tokenManager.getCurrentToken(); //sdClient.getUserToken();
             expires = userToken.getExpires();
             Long reSubscribeIntervalInSeconds = Duration.between(Instant.now(), expires).get(ChronoUnit.SECONDS);
 //            Long testTime = 600L;

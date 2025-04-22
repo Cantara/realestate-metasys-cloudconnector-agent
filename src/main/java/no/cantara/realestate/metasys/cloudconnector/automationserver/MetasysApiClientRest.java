@@ -394,6 +394,12 @@ public class MetasysApiClientRest implements BasClient {
 
     protected synchronized String findAccessToken() throws LogonFailedException {
         UserToken activeUserToken = getUserToken();
+        String accessToken = null;
+        if (activeUserToken != null) {
+            accessToken = activeUserToken.getAccessToken();
+        }
+        return accessToken;
+        /*
         try {
             String accessToken = null;
             if (activeUserToken == null) {
@@ -415,6 +421,8 @@ public class MetasysApiClientRest implements BasClient {
             isHealthy = false;
             throw e;
         }
+
+         */
     }
 
     boolean tokenNeedRefresh() {
