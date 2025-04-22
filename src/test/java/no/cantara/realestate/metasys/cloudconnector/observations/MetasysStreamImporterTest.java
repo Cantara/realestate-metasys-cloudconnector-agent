@@ -209,7 +209,8 @@ class MetasysStreamImporterTest {
         Instant expires = Instant.parse("2023-09-12T13:39:46Z");
         MetasysUserToken userToken = mock(MetasysUserToken.class);
         when(userToken.getExpires()).thenReturn(expires);
-        when(sdClient.getUserToken()).thenReturn(userToken);
+        when(metasysTokenManager.getCurrentToken()).thenReturn(userToken);
+//        when(sdClient.getUserToken()).thenReturn(userToken);
         assertNotEquals(expires, metasysStreamImporter.getExpires());
         String openStreamData = "";
         StreamEvent openStreamEvent = new MetasysOpenStreamEvent("1223567", openStreamData);
