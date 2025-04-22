@@ -251,6 +251,17 @@ public class MetasysApiClientRest implements BasClient {
                                 stringKey("http.reason"), reason);
                         span.addEvent("Failed to fetch trendsamples", attributes);
                         break;
+                    case 500:
+                        reason = response.getReasonPhrase();
+                        body = EntityUtils.toString(response.getEntity());
+                        log.warn("Metasys Error while trying to fetch trendsamples for objectId: {}. Status: {}. Reason: {}", objectId, httpCode, reason);
+
+                        attributes = Attributes.of(stringKey("objectId"), objectId,
+                                stringKey("http.status_code"), Integer.valueOf(httpCode).toString(),
+                                stringKey("http.reason"), reason);
+                        span.addEvent("Metasys Error trying to fetch trendsamples", attributes);
+                        throw new MetasysCloudConnectorException("Metasys Error trying to fetch trendsamples for objectId " + objectId + ". Status: " + httpCode
+                                + ". Reason: " + reason + ". Body: " + body);
                     default:
                         reason = response.getReasonPhrase();
                         try {
