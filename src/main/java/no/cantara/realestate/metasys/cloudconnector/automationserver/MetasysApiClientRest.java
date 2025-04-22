@@ -611,7 +611,11 @@ public class MetasysApiClientRest implements BasClient {
 
     @Override
     public boolean isLoggedIn() {
-        return getUserToken() != null;
+        UserToken activeUserToken = getUserToken();
+        if (activeUserToken == null || activeUserToken.tokenNeedRefresh()) {
+            return false;
+        }
+        return true;
     }
 
     @Override

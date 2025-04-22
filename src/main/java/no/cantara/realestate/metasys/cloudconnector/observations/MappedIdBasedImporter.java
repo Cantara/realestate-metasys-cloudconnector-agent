@@ -173,8 +173,13 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
                             trendSamples = (Set<TrendSample>) basClient.findTrendSamplesByDate(trendId, take, skip, importFrom);
                         } catch (InvalidTokenException e) {
                             log.warn("Invalid token. Try to re-logon to Metasys.");
-                            basClient.logon();
-                            trendSamples = (Set<TrendSample>) basClient.findTrendSamplesByDate(trendId, take, skip, importFrom);
+                            synchronized (basClient) {
+                                if (!basClient.isLoggedIn()) {
+                                    log.info("Relogin: {}", trendId);
+                                    basClient.logon();
+                                }
+                                trendSamples = (Set<TrendSample>) basClient.findTrendSamplesByDate(trendId, take, skip, importFrom);
+                            }
                         }
                         if (trendSamples != null) {
                             log.trace("Found {} samples for trendId: {}", trendSamples.size(), trendId);
@@ -208,6 +213,11 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
                         log.warn("Import of trend: {} is not possible now. Reason: {} ", trendId, e.getMessage());
                         reportFailedImport(trendId);
                         throw se;
+                    } catch (MetasysCloudConnectorException e) {
+                        log.trace("Failed to import trendId {} for tfm2rec: {}. Reason: {}", trendId, mappedSensorId, e.getMessage());
+                        log.trace("cause:", e);
+                        reportFailedImport(trendId);
+                        failedImport++;
                     } catch (Exception e) {
                         MetasysCloudConnectorException se = new MetasysCloudConnectorException("Failed to import trendId " + trendId, e, StatusType.RETRY_MAY_FIX_ISSUE);
                         log.trace("Failed to import trendId {} for tfm2rec: {}. Reason: {}", trendId, mappedSensorId, se.getMessage());
