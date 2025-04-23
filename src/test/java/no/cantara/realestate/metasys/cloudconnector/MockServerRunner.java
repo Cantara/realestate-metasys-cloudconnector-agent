@@ -16,7 +16,7 @@ public class MockServerRunner {
         // Run mock setup
         MockServerSetup.clearAndSetLoginMock();
         MockServerSetup.clearAndSetSensorMockData("01ee7349-f468-554f-8221-d65663799d24");
-        MockServerSetup.clearAndSetPresentValueMock("01ee7349-f468-554f-8221-d65663799d24");
+        MockServerSetup.mockPresentValueSubscription();
 
         log.info("MockServer is running on port 1080 with mock responses configured.");
         System.out.println("MockServer is running on port 1080 with mock responses configured.");

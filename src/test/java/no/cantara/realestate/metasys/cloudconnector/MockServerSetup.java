@@ -85,36 +85,30 @@ public class MockServerSetup {
                                 )
                 );
     }
-    public static void clearAndSetPresentValueMock(String objectId) {
+    public static void mockPresentValueSubscription() {
         new MockServerClient("localhost", 1080)
-                .clear(request().withPath("/api/v4/objects/" + objectId + "/attributes/presentValue"));
+                .clear(request().withPath("/api/v4/objects/.*?/attributes/presentValue"));
         new MockServerClient("localhost", 1080)
                 .when(
                         request()
                                 .withMethod("GET")
-                                .withPath("/api/v4/objects/" + objectId + "/attributes/presentValue")
+                                .withPath("/api/v4/objects/.*?/attributes/presentValue")
                                 .withQueryStringParameter("includeSchema", "false")
                                 .withHeader(HttpHeaders.AUTHORIZATION, contains("Bearer"))
                                 .withHeader(METASYS_SUBSCRIBE_HEADER, contains(anyString()))
 //                                .withContentType(MediaType.APPLICATION_JSON)
                 )
                 .respond(
-                        response()
-                                .withStatusCode(202)
-                                /*
-                                .withBody("{\n" +
-                                        "  \"value\": {\n" +
-                                        "    \"value\": 22.5,\n" +
-                                        "    \"units\": \"unitEnumSet.degC\"\n" +
-                                        "  },\n" +
-                                        "  \"timestamp\": \"" + Instant.now().toString() + "\",\n" +
-                                        "  \"isReliable\": true\n" +
-                                        "}")
-                                .withHeader(
-                                        "Content-Type", "application/vnd.metasysapi.v4+json"
-                                )
-
-                                 */
+                        httpRequest -> {
+                            String subscriptionId = httpRequest.getFirstHeader(METASYS_SUBSCRIBE_HEADER);
+                            String path = httpRequest.getPath().getValue();
+                            String objectId = path.replace("/api/v4/objects/", "").replace("/attributes/presentValue", "");
+                            return response()
+                                    .withStatusCode(202)
+                                    .withBody("{ \"subscriptionId\": \"" + subscriptionId + "\"," +
+                                            " \"objectId\": \"" + objectId + "\"}")
+                                    .withHeader("Content-Type", "application/json");
+                        }
                 );
     }
 }
