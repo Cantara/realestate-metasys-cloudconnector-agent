@@ -63,6 +63,10 @@ public class SdClientSimulator implements BasClient {
 
     @Override
     public Set<MetasysTrendSample> findTrendSamplesByDate(String trendId, int take, int skip, Instant onAndAfterDateTime) throws URISyntaxException {
+        boolean permission = rateLimiter.acquirePermission();  //getPermission(Duration.ofSeconds(10));
+        if (!permission) {
+            throw new RealestateCloudconnectorException("RateLimit exceeded", StatusType.RETRY_MAY_FIX_ISSUE);
+        }
         String prefixedUrlEncodedTrendId = encodeAndPrefix(trendId);
         Instant i = onAndAfterDateTime;
         Set<MetasysTrendSample> trendSamples = new HashSet<>();

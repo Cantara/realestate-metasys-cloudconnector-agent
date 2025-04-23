@@ -13,6 +13,8 @@ import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Scope;
 import jakarta.ws.rs.core.HttpHeaders;
 import no.cantara.realestate.automationserver.BasClient;
+import no.cantara.realestate.cloudconnector.RealestateCloudconnectorException;
+import no.cantara.realestate.cloudconnector.StatusType;
 import no.cantara.realestate.json.RealEstateObjectMapper;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorException;
 import no.cantara.realestate.metasys.cloudconnector.notifications.NotificationService;
@@ -193,6 +195,14 @@ public class MetasysApiClientRest implements BasClient {
         final HttpGet request;
         List<MetasysTrendSample> trendSamples = new ArrayList<>();
         try (Scope ignored = span.makeCurrent()) {
+            Attributes attributes = null;
+            boolean permission = rateLimiter.acquirePermission();  //getPermission(Duration.ofSeconds(10));
+            if (!permission) {
+                attributes = Attributes.of(stringKey("objectId"), objectId);
+                span.addEvent("RateLimitExceded-trendSamples", attributes);
+                span.end();
+                throw new RealestateCloudconnectorException("RateLimit exceeded", StatusType.RETRY_MAY_FIX_ISSUE);
+            }
 
             String startTime = onAndAfterDateTime.toString();
             int page=1;
@@ -217,25 +227,11 @@ public class MetasysApiClientRest implements BasClient {
             request.addHeader(HttpHeaders.CONTENT_TYPE, "application/json");
             request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);
 
-            /*
-            Alternatve ensuring every call are actually made.
-             boolean permission = rateLimiter.getPermission(Duration.ofSeconds(10));
-            if (permission) {
-                try (CloseableHttpResponse response = httpClient.execute(request)) {
-            } else {
-                return "Rate limit timeout";
-            }
-             */
-
-            CheckedSupplier<CloseableHttpResponse> restrictedCall = RateLimiter
-                    .decorateCheckedSupplier(rateLimiter, () -> httpClient.execute(request));
-
-            try (CloseableHttpResponse response = restrictedCall.get()) {
+            try (CloseableHttpResponse response = httpClient.execute(request)) {
                 int httpCode = response.getCode();
                 HttpEntity entity = null;
                 String reason = null;
                 String body = "";
-                Attributes attributes = null;
                 switch (httpCode) {
                     case 200:
                         entity = response.getEntity();
@@ -315,14 +311,14 @@ public class MetasysApiClientRest implements BasClient {
                 setUnhealthy();
                 MetasysCloudConnectorException mce =  new MetasysCloudConnectorException("Failed to fetch trendsamples for objectId " + objectId
                         + ", after date "+ onAndAfterDateTime + ". Reason: " + e.getMessage(), e);
-                Attributes attributes = Attributes.of(stringKey("objectId"), objectId);
+                attributes = Attributes.of(stringKey("objectId"), objectId);
                 span.recordException(mce, attributes);
                 log.debug("Failed to fetch trendsamples for objectId: {}. Reason: {}", objectId, e.getMessage());
                 throw mce;
             } catch (Throwable e) {
                 MetasysCloudConnectorException mce = new MetasysCloudConnectorException("Failed to fetch trendsamples for objectId " + objectId
                         + ", after date "+ onAndAfterDateTime + ". Reason: " + e.getMessage(), e);
-                Attributes attributes = Attributes.of(stringKey("objectId"), objectId);
+                attributes = Attributes.of(stringKey("objectId"), objectId);
                 span.recordException(mce, attributes);
                 log.debug("Fetch trendsamples threw an exception. objectId: {}. Reason: {}", objectId, e.getMessage());
                 throw mce;
@@ -338,32 +334,6 @@ public class MetasysApiClientRest implements BasClient {
             span.end();
         }
 
-        /*
-        String startTime = onAndAfterDateTime.toString();
-        //FIXME make dynamic
-        int page=1;
-        int pageSize=1000;
-        String endTime = Instant.now().plusSeconds(60).toString();
-
-
-
-//        MetasysTrendSampleResult trendSampleResult = trendSampleService.findTrendSamplesByDate("Bearer " + bearerToken, prefixedUrlEncodedTrendId, pageSize, page, startTime, endTime);
-        log.trace("findTrendSamplesByDate. trendId: {}. From date: {}. To date: {}. Page: {}. PageSize: {}. Take: {}. Skip: {}",
-                objectId, onAndAfterDateTime, endTime, page, pageSize, take, skip);
-        String trendSamplesJson = trendSampleService.findTrendSamplesByDateJson("Bearer " + bearerToken, prefixedUrlEncodedTrendId, pageSize, page, startTime, endTime);
-
-
-        MetasysTrendSampleResult trendSampleResult = TrendSamplesMapper.mapFromJson(trendSamplesJson);
-        log.trace("Found: {} trends from trendId: {}", trendSampleResult.getTotal(), objectId);
-        List<MetasysTrendSample> trendSamples = trendSampleResult.getItems();
-        if (trendSamples != null) {
-            for (MetasysTrendSample trendSample : trendSamples) {
-                trendSample.setTrendId(objectId);
-                log.trace("imported trendSample: {}", trendSample);
-            }
-        }
-
-         */
         isHealthy = true;
         updateWhenLastTrendSampleReceived();
         return new HashSet<>(trendSamples);
