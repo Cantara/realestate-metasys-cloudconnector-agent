@@ -46,12 +46,18 @@
     <dependency>
       <groupId>no.cantara.realestate</groupId>
       <artifactId>typelib-java</artifactId>
-      <version>0.5.12-SNAPSHOT</version>
+      <version>0.5.13-SNAPSHOT</version>
     </dependency>
     <dependency>
       <groupId>no.cantara.realestate</groupId>
       <artifactId>azure-client-java</artifactId>
       <version>0.6.6-SNAPSHOT</version>
+      <exclusions>
+        <exclusion>
+          <groupId>no.cantara.realestate</groupId>
+          <artifactId>typelib-java</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>no.cantara.stingray</groupId>
@@ -73,6 +79,12 @@
       <groupId>org.glassfish.jersey.media</groupId>
       <artifactId>jersey-media-sse</artifactId>
       <version>3.1.8</version>
+    </dependency>
+
+    <dependency>
+      <groupId>io.github.resilience4j</groupId>
+      <artifactId>resilience4j-ratelimiter</artifactId>
+      <version>2.2.0</version>
     </dependency>
 
     <dependency>

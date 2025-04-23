@@ -1,5 +1,9 @@
 package no.cantara.realestate.metasys.cloudconnector.automationserver;
 
+import io.github.resilience4j.core.functions.CheckedSupplier;
+import io.github.resilience4j.ratelimiter.RateLimiter;
+import io.github.resilience4j.ratelimiter.RateLimiterConfig;
+import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.Meter;
@@ -37,6 +41,7 @@ import org.slf4j.Logger;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -70,12 +75,21 @@ public class MetasysApiClientRest implements BasClient {
     private boolean isHealthy = true;
     final Tracer tracer;
     final Meter meter;
+    private final RateLimiter rateLimiter;
 
     public MetasysApiClientRest(URI apiUri, NotificationService notificationService) {
         this.apiUri = apiUri;
         this.notificationService = notificationService;
         tracer = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_SCOPE_NAME_VALUE);
         meter = GlobalOpenTelemetry.getMeter(INSTRUMENTATION_SCOPE_NAME_VALUE);
+        RateLimiterConfig config = RateLimiterConfig.custom()
+                .limitForPeriod(1)                          // 1 kall per periode
+                .limitRefreshPeriod(Duration.ofMillis(1000)) // periode på 500 ms
+                .timeoutDuration(Duration.ofSeconds(10))    // vent inntil 10 sek for tillatelse
+                .build();
+
+        RateLimiterRegistry registry = RateLimiterRegistry.of(config);
+        this.rateLimiter = registry.rateLimiter("myDistributedLimiter");
     }
 
     public static void main(String[] args) throws URISyntaxException, LogonFailedException {
@@ -169,13 +183,14 @@ public class MetasysApiClientRest implements BasClient {
         if (onAndAfterDateTime == null) {
             throw new IllegalArgumentException("onAndAfterDateTime cannot be null");
         }
+
         Span span = tracer.spanBuilder("findTrendSamplesByDate").setSpanKind(SpanKind.CLIENT).startSpan();
         String apiUrl = getConfigValue("sd.api.url");
 //        String prefixedUrlEncodedTrendId = encodeAndPrefix(objectId);
         String bearerToken = findAccessToken();
         URI samplesUri = new URI(apiUrl + "objects/" + objectId+"/trendedAttributes/presentValue/samples");
         CloseableHttpClient httpClient = HttpClients.createDefault();
-        HttpGet request = null;
+        final HttpGet request;
         List<MetasysTrendSample> trendSamples = new ArrayList<>();
         try (Scope ignored = span.makeCurrent()) {
 
@@ -202,7 +217,20 @@ public class MetasysApiClientRest implements BasClient {
             request.addHeader(HttpHeaders.CONTENT_TYPE, "application/json");
             request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);
 
-            try (CloseableHttpResponse response = httpClient.execute(request)) {
+            /*
+            Alternatve ensuring every call are actually made.
+             boolean permission = rateLimiter.getPermission(Duration.ofSeconds(10));
+            if (permission) {
+                try (CloseableHttpResponse response = httpClient.execute(request)) {
+            } else {
+                return "Rate limit timeout";
+            }
+             */
+
+            CheckedSupplier<CloseableHttpResponse> restrictedCall = RateLimiter
+                    .decorateCheckedSupplier(rateLimiter, () -> httpClient.execute(request));
+
+            try (CloseableHttpResponse response = restrictedCall.get()) {
                 int httpCode = response.getCode();
                 HttpEntity entity = null;
                 String reason = null;
@@ -291,6 +319,13 @@ public class MetasysApiClientRest implements BasClient {
                 span.recordException(mce, attributes);
                 log.debug("Failed to fetch trendsamples for objectId: {}. Reason: {}", objectId, e.getMessage());
                 throw mce;
+            } catch (Throwable e) {
+                MetasysCloudConnectorException mce = new MetasysCloudConnectorException("Failed to fetch trendsamples for objectId " + objectId
+                        + ", after date "+ onAndAfterDateTime + ". Reason: " + e.getMessage(), e);
+                Attributes attributes = Attributes.of(stringKey("objectId"), objectId);
+                span.recordException(mce, attributes);
+                log.debug("Fetch trendsamples threw an exception. objectId: {}. Reason: {}", objectId, e.getMessage());
+                throw mce;
             }
         } catch (Exception e) {
             setUnhealthy();
@@ -342,13 +377,15 @@ public class MetasysApiClientRest implements BasClient {
         String bearerToken = findAccessToken();
         URI subscribeUri = new URI(apiUrl + "objects/" + objectId+"/attributes/presentValue?includeSchema=false");
         CloseableHttpClient httpClient = HttpClients.createDefault();
-        HttpGet request = null;
+        final HttpGet request;
         try {
             request = new HttpGet(subscribeUri);
             request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);
             request.addHeader(METASYS_SUBSCRIBE_HEADER, subscriptionId);
-            CloseableHttpResponse response = httpClient.execute(request);
-            try {
+            CheckedSupplier<CloseableHttpResponse> restricetedCall = RateLimiter
+                    .decorateCheckedSupplier(rateLimiter, () -> httpClient.execute(request));
+//            CloseableHttpResponse response = httpClient.execute(request);
+            try (CloseableHttpResponse response = restricetedCall.get()) {
                 HttpEntity entity = response.getEntity();
                 statusCode = response.getCode();
                 if (statusCode == 202) {
@@ -364,6 +401,12 @@ public class MetasysApiClientRest implements BasClient {
                 setUnhealthy();
                 throw new MetasysCloudConnectorException("Failed to subscribe to objectId " + objectId
                         + ". Reason: " + e.getMessage(), e);
+            } catch (Throwable e) {
+                setUnhealthy();
+                throw new MetasysCloudConnectorException("Failed to subscribe to objectId " + objectId
+                        + ". Reason: " + e.getMessage(), e);
+            } finally {
+                httpClient.close();
             }
         } catch (Exception e) {
             setUnhealthy();
