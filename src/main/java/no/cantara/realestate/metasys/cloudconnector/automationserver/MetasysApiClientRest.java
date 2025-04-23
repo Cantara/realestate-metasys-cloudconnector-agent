@@ -1,6 +1,5 @@
 package no.cantara.realestate.metasys.cloudconnector.automationserver;
 
-import io.github.resilience4j.core.functions.CheckedSupplier;
 import io.github.resilience4j.ratelimiter.RateLimiter;
 import io.github.resilience4j.ratelimiter.RateLimiterConfig;
 import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
@@ -59,7 +58,7 @@ import static org.slf4j.LoggerFactory.getLogger;
 
 public class MetasysApiClientRest implements BasClient {
     private static final Logger log = getLogger(MetasysApiClientRest.class);
-    private static final String METASYS_SUBSCRIBE_HEADER = "METASYS-SUBSCRIBE";
+    public static final String METASYS_SUBSCRIBE_HEADER = "METASYS-SUBSCRIBE";
     private final URI apiUri;
 
     //FIXME Implement Client https://github.com/Cantara/stingray/blob/main/samples/greeter/src/main/java/no/cantara/stingray/sample/greeter/HttpRandomizerClient.java
@@ -78,6 +77,7 @@ public class MetasysApiClientRest implements BasClient {
     final Tracer tracer;
     final Meter meter;
     private final RateLimiter rateLimiter;
+    private final RateLimiter logonRateLimiter;
 
     public MetasysApiClientRest(URI apiUri, NotificationService notificationService) {
         this.apiUri = apiUri;
@@ -85,13 +85,21 @@ public class MetasysApiClientRest implements BasClient {
         tracer = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_SCOPE_NAME_VALUE);
         meter = GlobalOpenTelemetry.getMeter(INSTRUMENTATION_SCOPE_NAME_VALUE);
         RateLimiterConfig config = RateLimiterConfig.custom()
-                .limitForPeriod(1)                          // 1 kall per periode
-                .limitRefreshPeriod(Duration.ofMillis(1000)) // periode på 500 ms
+                .limitForPeriod(2)                          // 1 kall per periode
+                .limitRefreshPeriod(Duration.ofMillis(200)) // periode på 500 ms
                 .timeoutDuration(Duration.ofSeconds(10))    // vent inntil 10 sek for tillatelse
                 .build();
 
         RateLimiterRegistry registry = RateLimiterRegistry.of(config);
-        this.rateLimiter = registry.rateLimiter("myDistributedLimiter");
+        this.rateLimiter = registry.rateLimiter("observationsLimiter");
+        RateLimiterConfig logonConfig = RateLimiterConfig.custom()
+                .limitForPeriod(1)                          // 1 kall per periode
+                .limitRefreshPeriod(Duration.ofMillis(60000)) // max one call pr minute
+                .timeoutDuration(Duration.ofSeconds(10))    // vent inntil 10 sek for tillatelse
+                .build();
+
+        RateLimiterRegistry logonRegistry = RateLimiterRegistry.of(logonConfig);
+        this.logonRateLimiter = logonRegistry.rateLimiter("logonLimiter");
     }
 
     public static void main(String[] args) throws URISyntaxException, LogonFailedException {
@@ -343,7 +351,10 @@ public class MetasysApiClientRest implements BasClient {
     public Integer subscribePresentValueChange(String subscriptionId, String objectId) throws URISyntaxException, LogonFailedException {
         Integer statusCode = null;
         String apiUrl = getConfigValue("sd.api.url"); //getConfigProperty("sd.api.url");
-
+        boolean permission = rateLimiter.acquirePermission();  //getPermission(Duration.ofSeconds(10));
+        if (!permission) {
+            throw new RealestateCloudconnectorException("RateLimit exceeded - subscribePresentValueChange", StatusType.RETRY_MAY_FIX_ISSUE);
+        }
         String bearerToken = findAccessToken();
         URI subscribeUri = new URI(apiUrl + "objects/" + objectId+"/attributes/presentValue?includeSchema=false");
         CloseableHttpClient httpClient = HttpClients.createDefault();
@@ -352,10 +363,7 @@ public class MetasysApiClientRest implements BasClient {
             request = new HttpGet(subscribeUri);
             request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);
             request.addHeader(METASYS_SUBSCRIBE_HEADER, subscriptionId);
-            CheckedSupplier<CloseableHttpResponse> restricetedCall = RateLimiter
-                    .decorateCheckedSupplier(rateLimiter, () -> httpClient.execute(request));
-//            CloseableHttpResponse response = httpClient.execute(request);
-            try (CloseableHttpResponse response = restricetedCall.get()) {
+            try (CloseableHttpResponse response = httpClient.execute(request)) {
                 HttpEntity entity = response.getEntity();
                 statusCode = response.getCode();
                 if (statusCode == 202) {
@@ -559,8 +567,12 @@ public class MetasysApiClientRest implements BasClient {
     }
 
     @Override
-    public synchronized void logon() throws LogonFailedException {
+    public synchronized void logon() throws LogonFailedException, RealestateCloudconnectorException {
         //FIXME ensure multiple instances of this class does not logon multiple times
+        boolean permission = logonRateLimiter.acquirePermission();
+        if (!permission) {
+            throw new RealestateCloudconnectorException("LogonRateLimit exceeded", StatusType.RETRY_MAY_FIX_ISSUE);
+        }
         String username = getConfigValue("sd.api.username");
         String password = getConfigValue("sd.api.password");
         logon(username, password);
