@@ -14,7 +14,8 @@ public class MockServerRunner {
         mockServer = ClientAndServer.startClientAndServer(1080);
 
         // Run mock setup
-        MockServerSetup.clearAndSetLoginMock();
+        MockServerSetup.loginMock();
+        MockServerSetup.refreshTokenMock();
         MockServerSetup.clearAndSetSensorMockData("01ee7349-f468-554f-8221-d65663799d24");
         MockServerSetup.mockPresentValueSubscription();
 

@@ -16,10 +16,10 @@ import static org.mockserver.model.JsonBody.json;
 public class MockServerSetup {
 
     public static void main(String[] args) {
-        clearAndSetLoginMock();
+        loginMock();
     }
 
-    public static void clearAndSetLoginMock() {
+    public static void loginMock() {
         new MockServerClient("localhost", 1080)
                 .clear(request().withPath("/api/v4/login"));
         new MockServerClient("localhost", 1080)
@@ -29,6 +29,29 @@ public class MockServerSetup {
                                 .withPath("/api/v4/login")
                                 .withContentType(MediaType.APPLICATION_JSON)
                                 .withBody(json("{\"username\": \"jane-doe\", \"password\": \"strongPassword\"}"))
+                )
+                .respond(
+                        response()
+                                .withStatusCode(200)
+                                .withBody("{\n" +
+                                        "  \"accessToken\": \"eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1...\",\n" +
+                                        "  \"expires\": \"" + Instant.now().plusSeconds(60 * 60).toString() + "\"\n" +
+                                        "}\n")
+                                .withHeader(
+                                        "Content-Type", "application/vnd.metasysapi.v4+json"
+                                )
+                );
+    }
+
+    public static void refreshTokenMock() {
+        new MockServerClient("localhost", 1080)
+                .clear(request().withPath("/api/v4/refreshToken"));
+        new MockServerClient("localhost", 1080)
+                .when(
+                        request()
+                                .withMethod("GET")
+                                .withPath("/api/v4/refreshToken")
+                                .withHeader(HttpHeaders.AUTHORIZATION, contains("Bearer"))
                 )
                 .respond(
                         response()
