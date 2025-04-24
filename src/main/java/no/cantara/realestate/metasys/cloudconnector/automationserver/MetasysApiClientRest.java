@@ -1,5 +1,8 @@
 package no.cantara.realestate.metasys.cloudconnector.automationserver;
 
+import io.github.resilience4j.ratelimiter.RateLimiter;
+import io.github.resilience4j.ratelimiter.RateLimiterConfig;
+import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.Meter;
@@ -9,6 +12,8 @@ import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Scope;
 import jakarta.ws.rs.core.HttpHeaders;
 import no.cantara.realestate.automationserver.BasClient;
+import no.cantara.realestate.cloudconnector.RealestateCloudconnectorException;
+import no.cantara.realestate.cloudconnector.StatusType;
 import no.cantara.realestate.json.RealEstateObjectMapper;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorException;
 import no.cantara.realestate.metasys.cloudconnector.notifications.NotificationService;
@@ -37,6 +42,7 @@ import org.slf4j.Logger;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -52,7 +58,7 @@ import static org.slf4j.LoggerFactory.getLogger;
 
 public class MetasysApiClientRest implements BasClient {
     private static final Logger log = getLogger(MetasysApiClientRest.class);
-    private static final String METASYS_SUBSCRIBE_HEADER = "METASYS-SUBSCRIBE";
+    public static final String METASYS_SUBSCRIBE_HEADER = "METASYS-SUBSCRIBE";
     private final URI apiUri;
 
     //FIXME Implement Client https://github.com/Cantara/stingray/blob/main/samples/greeter/src/main/java/no/cantara/stingray/sample/greeter/HttpRandomizerClient.java
@@ -70,12 +76,30 @@ public class MetasysApiClientRest implements BasClient {
     private boolean isHealthy = true;
     final Tracer tracer;
     final Meter meter;
+    private final RateLimiter rateLimiter;
+    private final RateLimiter logonRateLimiter;
 
     public MetasysApiClientRest(URI apiUri, NotificationService notificationService) {
         this.apiUri = apiUri;
         this.notificationService = notificationService;
         tracer = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_SCOPE_NAME_VALUE);
         meter = GlobalOpenTelemetry.getMeter(INSTRUMENTATION_SCOPE_NAME_VALUE);
+        RateLimiterConfig config = RateLimiterConfig.custom()
+                .limitForPeriod(2)                          // 1 kall per periode
+                .limitRefreshPeriod(Duration.ofMillis(200)) // periode på 500 ms
+                .timeoutDuration(Duration.ofSeconds(10))    // vent inntil 10 sek for tillatelse
+                .build();
+
+        RateLimiterRegistry registry = RateLimiterRegistry.of(config);
+        this.rateLimiter = registry.rateLimiter("observationsLimiter");
+        RateLimiterConfig logonConfig = RateLimiterConfig.custom()
+                .limitForPeriod(1)                          // 1 kall per periode
+                .limitRefreshPeriod(Duration.ofMillis(60000)) // max one call pr minute
+                .timeoutDuration(Duration.ofSeconds(10))    // vent inntil 10 sek for tillatelse
+                .build();
+
+        RateLimiterRegistry logonRegistry = RateLimiterRegistry.of(logonConfig);
+        this.logonRateLimiter = logonRegistry.rateLimiter("logonLimiter");
     }
 
     public static void main(String[] args) throws URISyntaxException, LogonFailedException {
@@ -169,15 +193,24 @@ public class MetasysApiClientRest implements BasClient {
         if (onAndAfterDateTime == null) {
             throw new IllegalArgumentException("onAndAfterDateTime cannot be null");
         }
+
         Span span = tracer.spanBuilder("findTrendSamplesByDate").setSpanKind(SpanKind.CLIENT).startSpan();
         String apiUrl = getConfigValue("sd.api.url");
 //        String prefixedUrlEncodedTrendId = encodeAndPrefix(objectId);
         String bearerToken = findAccessToken();
         URI samplesUri = new URI(apiUrl + "objects/" + objectId+"/trendedAttributes/presentValue/samples");
         CloseableHttpClient httpClient = HttpClients.createDefault();
-        HttpGet request = null;
+        final HttpGet request;
         List<MetasysTrendSample> trendSamples = new ArrayList<>();
         try (Scope ignored = span.makeCurrent()) {
+            Attributes attributes = null;
+            boolean permission = rateLimiter.acquirePermission();  //getPermission(Duration.ofSeconds(10));
+            if (!permission) {
+                attributes = Attributes.of(stringKey("objectId"), objectId);
+                span.addEvent("RateLimitExceded-trendSamples", attributes);
+                span.end();
+                throw new RealestateCloudconnectorException("RateLimit exceeded", StatusType.RETRY_MAY_FIX_ISSUE);
+            }
 
             String startTime = onAndAfterDateTime.toString();
             int page=1;
@@ -207,7 +240,6 @@ public class MetasysApiClientRest implements BasClient {
                 HttpEntity entity = null;
                 String reason = null;
                 String body = "";
-                Attributes attributes = null;
                 switch (httpCode) {
                     case 200:
                         entity = response.getEntity();
@@ -287,9 +319,16 @@ public class MetasysApiClientRest implements BasClient {
                 setUnhealthy();
                 MetasysCloudConnectorException mce =  new MetasysCloudConnectorException("Failed to fetch trendsamples for objectId " + objectId
                         + ", after date "+ onAndAfterDateTime + ". Reason: " + e.getMessage(), e);
-                Attributes attributes = Attributes.of(stringKey("objectId"), objectId);
+                attributes = Attributes.of(stringKey("objectId"), objectId);
                 span.recordException(mce, attributes);
                 log.debug("Failed to fetch trendsamples for objectId: {}. Reason: {}", objectId, e.getMessage());
+                throw mce;
+            } catch (Throwable e) {
+                MetasysCloudConnectorException mce = new MetasysCloudConnectorException("Failed to fetch trendsamples for objectId " + objectId
+                        + ", after date "+ onAndAfterDateTime + ". Reason: " + e.getMessage(), e);
+                attributes = Attributes.of(stringKey("objectId"), objectId);
+                span.recordException(mce, attributes);
+                log.debug("Fetch trendsamples threw an exception. objectId: {}. Reason: {}", objectId, e.getMessage());
                 throw mce;
             }
         } catch (Exception e) {
@@ -303,32 +342,6 @@ public class MetasysApiClientRest implements BasClient {
             span.end();
         }
 
-        /*
-        String startTime = onAndAfterDateTime.toString();
-        //FIXME make dynamic
-        int page=1;
-        int pageSize=1000;
-        String endTime = Instant.now().plusSeconds(60).toString();
-
-
-
-//        MetasysTrendSampleResult trendSampleResult = trendSampleService.findTrendSamplesByDate("Bearer " + bearerToken, prefixedUrlEncodedTrendId, pageSize, page, startTime, endTime);
-        log.trace("findTrendSamplesByDate. trendId: {}. From date: {}. To date: {}. Page: {}. PageSize: {}. Take: {}. Skip: {}",
-                objectId, onAndAfterDateTime, endTime, page, pageSize, take, skip);
-        String trendSamplesJson = trendSampleService.findTrendSamplesByDateJson("Bearer " + bearerToken, prefixedUrlEncodedTrendId, pageSize, page, startTime, endTime);
-
-
-        MetasysTrendSampleResult trendSampleResult = TrendSamplesMapper.mapFromJson(trendSamplesJson);
-        log.trace("Found: {} trends from trendId: {}", trendSampleResult.getTotal(), objectId);
-        List<MetasysTrendSample> trendSamples = trendSampleResult.getItems();
-        if (trendSamples != null) {
-            for (MetasysTrendSample trendSample : trendSamples) {
-                trendSample.setTrendId(objectId);
-                log.trace("imported trendSample: {}", trendSample);
-            }
-        }
-
-         */
         isHealthy = true;
         updateWhenLastTrendSampleReceived();
         return new HashSet<>(trendSamples);
@@ -338,17 +351,19 @@ public class MetasysApiClientRest implements BasClient {
     public Integer subscribePresentValueChange(String subscriptionId, String objectId) throws URISyntaxException, LogonFailedException {
         Integer statusCode = null;
         String apiUrl = getConfigValue("sd.api.url"); //getConfigProperty("sd.api.url");
-
+        boolean permission = rateLimiter.acquirePermission();  //getPermission(Duration.ofSeconds(10));
+        if (!permission) {
+            throw new RealestateCloudconnectorException("RateLimit exceeded - subscribePresentValueChange", StatusType.RETRY_MAY_FIX_ISSUE);
+        }
         String bearerToken = findAccessToken();
         URI subscribeUri = new URI(apiUrl + "objects/" + objectId+"/attributes/presentValue?includeSchema=false");
         CloseableHttpClient httpClient = HttpClients.createDefault();
-        HttpGet request = null;
+        final HttpGet request;
         try {
             request = new HttpGet(subscribeUri);
             request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);
             request.addHeader(METASYS_SUBSCRIBE_HEADER, subscriptionId);
-            CloseableHttpResponse response = httpClient.execute(request);
-            try {
+            try (CloseableHttpResponse response = httpClient.execute(request)) {
                 HttpEntity entity = response.getEntity();
                 statusCode = response.getCode();
                 if (statusCode == 202) {
@@ -364,6 +379,12 @@ public class MetasysApiClientRest implements BasClient {
                 setUnhealthy();
                 throw new MetasysCloudConnectorException("Failed to subscribe to objectId " + objectId
                         + ". Reason: " + e.getMessage(), e);
+            } catch (Throwable e) {
+                setUnhealthy();
+                throw new MetasysCloudConnectorException("Failed to subscribe to objectId " + objectId
+                        + ". Reason: " + e.getMessage(), e);
+            } finally {
+                httpClient.close();
             }
         } catch (Exception e) {
             setUnhealthy();
@@ -546,8 +567,12 @@ public class MetasysApiClientRest implements BasClient {
     }
 
     @Override
-    public synchronized void logon() throws LogonFailedException {
+    public synchronized void logon() throws LogonFailedException, RealestateCloudconnectorException {
         //FIXME ensure multiple instances of this class does not logon multiple times
+        boolean permission = logonRateLimiter.acquirePermission();
+        if (!permission) {
+            throw new RealestateCloudconnectorException("LogonRateLimit exceeded", StatusType.RETRY_MAY_FIX_ISSUE);
+        }
         String username = getConfigValue("sd.api.username");
         String password = getConfigValue("sd.api.password");
         logon(username, password);

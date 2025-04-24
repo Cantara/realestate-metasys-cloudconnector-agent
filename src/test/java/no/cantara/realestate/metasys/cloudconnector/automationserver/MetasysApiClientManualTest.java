@@ -19,7 +19,7 @@ public class MetasysApiClientManualTest {
                 .conventions(ApplicationProperties.builder())
                 .buildAndSetStaticSingleton();
         String apiUrl = config.get("sd.api.url");
-        MockServerSetup.clearAndSetLoginMock();
+        MockServerSetup.loginMock();
         MockServerSetup.clearAndSetSensorMockData("8648f9cf-c135-5471-9906-9b3861e0b5ab");
         //MockServerSetup.clearAndSetSensorMockData("208540b1-ab8a-566a-8a41-8b4cee515baf");
         MetasysApiClientRest apiClient = new MetasysApiClientRest(URI.create(apiUrl), new SlackNotificationService());

@@ -76,7 +76,7 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
 
     }
 
-    private void startImportingObservations() {
+    protected void startImportingObservations() {
         // Start import scheduler and stream
         if (enableStream) {
             log.info("Stream import is enabled.");

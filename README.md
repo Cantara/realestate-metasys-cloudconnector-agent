@@ -77,14 +77,10 @@ java -jar target/metasys-cloudconnector-app-<version>.jar
 ```
 
 ## Testing with Metasys Mock
-### Start Mock server
-````
-mvn -Dmockserver.serverPort=1080 -Dmockserver.logLevel=INFO org.mock-server:mockserver-maven-plugin:5.15.0:runForked
-`````
-### Stop Mock server
-````
-mvn -Dmockserver.serverPort=1080 org.mock-server:mockserver-maven-plugin:5.15.0:stopForked
-````
+Run  [MockServerRunner.java](src/test/java/no/cantara/realestate/metasys/cloudconnector/MockServerRunner.java)
+
+See the active mocks [Mockserver Dashboard](http://localhost:1080/mockserver/dashboard)
+
 
 ### Add Login mock
 
