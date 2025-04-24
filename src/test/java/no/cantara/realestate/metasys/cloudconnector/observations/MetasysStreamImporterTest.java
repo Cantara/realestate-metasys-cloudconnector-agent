@@ -55,7 +55,7 @@ class MetasysStreamImporterTest {
         MetasysUserToken metasysUserToken = new MetasysUserToken();
         metasysUserToken.setExpires(Instant.now().plusSeconds(60));
         when(metasysTokenManager.getCurrentToken()).thenReturn(metasysUserToken);
-        metasysStreamImporter = new MetasysStreamImporter(metasysStreamClient, sdClient, idRepository, distributionClient, metricsDistributionClient, metasysTokenManager);
+        metasysStreamImporter = new MetasysStreamImporter(metasysStreamClient, sdClient, idRepository, distributionClient, metricsDistributionClient);
     }
 
     /*
@@ -122,7 +122,7 @@ class MetasysStreamImporterTest {
         MetasysUserToken stubUserToken = new MetasysUserToken();
         stubUserToken.setAccessToken("dummyToken");
         stubUserToken.setExpires(Instant.now().plusSeconds(90));
-        when(metasysTokenManager.getCurrentToken()).thenReturn(stubUserToken);
+        when(sdClient.getUserToken()).thenReturn(stubUserToken);
         metasysStreamImporter.openStream();
 //        ScheduledThreadPoolExecutor executorService = (ScheduledThreadPoolExecutor) metasysStreamImporter.getScheduledExecutorService();
 
@@ -209,7 +209,7 @@ class MetasysStreamImporterTest {
         Instant expires = Instant.parse("2023-09-12T13:39:46Z");
         MetasysUserToken userToken = mock(MetasysUserToken.class);
         when(userToken.getExpires()).thenReturn(expires);
-        when(metasysTokenManager.getCurrentToken()).thenReturn(userToken);
+        when(sdClient.getUserToken()).thenReturn(userToken);
 //        when(sdClient.getUserToken()).thenReturn(userToken);
         assertNotEquals(expires, metasysStreamImporter.getExpires());
         String openStreamData = "";

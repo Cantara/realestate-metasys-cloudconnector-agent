@@ -9,7 +9,6 @@ import no.cantara.realestate.mappingtable.metasys.MetasysSensorId;
 import no.cantara.realestate.mappingtable.metasys.MetasysUniqueKey;
 import no.cantara.realestate.mappingtable.repository.MappedIdQuery;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysTokenManager;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.*;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
@@ -36,7 +35,6 @@ public class MetasysStreamImporter implements StreamListener {
     private final MappedIdRepository idRepository;
     private final ObservationDistributionClient distributionClient;
     private final MetasysMetricsDistributionClient metricsDistributionClient;
-    private final MetasysTokenManager tokenManager;
     private String subscriptionId = null;
 
     private boolean isHealthy = false;
@@ -49,17 +47,13 @@ public class MetasysStreamImporter implements StreamListener {
 //    private boolean reAuthorizationIsScheduled;
     private List<MappedIdQuery> idQueries;
 
-    public MetasysStreamImporter(MetasysStreamClient streamClient, BasClient sdClient, MappedIdRepository idRepository, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsDistributionClient) {
-        this(streamClient, sdClient, idRepository, distributionClient, metricsDistributionClient, MetasysTokenManager.getInstance(sdClient));
-    }
 
-    protected MetasysStreamImporter(MetasysStreamClient streamClient, BasClient sdClient, MappedIdRepository idRepository, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsDistributionClient, MetasysTokenManager metasysTokenManager) {
+    public MetasysStreamImporter(MetasysStreamClient streamClient, BasClient sdClient, MappedIdRepository idRepository, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsDistributionClient) {
         this.streamClient = streamClient;
         this.sdClient = sdClient;
         this.idRepository = idRepository;
         this.distributionClient = distributionClient;
         this.metricsDistributionClient = metricsDistributionClient;
-        this.tokenManager = metasysTokenManager;
 //        scheduledExecutorService = new ScheduledThreadPoolExecutor(1);
 //        scheduledExecutorService.setRemoveOnCancelPolicy(true);
     }
@@ -104,14 +98,18 @@ public class MetasysStreamImporter implements StreamListener {
             this.subscriptionId = ((MetasysOpenStreamEvent) event).getSubscriptionId();
             log.info("Start subscribing to stream with subscriptionId: {}", subscriptionId);
             log.debug("Schedule resubscribe.");
-            UserToken userToken = tokenManager.getCurrentToken(); //sdClient.getUserToken();
+            UserToken userToken = sdClient.getUserToken();
             expires = userToken.getExpires();
             Long reSubscribeIntervalInSeconds = Duration.between(Instant.now(), expires).get(ChronoUnit.SECONDS);
-//            Long testTime = 600L;
-//            log.warn("Schedule resubscribe should be within: {}. Will test with only 10 minute delay. Resubscribe within: {} seconds", expires, testTime);
-//            reSubscribeIntervalInSeconds = testTime;
-//            scheduleResubscribe(reSubscribeIntervalInSeconds);
+            Long testTime = 600L;
+            log.warn("Schedule resubscribe should be within: {}. Will test with only 10 minute delay. Resubscribe within: {} seconds", expires, testTime);
+            reSubscribeIntervalInSeconds = testTime;
+            scheduleResubscribe(reSubscribeIntervalInSeconds);
         }
+    }
+
+    void scheduleResubscribe(Long reSubscribeIntervalInSeconds) {
+        log.warn("Not Implemented: Schedule resubscribe every {} seconds", reSubscribeIntervalInSeconds);
     }
 
     public void startSubscribing(List<MappedIdQuery> idQueries) throws SdLogonFailedException {
@@ -144,9 +142,9 @@ public class MetasysStreamImporter implements StreamListener {
 
     public void openStream() {
         log.trace("Open stream to Metasys");
-        streamUrl = ApplicationProperties.getInstance().get("sd.api.url") + "/stream";
+        streamUrl = ApplicationProperties.getInstance().get("sd.api.url") + "stream";
         if (streamClient != null && !streamClient.isStreamOpen()) {
-            UserToken userToken = tokenManager.getCurrentToken();
+            UserToken userToken = sdClient.getUserToken();
             if (userToken != null) {
                 String accessToken = userToken.getAccessToken();
                 streamClient.openStream(streamUrl, accessToken, null, this);
@@ -171,7 +169,7 @@ public class MetasysStreamImporter implements StreamListener {
         log.info("ReAuthorize on thread {}", Thread.currentThread().getName());
         streamUrl = ApplicationProperties.getInstance().get("sd.api.url") + "/stream";
         if (streamClient != null) {
-            UserToken userToken = tokenManager.getCurrentToken();
+            UserToken userToken = sdClient.getUserToken();
             if (userToken != null) {
                 String accessToken = userToken.getAccessToken();
                 try {
@@ -181,7 +179,7 @@ public class MetasysStreamImporter implements StreamListener {
                     isHealthy = false;
                     if (e.getAction() != null && e.getAction() == RealEstateStreamException.Action.RECREATE_SUBSCRIPTION_NEEDED) {
                         log.info("Failed to reconnect stream. Will try to open a new subscription", e);
-                        streamClient.openStream(streamUrl, accessToken, null, this);
+                        streamClient.openStream(streamUrl, null, null, this);
                         try {
                             startSubscribing(idQueries);
                         } catch (SdLogonFailedException ex) {

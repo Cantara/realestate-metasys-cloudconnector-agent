@@ -18,6 +18,7 @@ public class MockServerRunner {
         MockServerSetup.refreshTokenMock();
         MockServerSetup.clearAndSetSensorMockData("01ee7349-f468-554f-8221-d65663799d24");
         MockServerSetup.mockPresentValueSubscription();
+        MockServerSetup.streamMock();
 
         log.info("MockServer is running on port 1080 with mock responses configured.");
         System.out.println("MockServer is running on port 1080 with mock responses configured.");

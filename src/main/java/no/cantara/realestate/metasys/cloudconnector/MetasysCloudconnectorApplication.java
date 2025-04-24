@@ -9,7 +9,7 @@ import no.cantara.realestate.mappingtable.repository.MappedIdQuery;
 import no.cantara.realestate.mappingtable.repository.MappedIdQueryBuilder;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepositoryImpl;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysApiClientRest;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClientSimulator;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysStreamClient;
@@ -224,11 +224,12 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
 
         if (Boolean.valueOf(useSDProdValue)) {
             String apiUrl = config.get("sd.api.url");
+            String username = config.get("sd.api.username");
+            String password = config.get("sd.api.password");
             try {
                 URI apiUri = new URI(apiUrl);
-                sdClient = new MetasysApiClientRest(apiUri, notificationService);
-                log.info("Logon to SdClient with username: {}", config.get("sd.api.username"));
-                sdClient.logon();
+                log.info("Connect to Metasys API: {} with username: {}", apiUri, username);
+                sdClient = MetasysClient.getInstance(username, password, apiUri, notificationService); //new MetasysApiClientRest(apiUri, notificationService);
                 log.info("Running with a live REST SD.");
             } catch (URISyntaxException e) {
                 throw new MetasysCloudConnectorException("Failed to connect SD Client to URL" + apiUrl, e);
