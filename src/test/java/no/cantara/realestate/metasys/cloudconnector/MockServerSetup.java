@@ -134,6 +134,25 @@ public class MockServerSetup {
                         }
                 );
     }
+
+    public static void streamMock() {
+        new MockServerClient("localhost", 1080)
+                .clear(request().withPath("/api/v4/stream"));
+        new MockServerClient("localhost", 1080)
+                .when(
+                        request()
+                                .withMethod("GET")
+                                .withPath("/api/v4/stream")
+                                .withHeader(HttpHeaders.AUTHORIZATION, contains("Bearer"))
+                )
+                .respond(
+                        response()
+                                .withStatusCode(200)
+
+                );
+    }
+
+
 }
 
 /*

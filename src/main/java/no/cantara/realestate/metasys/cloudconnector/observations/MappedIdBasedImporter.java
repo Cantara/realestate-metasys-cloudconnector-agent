@@ -2,6 +2,7 @@ package no.cantara.realestate.metasys.cloudconnector.observations;
 
 import no.cantara.config.ApplicationProperties;
 import no.cantara.realestate.automationserver.BasClient;
+import no.cantara.realestate.cloudconnector.RealestateCloudconnectorException;
 import no.cantara.realestate.distribution.ObservationDistributionClient;
 import no.cantara.realestate.mappingtable.MappedSensorId;
 import no.cantara.realestate.mappingtable.metasys.MetasysSensorId;
@@ -11,8 +12,7 @@ import no.cantara.realestate.mappingtable.repository.MappedIdRepositoryImpl;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorException;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnectorApplicationFactory;
 import no.cantara.realestate.metasys.cloudconnector.StatusType;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysApiClientRest;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysTokenManager;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysTrendSample;
 import no.cantara.realestate.metasys.cloudconnector.distribution.ObservationDistributionServiceStub;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysLogonFailed;
@@ -28,7 +28,6 @@ import no.cantara.realestate.observations.ObservationMessage;
 import no.cantara.realestate.observations.TrendSample;
 import no.cantara.realestate.security.InvalidTokenException;
 import no.cantara.realestate.security.LogonFailedException;
-import no.cantara.realestate.security.UserToken;
 import org.slf4j.Logger;
 
 import java.net.URI;
@@ -49,28 +48,20 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
     private final ObservationDistributionClient distributionClient;
     private final MetasysMetricsDistributionClient metricsClient;
     private final MappedIdRepository mappedIdRepository;
-    private final MetasysTokenManager tokenManager;
     private List<MappedSensorId> importableTrendIds = new ArrayList<>();
     private final Map<String, Instant> lastSuccessfulImportAt;
     private Timer metricsDistributor;
     private int numberOfSuccessfulImports = 0;
     private int numberOfFailedImports = 0;
 
-    public MappedIdBasedImporter(MappedIdQuery mappedIdQuery, BasClient basClient, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsClient, MappedIdRepository mappedIdRepository) {
-        this(mappedIdQuery, basClient, distributionClient, metricsClient, mappedIdRepository, MetasysTokenManager.getInstance(basClient));
-    }
 
-    /*
-    Used for testing
-     */
-    protected MappedIdBasedImporter(MappedIdQuery mappedIdQuery, BasClient basClient, ObservationDistributionClient distributionClient,
-                                    MetasysMetricsDistributionClient metricsClient, MappedIdRepository mappedIdRepository, MetasysTokenManager metasysTokenManager) {
+    public MappedIdBasedImporter(MappedIdQuery mappedIdQuery, BasClient basClient, ObservationDistributionClient distributionClient,
+                                    MetasysMetricsDistributionClient metricsClient, MappedIdRepository mappedIdRepository) {
         this.mappedIdQuery = mappedIdQuery;
         this.basClient = basClient;
         this.distributionClient = distributionClient;
         this.metricsClient = metricsClient;
         this.mappedIdRepository = mappedIdRepository;
-        this.tokenManager = metasysTokenManager;
         lastSuccessfulImportAt = new HashMap<>();
     }
 
@@ -169,17 +160,19 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
                         Set<TrendSample> trendSamples;
                         try {
                             //Ensure thread safety, and re-login if needed
-                            UserToken userToken = tokenManager.getCurrentToken();
                             trendSamples = (Set<TrendSample>) basClient.findTrendSamplesByDate(trendId, take, skip, importFrom);
                         } catch (InvalidTokenException e) {
+                            throw new RealestateCloudconnectorException("This Code should not be reached. InvalidTokenException", e);
+                            /*
                             log.warn("Invalid token. Try to re-logon to Metasys.");
-                            UserToken userToken = tokenManager.getCurrentToken();
                             if (userToken != null) {
                                 trendSamples = (Set<TrendSample>) basClient.findTrendSamplesByDate(trendId, take, skip, importFrom);
                             } else {
                                 log.warn("Failed to re-logon to Metasys. No userToken.");
                                 throw new MetasysCloudConnectorException("Missing userToken. Failed to re-logon to Metasys. TrendId: " + trendId, e, StatusType.RETRY_NOT_POSSIBLE);
                             }
+
+                             */
                         }
                         if (trendSamples != null) {
                             log.trace("Found {} samples for trendId: {}", trendSamples.size(), trendId);
@@ -282,9 +275,11 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
                 .conventions(ApplicationProperties.builder())
                 .build();
         String apiUrl = config.get("sd_api_url");
+        String username = config.get("sd.api.username");
+        String password = config.get("sd.api.password");
         URI apiUri = new URI(apiUrl);
         NotificationService notificationService = new SlackNotificationService();
-        BasClient sdClient = new MetasysApiClientRest(apiUri, notificationService);
+        BasClient sdClient = MetasysClient.getInstance(username, password, apiUri, notificationService);
 
         String measurementName = config.get("MEASUREMENT_NAME");
         ObservationDistributionClient observationClient = new ObservationDistributionServiceStub();//Simulator

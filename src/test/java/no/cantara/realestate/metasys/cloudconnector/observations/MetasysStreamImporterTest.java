@@ -55,7 +55,7 @@ class MetasysStreamImporterTest {
         MetasysUserToken metasysUserToken = new MetasysUserToken();
         metasysUserToken.setExpires(Instant.now().plusSeconds(60));
         when(metasysTokenManager.getCurrentToken()).thenReturn(metasysUserToken);
-        metasysStreamImporter = new MetasysStreamImporter(metasysStreamClient, sdClient, idRepository, distributionClient, metricsDistributionClient, metasysTokenManager);
+        metasysStreamImporter = new MetasysStreamImporter(metasysStreamClient, sdClient, idRepository, distributionClient, metricsDistributionClient);
     }
 
     /*

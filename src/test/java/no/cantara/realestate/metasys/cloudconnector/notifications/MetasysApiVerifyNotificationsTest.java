@@ -4,6 +4,7 @@ import no.cantara.config.ApplicationProperties;
 import no.cantara.config.testsupport.ApplicationPropertiesTestHelper;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnectorApplicationFactory;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysApiClientRest;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient;
 import org.junit.jupiter.api.*;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.model.MediaType;
@@ -11,7 +12,6 @@ import org.mockserver.model.MediaType;
 import java.net.URI;
 import java.time.Instant;
 
-import static no.cantara.realestate.mappingtable.Main.getConfigValue;
 import static no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysApiClientRest.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
@@ -27,6 +27,8 @@ public class MetasysApiVerifyNotificationsTest {
     private static ClientAndServer mockServer;
 
     private static int HTTP_PORT = 1084;
+    private String username;
+    private String password;
 
     @BeforeAll
     static void beforeAll() {
@@ -45,6 +47,8 @@ public class MetasysApiVerifyNotificationsTest {
     @BeforeEach
     void setUp() {
         notificationService = mock(NotificationService.class);
+        username = "jane-doe";
+        password = "strongPassword";
     }
 
     @AfterEach
@@ -55,27 +59,25 @@ public class MetasysApiVerifyNotificationsTest {
     @Test
     void verifyMetasysHostUnreachable() {
         URI apiUri = URI.create("http://localhost:8080");
-        MetasysApiClientRest metasysApiClient = new MetasysApiClientRest(apiUri, notificationService);
+        MetasysClient metasysClient = null;
         try {
-            metasysApiClient.logon();
+            metasysClient =  MetasysClient.getInstance(username,password, apiUri, notificationService);
             fail("Expected exception");
         } catch (Exception e) {
             verify(notificationService).sendAlarm(METASYS_API,HOST_UNREACHABLE);
         }
-        assertFalse(metasysApiClient.isHealthy());
+        assertFalse(metasysClient.isHealthy());
     }
 
     @Test
     void verifyMetasysLoginOk() {
-        String userName = getConfigValue("sd.api.username");
-        String password = getConfigValue("sd.api.password");
         mockServer
                 .when(
                         request()
                                 .withMethod("POST")
                                 .withPath("/api/v4/login")
                                 .withContentType(MediaType.APPLICATION_JSON)
-                                .withBody(json("{\"username\": \"" + userName + "\", \"password\": \"" + password + "\"}"))
+                                .withBody(json("{\"username\": \"" + username + "\", \"password\": \"" + password + "\"}"))
                 )
                 .respond(
                         response()

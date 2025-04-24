@@ -56,6 +56,11 @@ import static no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnector
 import static no.cantara.realestate.metasys.cloudconnector.utils.UrlEncoder.urlEncode;
 import static org.slf4j.LoggerFactory.getLogger;
 
+/**
+ * MetasysApiClientRest is a client for the Metasys API.
+ * It provides methods to interact with the API, including finding trend samples and subscribing to present value changes.
+ * @deprecated Please use MetasysClient instead.
+ */
 public class MetasysApiClientRest implements BasClient {
     private static final Logger log = getLogger(MetasysApiClientRest.class);
     public static final String METASYS_SUBSCRIBE_HEADER = "METASYS-SUBSCRIBE";
