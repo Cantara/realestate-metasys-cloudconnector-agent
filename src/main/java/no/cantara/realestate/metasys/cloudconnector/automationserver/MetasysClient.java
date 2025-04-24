@@ -147,6 +147,14 @@ public class MetasysClient implements BasClient {
     }
 
     /**
+     * Used only for testing
+     */
+    static void stopInstance4Testing() {
+        log.warn("MetasysClient is reset. Must only be used for testing.");
+        instance = null;
+    }
+
+    /**
      * Utfører login til Metasys API og lagrer access token.
      * Thread-safe implementasjon som håndterer samtidige forespørsler.
      */
@@ -166,24 +174,30 @@ public class MetasysClient implements BasClient {
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
-            if (response.statusCode() == 200) {
-                String body = response.body();
-                log.trace("Login Received body: {}", body);
-                MetasysUserToken userToken = RealEstateObjectMapper.getInstance().getObjectMapper().readValue(body, MetasysUserToken.class);
-                log.trace("Converted http body to userToken: {}", userToken);
-                this.userToken = userToken;
-//                ObjectNode jsonResponse = OBJECT_MAPPER.readValue(response.body(), ObjectNode.class);
-                accessToken = userToken.getAccessToken(); //jsonResponse.get("accessToken").asText();
-
-                // Parse expiryTime from API response
-//                long expiresIn = jsonResponse.get("expires").asLong(); // Antar API returnerer seconds-to-expiry
-                tokenExpiryTime = userToken.getExpires(); // Instant.now().plusSeconds(expiresIn);
-
-                log.debug("Metasys login successful, token expires: " + tokenExpiryTime);
-            } else {
-                String errorMessage = "Login failed with status code: " + response.statusCode();
-                System.err.println(errorMessage);
-                throw new MetasysApiException(errorMessage, response.statusCode());
+            int statusCode = response.statusCode();
+            switch (statusCode) {
+                case 200:
+                    String body = response.body();
+                    log.trace("Login Received body: {}", body);
+                    MetasysUserToken userToken = RealEstateObjectMapper.getInstance().getObjectMapper().readValue(body, MetasysUserToken.class);
+                    log.trace("Converted http body to userToken: {}", userToken);
+                    this.userToken = userToken;
+                    accessToken = userToken.getAccessToken();
+                    tokenExpiryTime = userToken.getExpires();
+                    notificationService.clearService("Metasys");
+                    log.debug("Metasys login successful, token expires: " + tokenExpiryTime);
+                    break;
+                default:
+                    String msg = "Failed to logon to Metasys at uri: " + loginUri +
+                            ". Username: " + username +
+                            ". Password: " + password +
+                            ". ResponseCode: " + statusCode;
+                    LogonFailedException logonFailedException = new LogonFailedException(msg);
+                    log.warn("Failed to logon to Metasys. Reason {}", logonFailedException.getMessage());
+                    setUnhealthy();
+                    notificationService.sendWarning(METASYS_API,LOGON_FAILED);
+                    TemporaryHealthResource.addRegisteredError("Failed to logon to Metasys. Reason: " + logonFailedException.getMessage());
+                    throw logonFailedException;
             }
         } catch (JsonProcessingException e) {
             notificationService.sendWarning(METASYS_API, "Parsing of AccessToken information failed.");

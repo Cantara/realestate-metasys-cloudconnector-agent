@@ -1,10 +1,9 @@
-package no.cantara.realestate.metasys.cloudconnector.notifications;
+package no.cantara.realestate.metasys.cloudconnector.automationserver;
 
 import no.cantara.config.ApplicationProperties;
 import no.cantara.config.testsupport.ApplicationPropertiesTestHelper;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnectorApplicationFactory;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysApiClientRest;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient;
+import no.cantara.realestate.metasys.cloudconnector.notifications.NotificationService;
 import org.junit.jupiter.api.*;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.model.MediaType;
@@ -12,7 +11,7 @@ import org.mockserver.model.MediaType;
 import java.net.URI;
 import java.time.Instant;
 
-import static no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysApiClientRest.*;
+import static no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -53,6 +52,7 @@ public class MetasysApiVerifyNotificationsTest {
 
     @AfterEach
     void tearDown() {
+        MetasysClient.stopInstance4Testing();
         mockServer.reset();
     }
 
@@ -61,10 +61,10 @@ public class MetasysApiVerifyNotificationsTest {
         URI apiUri = URI.create("http://localhost:8080/");
         MetasysClient metasysClient = null;
         try {
-            metasysClient =  MetasysClient.getInstance(username,password, apiUri, notificationService);
+            metasysClient = MetasysClient.getInstance(username, password, apiUri, notificationService);
             fail("Expected exception");
         } catch (Exception e) {
-            verify(notificationService).sendAlarm(METASYS_API,HOST_UNREACHABLE);
+            verify(notificationService).sendAlarm(METASYS_API, HOST_UNREACHABLE);
         }
         assertNull(metasysClient);
     }
@@ -92,15 +92,16 @@ public class MetasysApiVerifyNotificationsTest {
                 );
         String apiUrl = "http://localhost:" + mockServer.getPort() + "/api/v4/";
         URI apiUri = URI.create(apiUrl);
-        MetasysApiClientRest metasysApiClient = new MetasysApiClientRest(apiUri, notificationService);
+        MetasysClient metasysApiClient = null;
         try {
-            metasysApiClient.logon();
+            metasysApiClient = MetasysClient.getInstance(username, password, apiUri, notificationService);
             verify(notificationService).clearService(METASYS_API);
         } catch (Exception e) {
             fail("No exception expected");
         }
         assertTrue(metasysApiClient.isHealthy());
     }
+
     @Test
     void verifyMetasysLoginFailed() {
         mockServer
@@ -109,7 +110,7 @@ public class MetasysApiVerifyNotificationsTest {
                                 .withMethod("POST")
                                 .withPath("/api/v4/login")
                                 .withContentType(MediaType.APPLICATION_JSON)
-                                .withBody(json("{\"username\": \"jane-doe\", \"password\": \"strongPassword\"}"))
+                                .withBody(json("{\"username\": \"" + username + "\", \"password\": \"" + password + "\"}"))
                 )
                 .respond(
                         response()
@@ -117,13 +118,15 @@ public class MetasysApiVerifyNotificationsTest {
                 );
         String apiUrl = "http://localhost:" + mockServer.getPort() + "/api/v4/";
         URI apiUri = URI.create(apiUrl);
-        MetasysApiClientRest metasysApiClient = new MetasysApiClientRest(apiUri, notificationService);
+        MetasysClient metasysApiClient = null;
         try {
-            metasysApiClient.logon();
+            metasysApiClient = MetasysClient.getInstance(username, password, apiUri, notificationService);
+//            metasysApiClient.logon();
             fail("Expected exception");
         } catch (Exception e) {
             verify(notificationService).sendWarning(METASYS_API, LOGON_FAILED);
         }
-        assertFalse(metasysApiClient.isHealthy());
+        assertNull(metasysApiClient);
+
     }
 }
