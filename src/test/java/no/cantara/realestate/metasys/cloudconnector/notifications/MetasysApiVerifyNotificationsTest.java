@@ -58,7 +58,7 @@ public class MetasysApiVerifyNotificationsTest {
 
     @Test
     void verifyMetasysHostUnreachable() {
-        URI apiUri = URI.create("http://localhost:8080");
+        URI apiUri = URI.create("http://localhost:8080/");
         MetasysClient metasysClient = null;
         try {
             metasysClient =  MetasysClient.getInstance(username,password, apiUri, notificationService);
@@ -66,7 +66,7 @@ public class MetasysApiVerifyNotificationsTest {
         } catch (Exception e) {
             verify(notificationService).sendAlarm(METASYS_API,HOST_UNREACHABLE);
         }
-        assertFalse(metasysClient.isHealthy());
+        assertNull(metasysClient);
     }
 
     @Test

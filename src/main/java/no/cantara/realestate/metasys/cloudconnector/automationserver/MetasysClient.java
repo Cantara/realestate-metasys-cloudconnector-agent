@@ -1,5 +1,6 @@
 package no.cantara.realestate.metasys.cloudconnector.automationserver;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.github.resilience4j.ratelimiter.RateLimiter;
@@ -28,8 +29,10 @@ import no.cantara.realestate.sensors.SensorId;
 import org.apache.hc.core5.http.NameValuePair;
 import org.apache.hc.core5.http.message.BasicNameValuePair;
 import org.apache.hc.core5.net.URIBuilder;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpClient;
@@ -63,6 +66,10 @@ public class MetasysClient implements BasClient {
     private static final String BASE_URL = "https://metasys-server-url/api"; // Bytt ut med din Metasys server URL
     private static final Duration TOKEN_REFRESH_MARGIN = Duration.ofMinutes(5);
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
+
+    public static final String METASYS_API = "Metasys";
+    public static final String HOST_UNREACHABLE = "HOST_UNREACHABLE";
+    public static final String LOGON_FAILED = "Logon to Metasys Api Failed";
 
     private static MetasysClient instance;
 
@@ -144,13 +151,14 @@ public class MetasysClient implements BasClient {
      * Thread-safe implementasjon som håndterer samtidige forespørsler.
      */
     synchronized void login() throws MetasysApiException {
+        URI loginUri = null;
         try {
             ObjectNode requestBody = OBJECT_MAPPER.createObjectNode();
             requestBody.put("username", username);
             requestBody.put("password", password);
-
+            loginUri = URI.create(apiUri + "login");
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(apiUri + "login"))
+                    .uri(loginUri)
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
                     .timeout(REQUEST_TIMEOUT)
@@ -177,6 +185,23 @@ public class MetasysClient implements BasClient {
                 System.err.println(errorMessage);
                 throw new MetasysApiException(errorMessage, response.statusCode());
             }
+        } catch (JsonProcessingException e) {
+            notificationService.sendWarning(METASYS_API, "Parsing of AccessToken information failed.");
+            String msg = "Failed to login on Metasys at uri: " + loginUri + ", with username: " + username +
+                    ". Failure parsing the response.";
+            LogonFailedException logonFailedException = new LogonFailedException(msg, e);
+            log.warn(msg);
+            setUnhealthy();
+            TemporaryHealthResource.addRegisteredError(msg + " Reason: " + logonFailedException.getMessage());
+            throw logonFailedException;
+        } catch (IOException e) {
+            notificationService.sendAlarm(METASYS_API, HOST_UNREACHABLE);
+            String msg = "Failed to login on Metasys at uri: " + loginUri + ", with username: " + username;
+            LogonFailedException logonFailedException = new LogonFailedException(msg, e);
+            log.warn(msg);
+            setUnhealthy();
+            TemporaryHealthResource.addRegisteredError(msg + " Reason: " + logonFailedException.getMessage());
+            throw logonFailedException;
         } catch (Exception e) {
             throw new MetasysApiException("Login failed: " + e.getMessage(), e);
         }
@@ -187,9 +212,12 @@ public class MetasysClient implements BasClient {
      * Thread-safe implementasjon som håndterer samtidige forespørsler.
      */
     synchronized void refreshTokenSilently() throws MetasysApiException {
+        String truncatedAccessToken = null;
+        URI refreshTokenUri = null;
         try {
+            refreshTokenUri = URI.create(apiUri + "refreshToken");
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(apiUri + "/refreshToken"))
+                    .uri(refreshTokenUri)
                     .header("Authorization", "Bearer " + accessToken)
                     .POST(HttpRequest.BodyPublishers.noBody())
                     .timeout(REQUEST_TIMEOUT)
@@ -204,6 +232,7 @@ public class MetasysClient implements BasClient {
                 log.trace("RefreshToken userToken: {}", userToken);
                 this.userToken = userToken;
                 accessToken = userToken.getAccessToken(); //jsonResponse.get("accessToken").asText();
+                truncatedAccessToken = truncateAccessToken(userToken);
                 tokenExpiryTime = userToken.getExpires(); // Instant.now().plusSeconds(expiresIn);
 
                 log.debug("Metasys token refreshed, new expiry: " + tokenExpiryTime);
@@ -217,6 +246,23 @@ public class MetasysClient implements BasClient {
                 setUnhealthy();
                 throw new MetasysApiException(errorMessage, response.statusCode());
             }
+        } catch (JsonProcessingException e) {
+            notificationService.sendWarning(METASYS_API, "Parsing of AccessToken information failed.");
+            String msg = "Failed to refresh token on Metasys at uri: " + refreshTokenUri + ", with accessToken: " + truncatedAccessToken +
+                    ". Failure parsing the response.";
+            LogonFailedException logonFailedException = new LogonFailedException(msg, e);
+            log.warn(msg);
+            setUnhealthy();
+            TemporaryHealthResource.addRegisteredError(msg + " Reason: " + logonFailedException.getMessage());
+            throw logonFailedException;
+        } catch (IOException e) {
+            notificationService.sendAlarm(METASYS_API,HOST_UNREACHABLE);
+            String msg = "Failed to refresh accessToken on Metasys at uri: " + refreshTokenUri + ", with accessToken: " + truncatedAccessToken;
+            LogonFailedException logonFailedException = new LogonFailedException(msg, e);
+            log.warn(msg);
+            setUnhealthy();
+            TemporaryHealthResource.addRegisteredError(msg + " Reason: " + logonFailedException.getMessage());
+            throw logonFailedException;
         } catch (Exception e) {
             if (!(e instanceof MetasysApiException)) {
                 throw new MetasysApiException("Token refresh failed: " + e.getMessage(), e);
@@ -536,7 +582,7 @@ public class MetasysClient implements BasClient {
                         throw new MetasysCloudConnectorException("Failed to fetch trendsamples for objectId " + objectId + ". Status: " + httpCode
                                 + ". Reason: " + reason + ". Body: " + body);
                 }
-            }catch (MetasysApiException mae) {
+            } catch (MetasysApiException mae) {
                 throw mae;
             } catch (MetasysCloudConnectorException e) {
                 throw e;
@@ -563,7 +609,7 @@ public class MetasysClient implements BasClient {
             isHealthy = true;
             updateWhenLastTrendSampleReceived();
             return new HashSet<>(trendSamples);
-        },"findTrendSamplesByDate");
+        }, "findTrendSamplesByDate");
     }
 
 
@@ -579,7 +625,7 @@ public class MetasysClient implements BasClient {
         }
         final String validSubscriptionId;
         if (hasValue(subscriptionId)) {
-           validSubscriptionId = subscriptionId;
+            validSubscriptionId = subscriptionId;
         } else {
             validSubscriptionId = "not-set";
         }
@@ -705,6 +751,21 @@ public class MetasysClient implements BasClient {
 
     public Instant getWhenLastTrendSampleReceived() {
         return whenLastTrendSampleReceived;
+    }
+
+    @Nullable
+    private static String truncateAccessToken(UserToken userToken) {
+        String truncatedAccessToken = null;
+        if (userToken != null) {
+            String accessToken = userToken.getAccessToken();
+            if (accessToken != null && accessToken.length() > 11) {
+                truncatedAccessToken = accessToken.substring(0, 10) + "...";
+            } else {
+                truncatedAccessToken = accessToken;
+            }
+            truncatedAccessToken = truncatedAccessToken + " expires: " + userToken.getExpires();
+        }
+        return truncatedAccessToken;
     }
 
     public static void main(String[] args) throws URISyntaxException, LogonFailedException {

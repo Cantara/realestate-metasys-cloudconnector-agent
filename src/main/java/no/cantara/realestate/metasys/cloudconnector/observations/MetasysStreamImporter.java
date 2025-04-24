@@ -150,7 +150,7 @@ public class MetasysStreamImporter implements StreamListener {
                 streamClient.openStream(streamUrl, accessToken, null, this);
                 log.trace("Metasys stream opened.");
                 isHealthy = true;
-//                expires = userToken.getExpires();
+                expires = userToken.getExpires();
                 Long refreshTokenIntervalInSeconds = Duration.between(Instant.now(), expires).get(ChronoUnit.SECONDS);
                 Long testTime = 600L;
                 refreshTokenIntervalInSeconds = testTime;
