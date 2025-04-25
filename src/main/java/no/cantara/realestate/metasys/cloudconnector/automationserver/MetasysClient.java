@@ -165,6 +165,7 @@ public class MetasysClient implements BasClient {
             requestBody.put("username", username);
             requestBody.put("password", password);
             loginUri = URI.create(apiUri + "login");
+            log.trace("Logon: {} to {}", username, loginUri);
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(loginUri)
                     .header("Content-Type", "application/json")
@@ -230,6 +231,7 @@ public class MetasysClient implements BasClient {
         URI refreshTokenUri = null;
         try {
             refreshTokenUri = URI.create(apiUri + "refreshToken");
+            log.trace("RefreshToken: {} to {}", truncateAccessToken(accessToken), refreshTokenUri);
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(refreshTokenUri)
                     .header("Authorization", "Bearer " + accessToken)
@@ -246,7 +248,7 @@ public class MetasysClient implements BasClient {
                 log.trace("RefreshToken userToken: {}", userToken);
                 this.userToken = userToken;
                 accessToken = userToken.getAccessToken(); //jsonResponse.get("accessToken").asText();
-                truncatedAccessToken = truncateAccessToken(userToken);
+                truncatedAccessToken = truncateUserToken(userToken);
                 tokenExpiryTime = userToken.getExpires(); // Instant.now().plusSeconds(expiresIn);
 
                 log.debug("Metasys token refreshed, new expiry: " + tokenExpiryTime);
@@ -768,18 +770,25 @@ public class MetasysClient implements BasClient {
     }
 
     @Nullable
-    private static String truncateAccessToken(UserToken userToken) {
-        String truncatedAccessToken = null;
+    private static String truncateUserToken(UserToken userToken) {
+        String shortenedAccessToken = null;
         if (userToken != null) {
             String accessToken = userToken.getAccessToken();
-            if (accessToken != null && accessToken.length() > 11) {
-                truncatedAccessToken = accessToken.substring(0, 10) + "...";
-            } else {
-                truncatedAccessToken = accessToken;
-            }
-            truncatedAccessToken = truncatedAccessToken + " expires: " + userToken.getExpires();
+            shortenedAccessToken = truncateAccessToken(accessToken);
+            shortenedAccessToken = shortenedAccessToken + " expires: " + userToken.getExpires();
         }
-        return truncatedAccessToken;
+        return shortenedAccessToken;
+    }
+    private static String truncateAccessToken(String accessToken) {
+        String shortenedAccessToken = null;
+        if (accessToken != null) {
+            if (accessToken != null && accessToken.length() > 11) {
+                shortenedAccessToken = accessToken.substring(0, 10) + "...";
+            } else {
+                shortenedAccessToken = accessToken;
+            }
+        }
+        return shortenedAccessToken;
     }
 
     public static void main(String[] args) throws URISyntaxException, LogonFailedException {
