@@ -298,6 +298,7 @@ public class MetasysClient implements BasClient {
             authLock.lock();
             try {
                 if (accessToken == null) {
+                    log.trace("Access token is null, logging in");
                     login();
                 }
             } finally {
@@ -307,8 +308,14 @@ public class MetasysClient implements BasClient {
             // Token nærmer seg utløp, prøv å fornye
             authLock.lock();
             try {
-                if (tokenExpiryTime.minus(TOKEN_REFRESH_MARGIN).isBefore(Instant.now())) {
-                    refreshTokenSilently();
+                boolean permission = logonRateLimiter.acquirePermission();
+                if (!permission) {
+                    log.debug("Rate limit exceeded for token refresh");
+                } else {
+                    if (tokenExpiryTime.minus(TOKEN_REFRESH_MARGIN).isBefore(Instant.now())) {
+                        log.trace("Token is about to expire, refreshing silently");
+                        refreshTokenSilently();
+                    }
                 }
             } finally {
                 authLock.unlock();
