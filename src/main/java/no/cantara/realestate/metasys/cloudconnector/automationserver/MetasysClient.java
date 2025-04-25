@@ -571,6 +571,7 @@ public class MetasysClient implements BasClient {
                             for (MetasysTrendSample trendSample : trendSamples) {
                                 trendSample.setTrendId(objectId);
                                 log.trace("received trendSample: {}", trendSample);
+                                addNumberOfTrendSamplesReceived();
                             }
                         }
                         Long size = 0L;

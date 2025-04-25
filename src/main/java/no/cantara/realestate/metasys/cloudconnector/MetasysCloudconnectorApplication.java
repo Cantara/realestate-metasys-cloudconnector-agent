@@ -152,6 +152,9 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-isHealthy", sdClient::isHealthy);
         get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-isLogedIn", sdClient::isLoggedIn);
         get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-numberofTrendsSamples", sdClient::getNumberOfTrendSamplesReceived);
+        if (sdClient instanceof MetasysClient) {
+            get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-whenLastObservationImported", ((MetasysClient) sdClient)::getWhenLastTrendSampleReceived);
+        }
         get(StingrayHealthService.class).registerHealthProbe("observationDistribution.message.count", observationDistributionResource::getDistributedCount);
         //Random Example
         init(Random.class, this::createRandom);
@@ -164,7 +167,7 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
             get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isHealthy", streamClient::isHealthy);
             get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isLoggedIn", streamClient::isLoggedIn);
             get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isStreamOpen", streamClient::isStreamOpen);
-            get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-whenLastObservationImported", streamClient::getWhenLastMessageImported);
+            get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-whenLastObservationReceived", streamClient::getWhenLastMessageImported);
             get(StingrayHealthService.class).registerHealthProbe(streamImporter.getName() + "-isHealthy", streamImporter::isHealthy);
             get(StingrayHealthService.class).registerHealthProbe(streamImporter.getName() + "-subscriptionId", streamImporter::getSubscriptionId);
 
