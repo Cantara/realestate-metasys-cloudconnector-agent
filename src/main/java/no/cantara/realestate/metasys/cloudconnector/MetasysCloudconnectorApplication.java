@@ -1,6 +1,5 @@
 package no.cantara.realestate.metasys.cloudconnector;
 
-import com.codahale.metrics.health.HealthCheck;
 import no.cantara.config.ApplicationProperties;
 import no.cantara.realestate.automationserver.BasClient;
 import no.cantara.realestate.azure.AzureObservationDistributionClient;
@@ -177,6 +176,8 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
                 log.warn("Failed to open stream. Reason: {}", e.getMessage());
             }
             //Register health checks
+            /*
+            #363 FIXME disable health checks for Stream until stable testing is in place.
             get(StingrayHealthService.class).registerHealthCheck(streamClient.getName() + ".isLoggedIn", new HealthCheck() {
                 @Override
                 protected Result check() throws Exception {
@@ -197,6 +198,7 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
                     }
                 }
             });
+            */
         }
     }
 
