@@ -187,6 +187,7 @@ public class MetasysClient implements BasClient {
                     tokenExpiryTime = userToken.getExpires();
                     notificationService.clearService("Metasys");
                     log.debug("Metasys login successful, token expires: " + tokenExpiryTime);
+                    setHealthy();
                     break;
                 default:
                     String msg = "Failed to logon to Metasys at uri: " + loginUri +
@@ -252,6 +253,7 @@ public class MetasysClient implements BasClient {
                 tokenExpiryTime = userToken.getExpires(); // Instant.now().plusSeconds(expiresIn);
 
                 log.debug("Metasys token refreshed, new expiry: " + tokenExpiryTime);
+                setHealthy();
             } else if (response.statusCode() == 401 || response.statusCode() == 403) {
                 // Token refresh failed, try login again
                 log.info("Metasys token refresh failed, performing full login");
