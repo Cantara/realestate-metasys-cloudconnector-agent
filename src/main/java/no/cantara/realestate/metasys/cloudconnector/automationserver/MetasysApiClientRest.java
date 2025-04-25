@@ -470,7 +470,7 @@ public class MetasysApiClientRest implements BasClient {
         CloseableHttpClient httpClient = HttpClients.createDefault();
         String refreshTokenUrl = apiUri + "refreshToken";
         HttpGet request = null;
-        String truncatedAccessToken = null;
+        String shortenedAccessToken = null;
         try {
 
             request = new HttpGet(refreshTokenUrl);
@@ -487,8 +487,8 @@ public class MetasysApiClientRest implements BasClient {
             } else {
                 log.info("Try to refresh userToken");
                 String accessToken = activeUserToken.getAccessToken();
-                truncatedAccessToken = truncateAccessToken(activeUserToken);
-                log.info("Try to refresh userToken: {}", truncatedAccessToken);
+                shortenedAccessToken = truncateAccessToken(activeUserToken);
+                log.info("Try to refresh userToken: {}", shortenedAccessToken);
                 request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
 
                 CloseableHttpResponse response = httpClient.execute(request);
@@ -507,7 +507,7 @@ public class MetasysApiClientRest implements BasClient {
                         }
                     } else {
                         String msg = "Failed to refresh userToken to Metasys at uri: " + request.getRequestUri() +
-                                ". accessToken: " + truncatedAccessToken +
+                                ". accessToken: " + shortenedAccessToken +
                                 ". ResponseCode: " + httpCode +
                                 ". ReasonPhrase: " + response.getReasonPhrase();
                         LogonFailedException logonFailedException = new LogonFailedException(msg);
@@ -523,7 +523,7 @@ public class MetasysApiClientRest implements BasClient {
             }
         } catch (IOException e) {
             notificationService.sendAlarm(METASYS_API,HOST_UNREACHABLE);
-            String msg = "Failed to refresh accessToken on Metasys at uri: " + refreshTokenUrl + ", with accessToken: " + truncatedAccessToken;
+            String msg = "Failed to refresh accessToken on Metasys at uri: " + refreshTokenUrl + ", with accessToken: " + shortenedAccessToken;
             LogonFailedException logonFailedException = new LogonFailedException(msg, e);
             log.warn(msg);
             setUnhealthy();
@@ -531,7 +531,7 @@ public class MetasysApiClientRest implements BasClient {
             throw logonFailedException;
         } catch (ParseException e) {
             notificationService.sendWarning(METASYS_API,"Parsing of AccessToken information failed.");
-            String msg = "Failed to refresh accessToken on Metasys at uri: " + refreshTokenUrl + ", with accessToken: " + truncatedAccessToken +
+            String msg = "Failed to refresh accessToken on Metasys at uri: " + refreshTokenUrl + ", with accessToken: " + shortenedAccessToken +
                     ". Failure parsing the response.";
             LogonFailedException logonFailedException = new LogonFailedException(msg, e);
             log.warn(msg);
@@ -550,17 +550,17 @@ public class MetasysApiClientRest implements BasClient {
 
     @Nullable
     private static String truncateAccessToken(UserToken userToken) {
-        String truncatedAccessToken = null;
+        String shortenedAccessToken = null;
         if (userToken != null) {
             String accessToken = userToken.getAccessToken();
             if (accessToken != null && accessToken.length() > 11) {
-                truncatedAccessToken = accessToken.substring(0, 10) + "...";
+                shortenedAccessToken = accessToken.substring(0, 10) + "...";
             } else {
-                truncatedAccessToken = accessToken;
+                shortenedAccessToken = accessToken;
             }
-            truncatedAccessToken = truncatedAccessToken + " expires: " + userToken.getExpires();
+            shortenedAccessToken = shortenedAccessToken + " expires: " + userToken.getExpires();
         }
-        return truncatedAccessToken;
+        return shortenedAccessToken;
     }
 
     protected synchronized void updateUserToken(MetasysUserToken userToken) {

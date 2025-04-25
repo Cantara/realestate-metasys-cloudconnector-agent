@@ -235,7 +235,7 @@ public class MetasysClient implements BasClient {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(refreshTokenUri)
                     .header("Authorization", "Bearer " + accessToken)
-                    .POST(HttpRequest.BodyPublishers.noBody())
+                    .GET()
                     .timeout(REQUEST_TIMEOUT)
                     .build();
 
