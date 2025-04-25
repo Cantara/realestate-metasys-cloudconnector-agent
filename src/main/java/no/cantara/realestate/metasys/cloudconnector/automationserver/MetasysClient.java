@@ -723,7 +723,7 @@ public class MetasysClient implements BasClient {
             if (userToken.getExpires().isAfter(Instant.now())) {
                 isLoggedIn = true;
             } else {
-                log.debug("UserToken expired. UserToken: {}", userToken);
+                log.debug("UserToken expired: {}", truncateUserToken(userToken));
             }
         }
         return isLoggedIn;
