@@ -227,7 +227,7 @@ public class MetasysClient implements BasClient {
      * Thread-safe implementasjon som håndterer samtidige forespørsler.
      */
     synchronized void refreshTokenSilently() throws MetasysApiException {
-        String truncatedAccessToken = null;
+        String shortenedAccessToken = null;
         URI refreshTokenUri = null;
         try {
             refreshTokenUri = URI.create(apiUri + "refreshToken");
@@ -248,23 +248,23 @@ public class MetasysClient implements BasClient {
                 log.trace("RefreshToken userToken: {}", userToken);
                 this.userToken = userToken;
                 accessToken = userToken.getAccessToken(); //jsonResponse.get("accessToken").asText();
-                truncatedAccessToken = truncateUserToken(userToken);
+                shortenedAccessToken = truncateUserToken(userToken);
                 tokenExpiryTime = userToken.getExpires(); // Instant.now().plusSeconds(expiresIn);
 
                 log.debug("Metasys token refreshed, new expiry: " + tokenExpiryTime);
             } else if (response.statusCode() == 401 || response.statusCode() == 403) {
                 // Token refresh failed, try login again
-                log.info("Token refresh failed, performing full login");
+                log.info("Metasys token refresh failed, performing full login");
                 login();
             } else {
-                String errorMessage = "Token refresh failed with status code: " + response.statusCode();
+                String errorMessage = "Metsys token refresh failed with status code: " + response.statusCode();
                 log.warn(errorMessage);
                 setUnhealthy();
                 throw new MetasysApiException(errorMessage, response.statusCode());
             }
         } catch (JsonProcessingException e) {
-            notificationService.sendWarning(METASYS_API, "Parsing of AccessToken information failed.");
-            String msg = "Failed to refresh token on Metasys at uri: " + refreshTokenUri + ", with accessToken: " + truncatedAccessToken +
+            notificationService.sendWarning(METASYS_API, "Metasys token refresh. Parsing of AccessToken information failed.");
+            String msg = "Metasys token refresh failed on Metasys at uri: " + refreshTokenUri + ", with accessToken: " + shortenedAccessToken +
                     ". Failure parsing the response.";
             LogonFailedException logonFailedException = new LogonFailedException(msg, e);
             log.warn(msg);
@@ -273,7 +273,7 @@ public class MetasysClient implements BasClient {
             throw logonFailedException;
         } catch (IOException e) {
             notificationService.sendAlarm(METASYS_API,HOST_UNREACHABLE);
-            String msg = "Failed to refresh accessToken on Metasys at uri: " + refreshTokenUri + ", with accessToken: " + truncatedAccessToken;
+            String msg = "Metasys token refresh failed on Metasys. Host unreachable at uri: " + refreshTokenUri + ", with accessToken: " + shortenedAccessToken;
             LogonFailedException logonFailedException = new LogonFailedException(msg, e);
             log.warn(msg);
             setUnhealthy();
@@ -281,7 +281,7 @@ public class MetasysClient implements BasClient {
             throw logonFailedException;
         } catch (Exception e) {
             if (!(e instanceof MetasysApiException)) {
-                throw new MetasysApiException("Token refresh failed: " + e.getMessage(), e);
+                throw new MetasysApiException("Metasys token refresh failed. Generic error: " + e.getMessage(), e);
             } else {
                 throw (MetasysApiException) e;
             }
