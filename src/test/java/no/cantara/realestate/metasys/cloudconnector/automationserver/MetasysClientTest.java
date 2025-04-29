@@ -94,10 +94,6 @@ class MetasysClientTest {
 
     }
 
-    @Test
-    void refreshTokenIsHealthy() {
-//        fail("Not yet implemented");
-    }
 
     @Test
     void refreshTokenSilentlyGet() throws Exception {

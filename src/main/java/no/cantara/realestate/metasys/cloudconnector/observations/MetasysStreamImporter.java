@@ -24,7 +24,11 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
+import static no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient.truncateAccessToken;
 import static org.slf4j.LoggerFactory.getLogger;
 
 public class MetasysStreamImporter implements StreamListener {
@@ -108,10 +112,6 @@ public class MetasysStreamImporter implements StreamListener {
         }
     }
 
-    void scheduleResubscribe(Long reSubscribeIntervalInSeconds) {
-        log.warn("Not Implemented: Schedule resubscribe every {} seconds", reSubscribeIntervalInSeconds);
-    }
-
     public void startSubscribing(List<MappedIdQuery> idQueries) throws SdLogonFailedException {
         log.trace("Start subscribing to MetasysStream");
         this.idQueries = idQueries;
@@ -165,14 +165,29 @@ public class MetasysStreamImporter implements StreamListener {
         }
     }
 
+    void scheduleResubscribe(Long reSubscribeIntervalInSeconds) {
+        log.info("Scheduling resubscribe to stream every {} seconds", reSubscribeIntervalInSeconds);
+
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+        scheduler.scheduleAtFixedRate(() -> {
+            try {
+                reauthorizeSubscription();
+            } catch (Exception e) {
+                log.warn("Error during reauthorization to stream: {}", e.getMessage(), e);
+            }
+        }, 0, reSubscribeIntervalInSeconds, TimeUnit.SECONDS);
+    }
+
     public void reauthorizeSubscription() {
         log.info("ReAuthorize on thread {}", Thread.currentThread().getName());
-        streamUrl = ApplicationProperties.getInstance().get("sd.api.url") + "/stream";
+        streamUrl = ApplicationProperties.getInstance().get("sd.api.url") + "stream";
         if (streamClient != null) {
             UserToken userToken = sdClient.getUserToken();
             if (userToken != null) {
                 String accessToken = userToken.getAccessToken();
                 try {
+                    String shortenedAccessToken = truncateAccessToken(accessToken);
+                    log.trace("Reconnect to Stream with lastKnownEventId: {}, accessToken: {}", getLastKnownEventId(), shortenedAccessToken);
                     streamClient.reconnectStream(streamUrl, accessToken, getLastKnownEventId(), this);
                     isHealthy = true;
                 } catch (RealEstateStreamException e) {

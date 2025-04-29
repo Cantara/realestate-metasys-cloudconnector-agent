@@ -189,18 +189,22 @@ public class MetasysStreamClient {
     }
 
     public static void main(String[] args) {
-        if (args.length != 2) {
-            System.out.println("Usage: java -cp \"target/ServerSentEvents-<version>.jar\" no.cantara.sse.SseClient <sseUrl> <bearerToken>");
+        if (args.length < 2) {
+            System.out.println("Usage: java -cp \"target/metasys-cloudconnector-app-<version>.jar\" " +
+                    "no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysStreamClient <metasysStreamUrl> <bearerToken> <lastKnownEventId>");
             System.exit(1);
         }
         String sseUrl = args[0];
         String bearerToken = args[1];
+        String lastKnownEventId = null;
+        if (args.length > 2) {
+            lastKnownEventId = args[2];
+        }
 
         MetasysStreamClient sseClient = new MetasysStreamClient();
         //Open stream first time
-        String lastKnownEventId = null;
         //Reconnect stream from lastKnownEventId, aka a previous subscription
-        lastKnownEventId = "123";
+//        lastKnownEventId = "123";
         sseClient.openStream(sseUrl, bearerToken,lastKnownEventId, new StreamListener() {
             @Override
             public void onEvent(StreamEvent streamEvent) {
@@ -208,8 +212,6 @@ public class MetasysStreamClient {
             }
         });
     }
-
-
 }
 
 

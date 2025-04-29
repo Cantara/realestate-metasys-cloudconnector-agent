@@ -768,6 +768,7 @@ public class MetasysClient implements BasClient {
 
     @Override
     public UserToken getUserToken() {
+        ensureValidToken();
         return userToken;
     }
 
@@ -789,7 +790,7 @@ public class MetasysClient implements BasClient {
         }
         return shortenedAccessToken;
     }
-    private static String truncateAccessToken(String accessToken) {
+    public static String truncateAccessToken(String accessToken) {
         String shortenedAccessToken = null;
         if (accessToken != null) {
             if (accessToken != null && accessToken.length() > 11) {
