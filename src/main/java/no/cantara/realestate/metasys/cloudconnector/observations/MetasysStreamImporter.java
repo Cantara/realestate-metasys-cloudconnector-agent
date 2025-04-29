@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import static no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient.truncateAccessToken;
@@ -44,6 +45,11 @@ public class MetasysStreamImporter implements StreamListener {
     private boolean isHealthy = false;
     private List<String> unhealthyMessages = new ArrayList<>();
     private Instant expires;
+
+    //Scheduler
+    private ScheduledExecutorService scheduler;
+    private ScheduledFuture<?> scheduledFuture;
+    private boolean isSchedulerActive = false;
 
 //    private ScheduledThreadPoolExecutor scheduledExecutorService;
     private String streamUrl;
@@ -100,15 +106,18 @@ public class MetasysStreamImporter implements StreamListener {
             }
         } else if (event instanceof MetasysOpenStreamEvent) {
             this.subscriptionId = ((MetasysOpenStreamEvent) event).getSubscriptionId();
-            log.info("Start subscribing to stream with subscriptionId: {}", subscriptionId);
-            log.debug("Schedule resubscribe.");
-            UserToken userToken = sdClient.getUserToken();
-            expires = userToken.getExpires();
-            Long reSubscribeIntervalInSeconds = Duration.between(Instant.now(), expires).get(ChronoUnit.SECONDS);
-            Long testTime = 600L;
-            log.warn("Schedule resubscribe should be within: {}. Will test with only 10 minute delay. Resubscribe within: {} seconds", expires, testTime);
-            reSubscribeIntervalInSeconds = testTime;
-            scheduleResubscribe(reSubscribeIntervalInSeconds);
+            log.trace("Current subscriptionId: {}", subscriptionId);
+            if (!isSchedulerRunning()) {
+                log.info("Start subscribing to stream with subscriptionId: {}", subscriptionId);
+                log.debug("Schedule resubscribe.");
+                UserToken userToken = sdClient.getUserToken();
+                expires = userToken.getExpires();
+                Long reSubscribeIntervalInSeconds = Duration.between(Instant.now(), expires).get(ChronoUnit.SECONDS);
+                Long testTime = 600L;
+                log.warn("Schedule resubscribe should be within: {}. Will test with only 10 minute delay. Resubscribe within: {} seconds", expires, testTime);
+                reSubscribeIntervalInSeconds = testTime;
+                scheduleResubscribe(reSubscribeIntervalInSeconds);
+            }
         }
     }
 
@@ -168,14 +177,19 @@ public class MetasysStreamImporter implements StreamListener {
     void scheduleResubscribe(Long reSubscribeIntervalInSeconds) {
         log.info("Scheduling resubscribe to stream every {} seconds", reSubscribeIntervalInSeconds);
 
-        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-        scheduler.scheduleAtFixedRate(() -> {
+        scheduler = Executors.newSingleThreadScheduledExecutor();
+        scheduledFuture = scheduler.scheduleAtFixedRate(() -> {
             try {
                 reauthorizeSubscription();
             } catch (Exception e) {
                 log.warn("Error during reauthorization to stream: {}", e.getMessage(), e);
             }
         }, 0, reSubscribeIntervalInSeconds, TimeUnit.SECONDS);
+        isSchedulerActive = true;
+    }
+
+    boolean isSchedulerRunning() {
+        return isSchedulerActive && scheduledFuture != null && !scheduledFuture.isCancelled();
     }
 
     public void reauthorizeSubscription() {
