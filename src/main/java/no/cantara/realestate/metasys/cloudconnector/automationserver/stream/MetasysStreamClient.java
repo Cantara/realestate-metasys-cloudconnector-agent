@@ -59,71 +59,71 @@ public class MetasysStreamClient {
         }
         streamThread = new Thread(() -> {
 
-        EventInput eventInput = null;
-        try {
-            if (hasValue(lastKnownEventId)) {
-                try {
-                    eventInput = client.target(sseUrl)
-                            .request()
-                            .header("Authorization", "Bearer " + bearerToken)
-                            .header("Last-Event-Id", lastKnownEventId)
-                            .get(EventInput.class);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    eventInput = null;
-                    throw new RealEstateException("Failed to open stream on URL: " + sseUrl + ", lastKnownEventId: " + lastKnownEventId, e);
-                }
-            } else {
-                try {
-                    eventInput = client.target(sseUrl)
-                            .request()
-                            .header("Authorization", "Bearer " + bearerToken)
-                            .get(EventInput.class);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    eventInput = null;
-                    throw new RealEstateException("Failed to open stream on URL: " + sseUrl, e);
-                }
-            }
-            isLoggedIn = true;
-            isStreamOpen = true;
-//            try {
-            while (eventInput != null && !eventInput.isClosed()) {
-                InboundEvent inboundEvent = eventInput.read();
-                if (inboundEvent == null) {
-                    // Reconnect logic (you can add a delay here before reconnecting)
-                    isLoggedIn = false;
-                    eventInput.close();
-                    isStreamOpen = false;
-                    Thread.sleep(100);
-
-                    eventInput = client.target(sseUrl)
-                            .request()
-                            .header("Authorization", "Bearer " + bearerToken)
-                            .get(EventInput.class);
-                    isLoggedIn = true;
-                    isStreamOpen = true;
+            EventInput eventInput = null;
+            try {
+                if (hasValue(lastKnownEventId)) {
+                    try {
+                        eventInput = client.target(sseUrl)
+                                .request()
+                                .header("Authorization", "Bearer " + bearerToken)
+                                .header("Last-Event-Id", lastKnownEventId)
+                                .get(EventInput.class);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        eventInput = null;
+                        throw new RealEstateException("Failed to open stream on URL: " + sseUrl + ", lastKnownEventId: " + lastKnownEventId, e);
+                    }
                 } else {
                     try {
-                        String data = inboundEvent.readData(String.class);
-                        System.out.println("Received Event: " + data);
-                        log.trace("Received Event: id: {}, name: {}, comment: {}, \ndata: {}", inboundEvent.getId(), inboundEvent.getName(), inboundEvent.getComment(), data);
-                        StreamEvent streamEvent = EventInputMapper.toStreamEvent(inboundEvent);
-                        streamListener.onEvent(streamEvent);
-                        lastEventReceievedAt = Instant.ofEpochMilli(System.currentTimeMillis());
+                        eventInput = client.target(sseUrl)
+                                .request()
+                                .header("Authorization", "Bearer " + bearerToken)
+                                .get(EventInput.class);
                     } catch (Exception e) {
-                        //FIXME improve error handling
-                        log.error("Failed to read data from inboundEvent: {}", inboundEvent, e);
+                        e.printStackTrace();
+                        eventInput = null;
+                        throw new RealEstateException("Failed to open stream on URL: " + sseUrl, e);
                     }
                 }
+                isLoggedIn = true;
+                isStreamOpen = true;
+//            try {
+                while (eventInput != null && !eventInput.isClosed()) {
+                    InboundEvent inboundEvent = eventInput.read();
+                    if (inboundEvent == null) {
+                        // Reconnect logic (you can add a delay here before reconnecting)
+                        isLoggedIn = false;
+                        eventInput.close();
+                        isStreamOpen = false;
+                        Thread.sleep(100);
+
+                        eventInput = client.target(sseUrl)
+                                .request()
+                                .header("Authorization", "Bearer " + bearerToken)
+                                .get(EventInput.class);
+                        isLoggedIn = true;
+                        isStreamOpen = true;
+                    } else {
+                        try {
+                            String data = inboundEvent.readData(String.class);
+                            System.out.println("Received Event: " + data);
+                            log.trace("Received Event: id: {}, name: {}, comment: {}, \ndata: {}", inboundEvent.getId(), inboundEvent.getName(), inboundEvent.getComment(), data);
+                            StreamEvent streamEvent = EventInputMapper.toStreamEvent(inboundEvent);
+                            streamListener.onEvent(streamEvent);
+                            lastEventReceievedAt = Instant.ofEpochMilli(System.currentTimeMillis());
+                        } catch (Exception e) {
+                            //FIXME improve error handling
+                            log.error("Failed to read data from inboundEvent: {}", inboundEvent, e);
+                        }
+                    }
+                }
+            } catch (InterruptedException e) {
+                log.info("StreamListener thread interrupted");
+                if (eventInput != null) {
+                    eventInput.close();
+                }
+                log.info("StreamListener thread closed");
             }
-        } catch (InterruptedException e) {
-            log.info("StreamListener thread interrupted");
-            if (eventInput != null) {
-                eventInput.close();
-            }
-            log.info("StreamListener thread closed");
-        }
         });
         streamThread.setName("StreamListener");
         streamThread.start();
