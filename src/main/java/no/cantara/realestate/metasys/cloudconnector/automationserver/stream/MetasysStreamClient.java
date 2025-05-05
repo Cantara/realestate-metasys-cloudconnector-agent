@@ -90,6 +90,7 @@ public class MetasysStreamClient {
                 isStreamOpen = true;
 //            try {
                 while (eventInput != null && !eventInput.isClosed()) {
+                    /*
                     if (reconnectRequested) {
                         log.info("Reconnecting stream...");
                         reconnectRequested = false; // Reset the flag
@@ -102,6 +103,7 @@ public class MetasysStreamClient {
                         isLoggedIn = true;
                         isStreamOpen = true;
                     }
+                    */
                     InboundEvent inboundEvent = eventInput.read();
                     if (inboundEvent == null) {
                         // Reconnect logic (you can add a delay here before reconnecting)
@@ -146,7 +148,7 @@ public class MetasysStreamClient {
 
     public void reconnectStream(String sseUrl, String bearerToken, String lastKnownEventId, StreamListener streamListener) {
         log.info("Requesting reconnect for stream at url {} with lastKnownEventId {}", sseUrl, lastKnownEventId);
-        reconnectRequested = true; // Signal to the thread to reconnect
+        log.warn("Not doing nothing about reconnect stream for now");//reconnectRequested = true; // Signal to the thread to reconnect
     }
 
 
