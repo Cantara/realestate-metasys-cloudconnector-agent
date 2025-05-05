@@ -1,17 +1,14 @@
 package no.cantara.realestate.metasys.cloudconnector.automationserver.stream;
 
-import jakarta.ws.rs.client.Client;
-import jakarta.ws.rs.client.ClientBuilder;
-import jakarta.ws.rs.core.Response;
-import no.cantara.realestate.RealEstateException;
-import org.glassfish.jersey.media.sse.EventInput;
-import org.glassfish.jersey.media.sse.InboundEvent;
-import org.glassfish.jersey.media.sse.SseFeature;
+import jakarta.ws.rs.client.*;
+import jakarta.ws.rs.core.HttpHeaders;
+import jakarta.ws.rs.sse.SseEventSource;
 import org.slf4j.Logger;
 
+import java.io.IOException;
 import java.time.Instant;
+import java.util.concurrent.TimeUnit;
 
-import static no.cantara.realestate.metasys.cloudconnector.utils.StringUtils.hasValue;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
@@ -25,7 +22,9 @@ public class MetasysStreamClient {
     private boolean isStreamOpen = false;
     private Instant lastEventReceievedAt = null;
     private Thread streamThread = null;
-    private volatile boolean reconnectRequested = false;
+    private WebTarget target;
+    private final int reconnectDelaySeconds = 5;
+    private SseEventSource eventSource;
 
     public MetasysStreamClient() {
         client = init();
@@ -35,15 +34,73 @@ public class MetasysStreamClient {
         this.client = client;
     }
 
-    private static Client init() {
+    private Client init() {
+        // Create Jersey client
         Client client = ClientBuilder.newBuilder()
-                .register(SseFeature.class)
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
                 .build();
         return client;
     }
 
+    // Custom authorization filter class
+    private static class AuthorizationFilter implements ClientRequestFilter {
+        private final String bearerToken;
+
+        public AuthorizationFilter(String bearerToken) {
+            this.bearerToken = bearerToken;
+        }
+
+        @Override
+        public void filter(ClientRequestContext requestContext) throws IOException {
+            requestContext.getHeaders().add(
+                    HttpHeaders.AUTHORIZATION,
+                    "Bearer " + bearerToken);
+        }
+    }
+
     public void openStream(String sseUrl, String bearerToken, String lastKnownEventId, StreamListener streamListener) {
+        // Create a custom filter for adding the bearer token
+        AuthorizationFilter authFilter = new AuthorizationFilter(bearerToken);
+
+        // Configure target with bearer token filter
+        target = client.target(sseUrl).register(authFilter);
+        // Create SSE event source with auto-reconnect
+        eventSource = SseEventSource.target(target)
+                .reconnectingEvery(reconnectDelaySeconds, TimeUnit.SECONDS)
+                .build();
+
+        // Register event handlers
+        eventSource.register(
+                // Process each event
+                inboundEvent -> {
+                    try {
+                        String data = inboundEvent.readData();
+                        log.debug("Received SSE event: {}", data);
+                        StreamEvent streamEvent = EventInputMapper.toStreamEvent(inboundEvent);
+                        streamListener.onEvent(streamEvent);
+                        lastEventReceievedAt = Instant.ofEpochMilli(System.currentTimeMillis());
+                    } catch (Exception e) {
+                        log.info("Error processing SSE event", e);
+                        //FIXME improve error handling of stream event
+                    }
+                },
+                // Handle errors
+                throwable -> {
+                    log.warn("SSE connection error", throwable);
+                    throw new RealEstateStreamException("Failed to open stream on URL: " + sseUrl +
+                            ", lastKnownEventId: " + lastKnownEventId + ", reason: " + throwable.getMessage(),
+                            RealEstateStreamException.Action.RECREATE_SUBSCRIPTION_NEEDED);
+                },
+                // Handle connection close
+                () -> log.info("SSE connection closed")
+        );
+
+        // Start listening for events
+        eventSource.open();
+        log.info("SSE client connected to {}", sseUrl);
         //Check that the server are able to establish or re-establish the subscription
+        /*
         Response response = null;
         if (hasValue(lastKnownEventId)) {
             response = client.target(sseUrl).request().header("Authorization", "Bearer " + bearerToken).header("Last-Event-Id", lastKnownEventId).get();
@@ -90,20 +147,7 @@ public class MetasysStreamClient {
                 isStreamOpen = true;
 //            try {
                 while (eventInput != null && !eventInput.isClosed()) {
-                    /*
-                    if (reconnectRequested) {
-                        log.info("Reconnecting stream...");
-                        reconnectRequested = false; // Reset the flag
-                        eventInput.close();
-                        eventInput = client.target(sseUrl)
-                                .request()
-                                .header("Authorization", "Bearer " + bearerToken)
-                                .header("Last-Event-Id", lastKnownEventId)
-                                .get(EventInput.class);
-                        isLoggedIn = true;
-                        isStreamOpen = true;
-                    }
-                    */
+
                     InboundEvent inboundEvent = eventInput.read();
                     if (inboundEvent == null) {
                         // Reconnect logic (you can add a delay here before reconnecting)
@@ -142,6 +186,10 @@ public class MetasysStreamClient {
         });
         streamThread.setName("StreamListener");
         streamThread.start();
+
+
+         */
+
 
     }
 
