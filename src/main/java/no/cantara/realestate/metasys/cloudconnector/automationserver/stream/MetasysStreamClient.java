@@ -25,6 +25,7 @@ public class MetasysStreamClient {
     private boolean isStreamOpen = false;
     private Instant lastEventReceievedAt = null;
     private Thread streamThread = null;
+    private volatile boolean reconnectRequested = false;
 
     public MetasysStreamClient() {
         client = init();
@@ -89,6 +90,18 @@ public class MetasysStreamClient {
                 isStreamOpen = true;
 //            try {
                 while (eventInput != null && !eventInput.isClosed()) {
+                    if (reconnectRequested) {
+                        log.info("Reconnecting stream...");
+                        reconnectRequested = false; // Reset the flag
+                        eventInput.close();
+                        eventInput = client.target(sseUrl)
+                                .request()
+                                .header("Authorization", "Bearer " + bearerToken)
+                                .header("Last-Event-Id", lastKnownEventId)
+                                .get(EventInput.class);
+                        isLoggedIn = true;
+                        isStreamOpen = true;
+                    }
                     InboundEvent inboundEvent = eventInput.read();
                     if (inboundEvent == null) {
                         // Reconnect logic (you can add a delay here before reconnecting)
@@ -118,7 +131,7 @@ public class MetasysStreamClient {
                     }
                 }
             } catch (InterruptedException e) {
-                log.info("StreamListener thread interrupted");
+                log.info("StreamListener thread interrupted", e);
                 if (eventInput != null) {
                     eventInput.close();
                 }
@@ -129,29 +142,11 @@ public class MetasysStreamClient {
         streamThread.start();
 
     }
-    public void reconnectStream(String sseUrl, String bearerToken, String lastKnownEventId, StreamListener streamListener) throws RealEstateStreamException {
-        log.info("Reconnect stream at url {} with lastKnownEventId {}", sseUrl, lastKnownEventId);
-        if (streamThread != null && streamThread.isAlive()) {
-            streamThread.interrupt();
-            try {
-                streamThread.join(200);
-            } catch (InterruptedException e) {
-                log.warn("Interrupted while waiting for stream thread to join");
-            }
-        }
-        try {
-            openStream(sseUrl, bearerToken, lastKnownEventId, streamListener);
-        } catch (RealEstateStreamException re) {
-            isStreamOpen = false;
-            isLoggedIn = false;
-            if (re.getAction() != null && re.getAction() == RealEstateStreamException.Action.RECREATE_SUBSCRIPTION_NEEDED) {
-                log.warn("Recreate subscription needed for URL: {}, lastKnownEventId: {}", sseUrl, lastKnownEventId);
 
-            } else {
-                log.warn("Failed to open stream on URL: {}, lastKnownEventId: {}", sseUrl, lastKnownEventId, re);
-            }
-            throw re;
-        }
+
+    public void reconnectStream(String sseUrl, String bearerToken, String lastKnownEventId, StreamListener streamListener) {
+        log.info("Requesting reconnect for stream at url {} with lastKnownEventId {}", sseUrl, lastKnownEventId);
+        reconnectRequested = true; // Signal to the thread to reconnect
     }
 
 
