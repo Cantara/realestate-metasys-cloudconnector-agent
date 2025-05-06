@@ -87,10 +87,12 @@ public class MetasysStreamClient {
                 },
                 // Handle errors
                 throwable -> {
-                    log.warn("SSE connection error", throwable);
-                    throw new RealEstateStreamException("Failed to open stream on URL: " + sseUrl +
-                            ", lastKnownEventId: " + lastKnownEventId + ", reason: " + throwable.getMessage(),
-                            RealEstateStreamException.Action.RECREATE_SUBSCRIPTION_NEEDED);
+                    log.warn("SSE connection error {}", throwable);
+                    log.warn("SSE connection failure" , throwable.getMessage());
+//                    System.out.println("Error processing SSE event: " + throwable.printStackTrace(););
+//                    throw new RealEstateStreamException("Failed to open stream on URL: " + sseUrl +
+//                            ", lastKnownEventId: " + lastKnownEventId + ", reason: " + throwable.getMessage(),
+//                            RealEstateStreamException.Action.RECREATE_SUBSCRIPTION_NEEDED);
                 },
                 // Handle connection close
                 () -> log.info("SSE connection closed")
@@ -201,6 +203,9 @@ public class MetasysStreamClient {
 
 
     public void close() {
+        if (eventSource != null) {
+            eventSource.close();
+        }
         if (client != null) {
             client.close();
         }
@@ -230,7 +235,8 @@ public class MetasysStreamClient {
     }
 
     public boolean isStreamOpen() {
-        return isStreamOpen;
+        return eventSource != null && eventSource.isOpen();
+//        return isStreamOpen;
     }
 
     public static void main(String[] args) {
