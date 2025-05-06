@@ -51,10 +51,10 @@ public class MetasysStreamImporter implements StreamListener {
     private ScheduledFuture<?> scheduledFuture;
     private boolean isSchedulerActive = false;
 
-//    private ScheduledThreadPoolExecutor scheduledExecutorService;
+    //    private ScheduledThreadPoolExecutor scheduledExecutorService;
     private String streamUrl;
     private String lastKnownEventId;
-//    private boolean reAuthorizationIsScheduled;
+    //    private boolean reAuthorizationIsScheduled;
     private List<MappedIdQuery> idQueries;
 
 
@@ -130,6 +130,9 @@ public class MetasysStreamImporter implements StreamListener {
             streamClient.reconnectStream(streamUrl, null, null, this);
         } else if (closeInfo.getReason() == MetasysStreamClient.ConnectionCloseReason.STREAM_NOT_RESUMABLE) {
             log.info("MetasysStreamClient stream not resumable. Will try to reconnect.");
+            streamClient.reconnectStream(streamUrl, null, null, this);
+        } else if (closeInfo.getLastStatusCode() == 200) {
+            log.warn("Not sure why stream closed. Will try to reconnect.");
             streamClient.reconnectStream(streamUrl, null, null, this);
         } else {
             log.warn("Stream closed. And will not be reconnected. CloseInfo: {}", closeInfo);

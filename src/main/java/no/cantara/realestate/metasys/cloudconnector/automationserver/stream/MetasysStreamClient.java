@@ -105,6 +105,8 @@ public class MetasysStreamClient {
                 throwable -> {
                     log.warn("SSE connection error {}", throwable);
                     log.warn("SSE connection error. Message: {}", throwable.getMessage());
+                    isStreamOpen = false;
+                    isLoggedIn = false;
 //                    System.out.println("Error processing SSE event: " + throwable.printStackTrace(););
 //                    throw new RealEstateStreamException("Failed to open stream on URL: " + sseUrl +
 //                            ", lastKnownEventId: " + lastKnownEventId + ", reason: " + throwable.getMessage(),
@@ -130,6 +132,9 @@ public class MetasysStreamClient {
                     );
 
                     log.info("SSE connection closed. closeInfo {}", closeInfo);
+                    isStreamOpen = false;
+                    isLoggedIn = false;
+                    streamListener.onClose(closeInfo);
 //                    throw new RealEstateStreamException("Stream was closed: " + sseUrl +
 //                            ", closeInfo: " + closeInfo, RealEstateStreamException.Action.RECONNECT_NEEDED);
                 }
