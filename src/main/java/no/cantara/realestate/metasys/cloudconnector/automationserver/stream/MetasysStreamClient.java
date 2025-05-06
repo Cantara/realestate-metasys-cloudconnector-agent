@@ -89,16 +89,18 @@ public class MetasysStreamClient {
         eventSource.register(
                 // Process each event
                 inboundEvent -> {
+                    String name = null;
                     String data = null;
                     StreamEvent streamEvent = null;
                     try {
                         data = inboundEvent.readData();
-                        log.debug("Received SSE event: {}", data);
+                        name = inboundEvent.getName();
+                        log.debug("Received SSE event: {}, {}", name, data);
                         streamEvent = EventInputMapper.toStreamEvent(inboundEvent);
                         streamListener.onEvent(streamEvent);
                         lastEventReceievedAt = Instant.ofEpochMilli(System.currentTimeMillis());
                     } catch (Exception e) {
-                        log.info("Error processing SSE inboundEvent. Data: {}. StreamEvent: {} ", data, streamEvent, e);
+                        log.info("Error processing SSE inboundEvent. Name: {}. Data: {}. StreamEvent: {} ", name, data, streamEvent, e);
                     }
                 },
                 // Handle errors
