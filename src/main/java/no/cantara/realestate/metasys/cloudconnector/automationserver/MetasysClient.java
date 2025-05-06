@@ -563,7 +563,8 @@ public class MetasysClient implements BasClient {
 
                 switch (httpCode) {
                     case 200:
-                        log.trace("Received body: {}", body);
+                        String bodyLog = body != null && body.length() > 120 ? body.substring(0,120): body;
+                        log.trace("Received body: {}", bodyLog);
                         MetasysTrendSampleResult trendSampleResult = TrendSamplesMapper.mapFromJson(body);
                         log.trace("Found: {} trends from trendId: {}", trendSampleResult.getTotal(), objectId);
                         trendSamples = trendSampleResult.getItems();
