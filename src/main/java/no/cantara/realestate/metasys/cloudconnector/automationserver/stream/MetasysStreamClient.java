@@ -5,6 +5,7 @@ import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.sse.SseEventSource;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient;
+import no.cantara.realestate.security.UserToken;
 import org.slf4j.Logger;
 
 import java.io.IOException;
@@ -74,7 +75,9 @@ public class MetasysStreamClient {
 
     public void openStream(String sseUrl, String bearerToken, String lastKnownEventId, StreamListener streamListener) {
         // Create a custom filter for adding the bearer token
-        DynamicAuthorizationFilter authFilter = new DynamicAuthorizationFilter(metasysClient);
+        UserToken userToken = metasysClient.getUserToken();
+        String accessToken = userToken.getAccessToken();
+        AuthorizationFilter authFilter = new AuthorizationFilter(accessToken);
         // Create a response monitor filter to track response status codes
         ResponseMonitorFilter responseMonitorFilter = new ResponseMonitorFilter();
 
@@ -95,10 +98,16 @@ public class MetasysStreamClient {
                     try {
                         data = inboundEvent.readData();
                         name = inboundEvent.getName();
-                        log.debug("Received SSE event: {}, {}", name, data);
-                        streamEvent = EventInputMapper.toStreamEvent(inboundEvent);
-                        streamListener.onEvent(streamEvent);
-                        lastEventReceievedAt = Instant.ofEpochMilli(System.currentTimeMillis());
+
+                        if (name == null || name.isEmpty()) {
+                            log.trace("Received SSE event: {}, {}", name, data);
+                        } else {
+                            log.debug("Received SSE event: name: {}, data: {}", name, data);
+
+                            streamEvent = EventInputMapper.toStreamEvent(inboundEvent);
+                            streamListener.onEvent(streamEvent);
+                            lastEventReceievedAt = Instant.ofEpochMilli(System.currentTimeMillis());
+                        }
                     } catch (Exception e) {
                         log.info("Error processing SSE inboundEvent. Name: {}. Data: {}. StreamEvent: {} ", name, data, streamEvent, e);
                     }
