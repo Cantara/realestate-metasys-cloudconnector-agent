@@ -68,7 +68,7 @@ public class MetasysStreamImporter implements StreamListener {
 //        scheduledExecutorService.setRemoveOnCancelPolicy(true);
     }
 
-    //FIXME
+
     @Override
     public void onEvent(StreamEvent event) {
         if (event != null && event.getId() != null) {
@@ -119,6 +119,22 @@ public class MetasysStreamImporter implements StreamListener {
                 scheduleResubscribe(reSubscribeIntervalInSeconds);
             }
         }
+    }
+
+    @Override
+    public void onClose(ConnectionCloseInfo closeInfo) {
+        //FIXME onClose
+        log.warn("Stream closed. CloseInfo: {}", closeInfo);
+        if (closeInfo.getReason() == MetasysStreamClient.ConnectionCloseReason.AUTHORIZATION_ERROR) {
+            log.info("MetasysStreamClient no longer authorized. Will try to reconnect.");
+            streamClient.reconnectStream(streamUrl, null, null, this);
+        } else if (closeInfo.getReason() == MetasysStreamClient.ConnectionCloseReason.STREAM_NOT_RESUMABLE) {
+            log.info("MetasysStreamClient stream not resumable. Will try to reconnect.");
+            streamClient.reconnectStream(streamUrl, null, null, this);
+        } else {
+            log.warn("Stream closed. And will not be reconnected. CloseInfo: {}", closeInfo);
+        }
+
     }
 
     public void startSubscribing(List<MappedIdQuery> idQueries) throws SdLogonFailedException {

@@ -44,7 +44,7 @@ public class MetasysStreamClient {
         NETWORK_ERROR,
         TIMEOUT,
         SERVER_CLOSED,
-        UNKNOWN
+        STREAM_NOT_RESUMABLE, AUTHORIZATION_ERROR, UNKNOWN
     }
 
     public MetasysStreamClient() {
@@ -130,7 +130,7 @@ public class MetasysStreamClient {
                     );
 
                     log.info("SSE connection closed. closeInfo {}", closeInfo);
-                    throw new RealEstateStreamException("Stream was Closed: " + sseUrl +
+                    throw new RealEstateStreamException("Stream was closed: " + sseUrl +
                             ", closeInfo: " + closeInfo, RealEstateStreamException.Action.RECONNECT_NEEDED);
                 }
         );
@@ -237,7 +237,10 @@ public class MetasysStreamClient {
 
     public void reconnectStream(String sseUrl, String bearerToken, String lastKnownEventId, StreamListener streamListener) {
         log.info("Requesting reconnect for stream at url {} with lastKnownEventId {}", sseUrl, lastKnownEventId);
-        log.warn("Not doing nothing about reconnect stream for now");//reconnectRequested = true; // Signal to the thread to reconnect
+        if (isStreamOpen()) {
+            eventSource.close();
+        }
+        openStream(sseUrl, bearerToken, lastKnownEventId, streamListener);
     }
 
 
@@ -323,9 +326,20 @@ public class MetasysStreamClient {
             lastResponseStatus.set(status);
 
             // Detect specific status codes that may lead to connection close
-            if (status == Response.Status.UNAUTHORIZED.getStatusCode()) {
+            if (status == 204) {
+                // From Metasys documentation:
+                // If Metasys has cleaned up your buffer or cannot find that id in the recently sent buffer,
+                // you will get a 204 response per the SSE specification. Because your existing stream is not resumable,
+                // your Last-Event-Id is no longer valid.
+                // The recovery path is to start anew by calling get a stream without the Last-Event-Id and subscribe again to data of interest.
+                closeReason.set(ConnectionCloseReason.STREAM_NOT_RESUMABLE);
+                log.warn("Stream not resumable, reconnect is needed. Received 204 response. Last-Event-Id is no longer valid.");
+            } else if (status == Response.Status.UNAUTHORIZED.getStatusCode()) {
                 closeReason.set(ConnectionCloseReason.AUTHENTICATION_ERROR);
                 log.warn("Authentication failed with status 401. Check bearer token validity.");
+            } else if (status == Response.Status.FORBIDDEN.getStatusCode()) {
+                closeReason.set(ConnectionCloseReason.AUTHORIZATION_ERROR);
+                log.warn("Forbidden access with status 403. You might need to restart stream.");
             } else if (status >= 500) {
                 closeReason.set(ConnectionCloseReason.SERVER_ERROR);
                 log.warn("Remote server error response: {}", status);
@@ -351,38 +365,6 @@ public class MetasysStreamClient {
         return ConnectionCloseReason.SERVER_CLOSED;
     }
 
-    public static class ConnectionCloseInfo {
-        private final ConnectionCloseReason reason;
-        private final Integer lastStatusCode;
-        private final Instant lastEventTime;
-
-        public ConnectionCloseInfo(ConnectionCloseReason reason, Integer lastStatusCode, Instant lastEventTime) {
-            this.reason = reason;
-            this.lastStatusCode = lastStatusCode;
-            this.lastEventTime = lastEventTime;
-        }
-
-        public ConnectionCloseReason getReason() {
-            return reason;
-        }
-
-        public Integer getLastStatusCode() {
-            return lastStatusCode;
-        }
-
-        public Instant getLastEventTime() {
-            return lastEventTime;
-        }
-
-        @Override
-        public String toString() {
-            return "ConnectionCloseInfo{" +
-                    "reason=" + reason +
-                    ", lastStatusCode=" + lastStatusCode +
-                    ", lastEventTime=" + lastEventTime +
-                    '}';
-        }
-    }
 
     public static void main(String[] args) {
         if (args.length < 2) {
@@ -405,6 +387,11 @@ public class MetasysStreamClient {
             @Override
             public void onEvent(StreamEvent streamEvent) {
                 log.info("Received event: {}", streamEvent);
+            }
+
+            @Override
+            public void onClose(ConnectionCloseInfo closeInfo) {
+                log.info("Connection closed: {}", closeInfo);
             }
         });
     }
