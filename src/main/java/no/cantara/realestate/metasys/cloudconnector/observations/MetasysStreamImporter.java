@@ -156,15 +156,20 @@ public class MetasysStreamImporter implements StreamListener {
             UserToken userToken = sdClient.getUserToken();
             if (userToken != null) {
                 String accessToken = userToken.getAccessToken();
-                streamClient.openStream(streamUrl, accessToken, null, this);
-                log.trace("Metasys stream opened.");
-                isHealthy = true;
-                expires = userToken.getExpires();
-                Long refreshTokenIntervalInSeconds = Duration.between(Instant.now(), expires).get(ChronoUnit.SECONDS);
-                Long testTime = 600L;
-                refreshTokenIntervalInSeconds = testTime;
-                log.warn("Schedule resubscribe should be within: {}. Will test with only 10 minute delay. Resubscribe within: {} seconds", expires, testTime);
-                //TODO need different approach scheduleRefreshToken(refreshTokenIntervalInSeconds);
+                try {
+                    streamClient.openStream(streamUrl, accessToken, null, this);
+                    log.trace("Metasys stream opened.");
+                    isHealthy = true;
+                    expires = userToken.getExpires();
+                    Long refreshTokenIntervalInSeconds = Duration.between(Instant.now(), expires).get(ChronoUnit.SECONDS);
+                    Long testTime = 600L;
+                    refreshTokenIntervalInSeconds = testTime;
+                    log.warn("Schedule resubscribe should be within: {}. Will test with only 10 minute delay. Resubscribe within: {} seconds", expires, testTime);
+                    //TODO need different approach scheduleRefreshToken(refreshTokenIntervalInSeconds);
+                } catch (RealEstateStreamException e) {
+                    log.warn("Failed to open stream. Will try to reauthorize subscription", e);
+                    isHealthy = false;
+                }
             } else {
                 log.warn("MetasysUserToken is null. Cannot openStream");
                 isHealthy = false;

@@ -21,6 +21,7 @@ import static org.slf4j.LoggerFactory.getLogger;
 public class MetasysStreamClient {
     private static final Logger log = getLogger(MetasysStreamClient.class);
     private final Client client;
+    private final MetasysClient metasysClient;
 
     private boolean isLoggedIn = false;
     private boolean isStreamOpen = false;
@@ -47,11 +48,18 @@ public class MetasysStreamClient {
     }
 
     public MetasysStreamClient() {
+        metasysClient = MetasysClient.getInstance();
         client = init();
     }
+
     // For testing
-    protected MetasysStreamClient(Client client) {
+    protected MetasysStreamClient(MetasysClient metasysClient) {
+        this.client = init();
+        this.metasysClient = metasysClient;
+    }
+    protected MetasysStreamClient(Client client, MetasysClient metasysClient) {
         this.client = client;
+        this.metasysClient = metasysClient;
     }
 
     private Client init() {
@@ -64,9 +72,9 @@ public class MetasysStreamClient {
     }
 
 
-    public void openStream(String sseUrl, String bearerToken, String lastKnownEventId, StreamListener streamListener) {
+    public void openStream(String sseUrl, String bearerToken, String lastKnownEventId, StreamListener streamListener) throws RealEstateStreamException {
         // Create a custom filter for adding the bearer token
-        DynamicAuthorizationFilter authFilter = new DynamicAuthorizationFilter();
+        DynamicAuthorizationFilter authFilter = new DynamicAuthorizationFilter(metasysClient);
         // Create a response monitor filter to track response status codes
         ResponseMonitorFilter responseMonitorFilter = new ResponseMonitorFilter();
 
@@ -81,25 +89,26 @@ public class MetasysStreamClient {
         eventSource.register(
                 // Process each event
                 inboundEvent -> {
+                    String data = null;
+                    StreamEvent streamEvent = null;
                     try {
-                        String data = inboundEvent.readData();
+                        data = inboundEvent.readData();
                         log.debug("Received SSE event: {}", data);
-                        StreamEvent streamEvent = EventInputMapper.toStreamEvent(inboundEvent);
+                        streamEvent = EventInputMapper.toStreamEvent(inboundEvent);
                         streamListener.onEvent(streamEvent);
                         lastEventReceievedAt = Instant.ofEpochMilli(System.currentTimeMillis());
                     } catch (Exception e) {
-                        log.info("Error processing SSE event", e);
-                        //FIXME improve error handling of stream event
+                        log.info("Error processing SSE inboundEvent. Data: {}. StreamEvent: {} ", data, streamEvent, e);
                     }
                 },
                 // Handle errors
                 throwable -> {
                     log.warn("SSE connection error {}", throwable);
-                    log.warn("SSE connection failure" , throwable.getMessage());
+                    log.warn("SSE connection error. Message: {}", throwable.getMessage());
 //                    System.out.println("Error processing SSE event: " + throwable.printStackTrace(););
-//                    throw new RealEstateStreamException("Failed to open stream on URL: " + sseUrl +
-//                            ", lastKnownEventId: " + lastKnownEventId + ", reason: " + throwable.getMessage(),
-//                            RealEstateStreamException.Action.RECREATE_SUBSCRIPTION_NEEDED);
+                    throw new RealEstateStreamException("Failed to open stream on URL: " + sseUrl +
+                            ", lastKnownEventId: " + lastKnownEventId + ", reason: " + throwable.getMessage(),
+                            RealEstateStreamException.Action.RECREATE_SUBSCRIPTION_NEEDED);
                 },
                 // Handle connection close
                 () -> {
@@ -121,6 +130,8 @@ public class MetasysStreamClient {
                     );
 
                     log.info("SSE connection closed. closeInfo {}", closeInfo);
+                    throw new RealEstateStreamException("Stream was Closed: " + sseUrl +
+                            ", closeInfo: " + closeInfo, RealEstateStreamException.Action.RECONNECT_NEEDED);
                 }
         );
 
@@ -254,6 +265,7 @@ public class MetasysStreamClient {
     protected boolean hasReceivedMessagesRecently() {
         return lastEventReceievedAt.isAfter(Instant.now().minusSeconds(30));
     }
+
     public Instant getWhenLastMessageImported() {
         return lastEventReceievedAt;
     }
@@ -287,13 +299,16 @@ public class MetasysStreamClient {
     // Dynamic authorization filter that fetches the token for each request
     private static class DynamicAuthorizationFilter implements ClientRequestFilter {
 
-        public DynamicAuthorizationFilter() {
+        private final MetasysClient authClient;
+
+        public DynamicAuthorizationFilter(MetasysClient metasysClient) {
+            authClient = metasysClient;
         }
 
         @Override
         public void filter(ClientRequestContext requestContext) throws IOException {
             // Get the current token from the supplier for each request
-            String currentToken = MetasysClient.getInstance().getUserToken().getAccessToken();
+            String currentToken = authClient.getUserToken().getAccessToken();
             requestContext.getHeaders().add(
                     HttpHeaders.AUTHORIZATION,
                     "Bearer " + currentToken);
@@ -386,7 +401,7 @@ public class MetasysStreamClient {
         //Open stream first time
         //Reconnect stream from lastKnownEventId, aka a previous subscription
 //        lastKnownEventId = "123";
-        sseClient.openStream(sseUrl, bearerToken,lastKnownEventId, new StreamListener() {
+        sseClient.openStream(sseUrl, bearerToken, lastKnownEventId, new StreamListener() {
             @Override
             public void onEvent(StreamEvent streamEvent) {
                 log.info("Received event: {}", streamEvent);

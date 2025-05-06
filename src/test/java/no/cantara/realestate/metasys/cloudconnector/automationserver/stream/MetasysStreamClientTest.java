@@ -2,6 +2,8 @@ package no.cantara.realestate.metasys.cloudconnector.automationserver.stream;
 
 import no.cantara.config.ApplicationProperties;
 import no.cantara.config.testsupport.ApplicationPropertiesTestHelper;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient;
+import no.cantara.realestate.security.UserToken;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,6 +14,8 @@ import org.mockserver.verify.VerificationTimes;
 import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.mockserver.integration.ClientAndServer.startClientAndServer;
 import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
@@ -23,17 +27,21 @@ class MetasysStreamClientTest {
 
     private static int HTTP_PORT = 1082;
 
+    private MetasysClient metasysClientMock;
+
     @BeforeAll
     static void beforeAll() {
         mockServer = startClientAndServer(HTTP_PORT);
     }
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception{
         ApplicationPropertiesTestHelper.enableMutableSingleton();
         ApplicationProperties.builder().buildAndSetStaticSingleton();
-        metasysStreamClient = new MetasysStreamClient();
+        metasysClientMock = mock(MetasysClient.class);
+        metasysStreamClient = new MetasysStreamClient(metasysClientMock);
     }
+
 
     @Test
     void hasReceivedMessagesLatelyCheck() {
@@ -44,11 +52,14 @@ class MetasysStreamClientTest {
 
     @Test
     void serverReply204whenOpenStream() {
+        String accessToken = "dummyToken";
+        when(metasysClientMock.getUserToken())
+                .thenReturn(new UserToken(accessToken,Instant.now().plusSeconds(60),"refreshingtoken"));
         mockServer
                 .when(
                         request()
                                 .withMethod("GET")
-                                .withHeader("Authorization", "Bearer dummyToken")
+                                .withHeader("Authorization", "Bearer " + accessToken)
                                 .withPath("/api/v4/stream")
                 )
                 .respond(
