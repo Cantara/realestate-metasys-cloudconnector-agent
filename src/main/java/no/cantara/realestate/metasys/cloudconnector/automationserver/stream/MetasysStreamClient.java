@@ -4,6 +4,7 @@ import jakarta.ws.rs.client.*;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.sse.SseEventSource;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient;
 import org.slf4j.Logger;
 
 import java.io.IOException;
@@ -65,7 +66,7 @@ public class MetasysStreamClient {
 
     public void openStream(String sseUrl, String bearerToken, String lastKnownEventId, StreamListener streamListener) {
         // Create a custom filter for adding the bearer token
-        AuthorizationFilter authFilter = new AuthorizationFilter(bearerToken);
+        DynamicAuthorizationFilter authFilter = new DynamicAuthorizationFilter();
         // Create a response monitor filter to track response status codes
         ResponseMonitorFilter responseMonitorFilter = new ResponseMonitorFilter();
 
@@ -280,6 +281,22 @@ public class MetasysStreamClient {
             requestContext.getHeaders().add(
                     HttpHeaders.AUTHORIZATION,
                     "Bearer " + bearerToken);
+        }
+    }
+
+    // Dynamic authorization filter that fetches the token for each request
+    private static class DynamicAuthorizationFilter implements ClientRequestFilter {
+
+        public DynamicAuthorizationFilter() {
+        }
+
+        @Override
+        public void filter(ClientRequestContext requestContext) throws IOException {
+            // Get the current token from the supplier for each request
+            String currentToken = MetasysClient.getInstance().getUserToken().getAccessToken();
+            requestContext.getHeaders().add(
+                    HttpHeaders.AUTHORIZATION,
+                    "Bearer " + currentToken);
         }
     }
 
