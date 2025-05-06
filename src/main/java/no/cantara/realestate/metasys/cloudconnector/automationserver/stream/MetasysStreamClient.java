@@ -72,7 +72,7 @@ public class MetasysStreamClient {
     }
 
 
-    public void openStream(String sseUrl, String bearerToken, String lastKnownEventId, StreamListener streamListener) throws RealEstateStreamException {
+    public void openStream(String sseUrl, String bearerToken, String lastKnownEventId, StreamListener streamListener) {
         // Create a custom filter for adding the bearer token
         DynamicAuthorizationFilter authFilter = new DynamicAuthorizationFilter(metasysClient);
         // Create a response monitor filter to track response status codes
@@ -106,9 +106,9 @@ public class MetasysStreamClient {
                     log.warn("SSE connection error {}", throwable);
                     log.warn("SSE connection error. Message: {}", throwable.getMessage());
 //                    System.out.println("Error processing SSE event: " + throwable.printStackTrace(););
-                    throw new RealEstateStreamException("Failed to open stream on URL: " + sseUrl +
-                            ", lastKnownEventId: " + lastKnownEventId + ", reason: " + throwable.getMessage(),
-                            RealEstateStreamException.Action.RECREATE_SUBSCRIPTION_NEEDED);
+//                    throw new RealEstateStreamException("Failed to open stream on URL: " + sseUrl +
+//                            ", lastKnownEventId: " + lastKnownEventId + ", reason: " + throwable.getMessage(),
+//                            RealEstateStreamException.Action.RECREATE_SUBSCRIPTION_NEEDED);
                 },
                 // Handle connection close
                 () -> {
@@ -130,8 +130,8 @@ public class MetasysStreamClient {
                     );
 
                     log.info("SSE connection closed. closeInfo {}", closeInfo);
-                    throw new RealEstateStreamException("Stream was closed: " + sseUrl +
-                            ", closeInfo: " + closeInfo, RealEstateStreamException.Action.RECONNECT_NEEDED);
+//                    throw new RealEstateStreamException("Stream was closed: " + sseUrl +
+//                            ", closeInfo: " + closeInfo, RealEstateStreamException.Action.RECONNECT_NEEDED);
                 }
         );
 
