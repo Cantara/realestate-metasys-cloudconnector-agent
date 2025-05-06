@@ -128,16 +128,47 @@ public class MetasysStreamImporter implements StreamListener {
         if (closeInfo.getReason() == MetasysStreamClient.ConnectionCloseReason.AUTHORIZATION_ERROR) {
             log.info("MetasysStreamClient no longer authorized. Will try to reconnect.");
             streamClient.reconnectStream(streamUrl, null, null, this);
+            resubscribe();
         } else if (closeInfo.getReason() == MetasysStreamClient.ConnectionCloseReason.STREAM_NOT_RESUMABLE) {
             log.info("MetasysStreamClient stream not resumable. Will try to reconnect.");
             streamClient.reconnectStream(streamUrl, null, null, this);
+            resubscribe();
         } else if (closeInfo.getLastStatusCode() == 200) {
             log.warn("Not sure why stream closed. Will try to reconnect.");
             streamClient.reconnectStream(streamUrl, null, null, this);
+            resubscribe();
         } else {
             log.warn("Stream closed. And will not be reconnected. CloseInfo: {}", closeInfo);
         }
 
+    }
+
+    public void resubscribe() {
+        if (idQueries != null) {
+            log.debug("Resubscribing. {} idQueries: {}", idQueries.size());
+
+            for (MappedIdQuery idQuery : idQueries) {
+                List<MappedSensorId> mappedSensorIds = idRepository.find(idQuery);
+                log.trace("Subscribing to {} mappedSensorIds for idQuery: {}", mappedSensorIds.size(), idQuery);
+                for (MappedSensorId mappedSensorId : mappedSensorIds) {
+                    MetasysSensorId sensorId = (MetasysSensorId) mappedSensorId.getSensorId();
+                    String metasysObjectId = sensorId.getMetasysObjectId();
+                    String subscriptionId = getSubscriptionId();
+                    log.trace("Subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId);
+                    try {
+                        Integer httpStatus = sdClient.subscribePresentValueChange(getSubscriptionId(), metasysObjectId);
+                        log.debug("Subscription to metasysObjectId: {} subscriptionId: {}, returned httpStatus: {}", metasysObjectId, subscriptionId, httpStatus);
+                    } catch (URISyntaxException e) {
+                        log.warn("SD URL is misconfigured. Failed to subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
+                    } catch (LogonFailedException e) {
+                        log.warn("Failed to logon to SD system. Could not subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
+                        throw e;
+                    }
+                }
+            }
+        } else {
+            log.debug("Resubscribing. No idQueries found.");
+        }
     }
 
     public void startSubscribing(List<MappedIdQuery> idQueries) throws SdLogonFailedException {
