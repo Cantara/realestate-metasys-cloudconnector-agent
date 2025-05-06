@@ -2,12 +2,15 @@ package no.cantara.realestate.metasys.cloudconnector.automationserver.stream;
 
 import jakarta.ws.rs.client.*;
 import jakarta.ws.rs.core.HttpHeaders;
+import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.sse.SseEventSource;
 import org.slf4j.Logger;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -25,6 +28,22 @@ public class MetasysStreamClient {
     private WebTarget target;
     private final int reconnectDelaySeconds = 5;
     private SseEventSource eventSource;
+    // State tracking
+    private final AtomicBoolean isManualClose = new AtomicBoolean(false);
+    private final AtomicReference<Instant> lastEventTime = new AtomicReference<>(Instant.now());
+    private final AtomicReference<ConnectionCloseReason> closeReason = new AtomicReference<>(ConnectionCloseReason.NONE);
+    private final AtomicReference<Integer> lastResponseStatus = new AtomicReference<>();
+
+    public enum ConnectionCloseReason {
+        NONE,
+        MANUAL_CLOSE,
+        AUTHENTICATION_ERROR,
+        SERVER_ERROR,
+        NETWORK_ERROR,
+        TIMEOUT,
+        SERVER_CLOSED,
+        UNKNOWN
+    }
 
     public MetasysStreamClient() {
         client = init();
@@ -38,33 +57,20 @@ public class MetasysStreamClient {
         // Create Jersey client
         Client client = ClientBuilder.newBuilder()
                 .connectTimeout(10, TimeUnit.SECONDS)
-                .readTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(60, TimeUnit.SECONDS)
                 .build();
         return client;
     }
 
-    // Custom authorization filter class
-    private static class AuthorizationFilter implements ClientRequestFilter {
-        private final String bearerToken;
-
-        public AuthorizationFilter(String bearerToken) {
-            this.bearerToken = bearerToken;
-        }
-
-        @Override
-        public void filter(ClientRequestContext requestContext) throws IOException {
-            requestContext.getHeaders().add(
-                    HttpHeaders.AUTHORIZATION,
-                    "Bearer " + bearerToken);
-        }
-    }
 
     public void openStream(String sseUrl, String bearerToken, String lastKnownEventId, StreamListener streamListener) {
         // Create a custom filter for adding the bearer token
         AuthorizationFilter authFilter = new AuthorizationFilter(bearerToken);
+        // Create a response monitor filter to track response status codes
+        ResponseMonitorFilter responseMonitorFilter = new ResponseMonitorFilter();
 
         // Configure target with bearer token filter
-        target = client.target(sseUrl).register(authFilter);
+        target = client.target(sseUrl).register(authFilter).register(responseMonitorFilter);
         // Create SSE event source with auto-reconnect
         eventSource = SseEventSource.target(target)
                 .reconnectingEvery(reconnectDelaySeconds, TimeUnit.SECONDS)
@@ -95,11 +101,32 @@ public class MetasysStreamClient {
 //                            RealEstateStreamException.Action.RECREATE_SUBSCRIPTION_NEEDED);
                 },
                 // Handle connection close
-                () -> log.info("SSE connection closed")
+                () -> {
+                    log.info("SSE connection closed.");
+                    log.info("SSE connection closed. EventSource {}", eventSource);
+                    if (eventSource != null) {
+                        log.info("SSE connection closed. EventSource isOpen {}", eventSource.isOpen());
+                    }
+                    log.info("SSE connection closed. Client {}", client);
+                    if (client != null) {
+                        log.info("SSE connection closed. Client {}", client.getConfiguration());
+                    }
+                    log.info("SSE connection closed. target {}", target);
+                    ConnectionCloseReason reason = determineCloseReason();
+                    ConnectionCloseInfo closeInfo = new ConnectionCloseInfo(
+                            reason,
+                            lastResponseStatus.get(),
+                            lastEventTime.get()
+                    );
+
+                    log.info("SSE connection closed. closeInfo {}", closeInfo);
+                }
         );
 
         // Start listening for events
         eventSource.open();
+        isLoggedIn = true;
+
         log.info("SSE client connected to {}", sseUrl);
         //Check that the server are able to establish or re-establish the subscription
         /*
@@ -231,12 +258,98 @@ public class MetasysStreamClient {
     }
 
     public boolean isHealthy() {
-        return isStreamOpen && isLoggedIn && hasReceivedMessagesRecently();
+        return isStreamOpen() && isLoggedIn() && hasReceivedMessagesRecently();
     }
 
     public boolean isStreamOpen() {
         return eventSource != null && eventSource.isOpen();
 //        return isStreamOpen;
+    }
+
+
+    // Custom authorization filter class
+    private static class AuthorizationFilter implements ClientRequestFilter {
+        private final String bearerToken;
+
+        public AuthorizationFilter(String bearerToken) {
+            this.bearerToken = bearerToken;
+        }
+
+        @Override
+        public void filter(ClientRequestContext requestContext) throws IOException {
+            requestContext.getHeaders().add(
+                    HttpHeaders.AUTHORIZATION,
+                    "Bearer " + bearerToken);
+        }
+    }
+
+    // Filter to monitor response status codes
+    private class ResponseMonitorFilter implements ClientResponseFilter {
+        @Override
+        public void filter(ClientRequestContext requestContext, ClientResponseContext responseContext) throws IOException {
+            int status = responseContext.getStatus();
+            lastResponseStatus.set(status);
+
+            // Detect specific status codes that may lead to connection close
+            if (status == Response.Status.UNAUTHORIZED.getStatusCode()) {
+                closeReason.set(ConnectionCloseReason.AUTHENTICATION_ERROR);
+                log.warn("Authentication failed with status 401. Check bearer token validity.");
+            } else if (status >= 500) {
+                closeReason.set(ConnectionCloseReason.SERVER_ERROR);
+                log.warn("Remote server error response: {}", status);
+            } else if (status != Response.Status.OK.getStatusCode() &&
+                    status != Response.Status.ACCEPTED.getStatusCode()) {
+                closeReason.set(ConnectionCloseReason.UNKNOWN);
+                log.warn("Unexpected response status: {}", status);
+            }
+        }
+    }
+
+    private ConnectionCloseReason determineCloseReason() {
+        if (isManualClose.get()) {
+            return ConnectionCloseReason.MANUAL_CLOSE;
+        }
+
+        ConnectionCloseReason currentReason = closeReason.get();
+        if (currentReason != ConnectionCloseReason.NONE) {
+            return currentReason;
+        }
+
+        // If we have no specific reason yet, consider it server-initiated
+        return ConnectionCloseReason.SERVER_CLOSED;
+    }
+
+    public static class ConnectionCloseInfo {
+        private final ConnectionCloseReason reason;
+        private final Integer lastStatusCode;
+        private final Instant lastEventTime;
+
+        public ConnectionCloseInfo(ConnectionCloseReason reason, Integer lastStatusCode, Instant lastEventTime) {
+            this.reason = reason;
+            this.lastStatusCode = lastStatusCode;
+            this.lastEventTime = lastEventTime;
+        }
+
+        public ConnectionCloseReason getReason() {
+            return reason;
+        }
+
+        public Integer getLastStatusCode() {
+            return lastStatusCode;
+        }
+
+        public Instant getLastEventTime() {
+            return lastEventTime;
+        }
+
+        @Override
+        public String toString() {
+            return "ConnectionCloseInfo{" +
+                    "reason=" + reason +
+                    ", lastStatusCode=" + lastStatusCode +
+                    ", lastEventTime=" + lastEventTime +
+                    '}';
+        }
     }
 
     public static void main(String[] args) {
