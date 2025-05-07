@@ -78,7 +78,7 @@ public class MetasysStreamClient {
         // Create a custom filter for adding the bearer token
         UserToken userToken = metasysClient.getUserToken();
         String accessToken = userToken.getAccessToken();
-        AuthorizationFilter authFilter = new AuthorizationFilter(accessToken);
+        DynamicAuthorizationFilter authFilter = new DynamicAuthorizationFilter(metasysClient); //AuthorizationFilter(accessToken);
         // Create a response monitor filter to track response status codes
         ResponseMonitorFilter responseMonitorFilter = new ResponseMonitorFilter();
 
@@ -115,8 +115,17 @@ public class MetasysStreamClient {
                 },
                 // Handle errors
                 throwable -> {
-                    log.warn("SSE connection error {}", throwable);
+//                    log.warn("SSE connection error {}", throwable);
                     log.warn("SSE connection error. Message: {}", throwable.getMessage());
+                    if (userToken != null) {
+                        log.debug("SSE connection error. UserToken expires {}", userToken.getExpires());
+                        if (userToken.getExpires().isBefore(Instant.now())) {
+                            String subtractedAccessToken = accessToken.substring(0, 100) + "..." + accessToken.substring(accessToken.length() - 100);
+                            log.info("SSE connection error. accessToken {}, expired. {}", subtractedAccessToken, userToken.getExpires());
+                        }
+                    } else {
+                        log.debug("SSE connection error. UserToken is null");
+                    }
                     isStreamOpen = false;
                     isLoggedIn = false;
 //                    System.out.println("Error processing SSE event: " + throwable.printStackTrace(););
@@ -126,16 +135,24 @@ public class MetasysStreamClient {
                 },
                 // Handle connection close
                 () -> {
-                    log.info("SSE connection closed.");
-                    log.info("SSE connection closed. EventSource {}", eventSource);
+                    log.warn("SSE connection closed. EventSource {}", eventSource);
                     if (eventSource != null) {
-                        log.info("SSE connection closed. EventSource isOpen {}", eventSource.isOpen());
+                        log.debug("SSE connection closed. EventSource isOpen {}", eventSource.isOpen());
                     }
-                    log.info("SSE connection closed. Client {}", client);
+                    log.debug("SSE connection closed. Client {}", client);
                     if (client != null) {
                         log.info("SSE connection closed. Client {}", client.getConfiguration());
                     }
-                    log.info("SSE connection closed. target {}", target);
+                    log.debug("SSE connection closed. target {}", target);
+                    if (userToken != null) {
+                        log.debug("SSE connection closed. UserToken expires {}", userToken.getExpires());
+                        if (userToken.getExpires().isBefore(Instant.now())) {
+                            String subtractedAccessToken = accessToken.substring(0, 100) + "..." + accessToken.substring(accessToken.length() - 100);
+                            log.info("SSE connection closed. accessToken {}, expired. {}", subtractedAccessToken, userToken.getExpires());
+                        }
+                    } else {
+                        log.debug("SSE connection closed. UserToken is null");
+                    }
                     ConnectionCloseReason reason = determineCloseReason();
                     ConnectionCloseInfo closeInfo = new ConnectionCloseInfo(
                             reason,
