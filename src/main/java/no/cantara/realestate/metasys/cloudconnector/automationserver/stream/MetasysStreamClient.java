@@ -174,98 +174,6 @@ public class MetasysStreamClient {
         isLoggedIn = true;
 
         log.info("SSE client connected to {}", sseUrl);
-        //Check that the server are able to establish or re-establish the subscription
-        /*
-        Response response = null;
-        if (hasValue(lastKnownEventId)) {
-            response = client.target(sseUrl).request().header("Authorization", "Bearer " + bearerToken).header("Last-Event-Id", lastKnownEventId).get();
-            if (response == null) {
-                throw new RealEstateStreamException("Failed to open stream on URL: " + sseUrl + ", lastKnownEventId: " + lastKnownEventId + ", response is null: " + response);
-            } else if (response.getStatus() == 204) {
-                throw new RealEstateStreamException("Failed to open stream on URL: " + sseUrl + ", lastKnownEventId: " + lastKnownEventId + ", response: " + response, RealEstateStreamException.Action.RECREATE_SUBSCRIPTION_NEEDED);
-            }
-        } else {
-            response = client.target(sseUrl).request().header("Authorization", "Bearer " + bearerToken).get();
-            if (response == null) {
-                throw new RealEstateStreamException("Failed to open stream on URL: " + sseUrl + ", lastKnownEventId: " + lastKnownEventId + ", response is null: " + response);
-            }
-        }
-        streamThread = new Thread(() -> {
-
-            EventInput eventInput = null;
-            try {
-                if (hasValue(lastKnownEventId)) {
-                    try {
-                        eventInput = client.target(sseUrl)
-                                .request()
-                                .header("Authorization", "Bearer " + bearerToken)
-                                .header("Last-Event-Id", lastKnownEventId)
-                                .get(EventInput.class);
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                        eventInput = null;
-                        throw new RealEstateException("Failed to open stream on URL: " + sseUrl + ", lastKnownEventId: " + lastKnownEventId, e);
-                    }
-                } else {
-                    try {
-                        eventInput = client.target(sseUrl)
-                                .request()
-                                .header("Authorization", "Bearer " + bearerToken)
-                                .get(EventInput.class);
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                        eventInput = null;
-                        throw new RealEstateException("Failed to open stream on URL: " + sseUrl, e);
-                    }
-                }
-                isLoggedIn = true;
-                isStreamOpen = true;
-//            try {
-                while (eventInput != null && !eventInput.isClosed()) {
-
-                    InboundEvent inboundEvent = eventInput.read();
-                    if (inboundEvent == null) {
-                        // Reconnect logic (you can add a delay here before reconnecting)
-                        isLoggedIn = false;
-                        eventInput.close();
-                        isStreamOpen = false;
-                        Thread.sleep(100);
-
-                        eventInput = client.target(sseUrl)
-                                .request()
-                                .header("Authorization", "Bearer " + bearerToken)
-                                .get(EventInput.class);
-                        isLoggedIn = true;
-                        isStreamOpen = true;
-                    } else {
-                        try {
-                            String data = inboundEvent.readData(String.class);
-                            System.out.println("Received Event: " + data);
-                            log.trace("Received Event: id: {}, name: {}, comment: {}, \ndata: {}", inboundEvent.getId(), inboundEvent.getName(), inboundEvent.getComment(), data);
-                            StreamEvent streamEvent = EventInputMapper.toStreamEvent(inboundEvent);
-                            streamListener.onEvent(streamEvent);
-                            lastEventReceievedAt = Instant.ofEpochMilli(System.currentTimeMillis());
-                        } catch (Exception e) {
-                            //FIXME improve error handling
-                            log.error("Failed to read data from inboundEvent: {}", inboundEvent, e);
-                        }
-                    }
-                }
-            } catch (InterruptedException e) {
-                log.info("StreamListener thread interrupted", e);
-                if (eventInput != null) {
-                    eventInput.close();
-                }
-                log.info("StreamListener thread closed");
-            }
-        });
-        streamThread.setName("StreamListener");
-        streamThread.start();
-
-
-         */
-
-
     }
 
 
@@ -273,7 +181,15 @@ public class MetasysStreamClient {
         log.info("Requesting reconnect for stream at url {} with lastKnownEventId {}. ", sseUrl, lastKnownEventId);
         if (isStreamOpen()) {
             eventSource.close();
+            try {
+                log.trace("Waiting for stream to close before reconnecting");
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                log.trace("Interrupted while waiting for stream to close");
+                throw new RuntimeException(e);
+            }
         }
+        log.trace("Stream closed, proceeding to open new stream");
         openStream(sseUrl, bearerToken, lastKnownEventId, streamListener);
     }
 
