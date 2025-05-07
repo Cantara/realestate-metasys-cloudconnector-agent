@@ -74,6 +74,7 @@ public class MetasysStreamClient {
 
 
     public void openStream(String sseUrl, String bearerToken, String lastKnownEventId, StreamListener streamListener) {
+        log.info("Opening stream for url {}, lastKnownEventId: {}, StreamListener class: {}, objectId: ", sseUrl, lastKnownEventId, streamListener.getClass().getName(), System.identityHashCode(streamListener));
         // Create a custom filter for adding the bearer token
         UserToken userToken = metasysClient.getUserToken();
         String accessToken = userToken.getAccessToken();
@@ -252,7 +253,7 @@ public class MetasysStreamClient {
 
 
     public void reconnectStream(String sseUrl, String bearerToken, String lastKnownEventId, StreamListener streamListener) {
-        log.info("Requesting reconnect for stream at url {} with lastKnownEventId {}", sseUrl, lastKnownEventId);
+        log.info("Requesting reconnect for stream at url {} with lastKnownEventId {}. ", sseUrl, lastKnownEventId);
         if (isStreamOpen()) {
             eventSource.close();
         }
