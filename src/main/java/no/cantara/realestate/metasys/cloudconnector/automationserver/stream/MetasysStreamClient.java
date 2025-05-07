@@ -84,10 +84,16 @@ public class MetasysStreamClient {
 
         // Configure target with bearer token filter
         target = client.target(sseUrl).register(authFilter).register(responseMonitorFilter);
-        // Create SSE event source with auto-reconnect
-        eventSource = SseEventSource.target(target)
-                .reconnectingEvery(reconnectDelaySeconds, TimeUnit.SECONDS)
-                .build();
+        // Create SSE event source with auto-reconnect. This creates a new Thread named jersey-client-async-executor
+        if (eventSource != null && eventSource.isOpen()) {
+            log.debug("Reusing existing eventSource");
+//            eventSource.close();
+        } else {
+            log.debug("Creating new eventSource");
+            eventSource = SseEventSource.target(target)
+                    .reconnectingEvery(reconnectDelaySeconds, TimeUnit.SECONDS)
+                    .build();
+        }
 
         // Register event handlers
         eventSource.register(
@@ -184,6 +190,10 @@ public class MetasysStreamClient {
             try {
                 log.trace("Waiting for stream to close before reconnecting");
                 Thread.sleep(200);
+                if (target != null) {
+                    log.trace("Setting target to null");
+                    target = null;
+                }
             } catch (InterruptedException e) {
                 log.trace("Interrupted while waiting for stream to close");
                 throw new RuntimeException(e);
