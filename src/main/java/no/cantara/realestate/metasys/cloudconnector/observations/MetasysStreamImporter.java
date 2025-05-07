@@ -116,7 +116,8 @@ public class MetasysStreamImporter implements StreamListener {
                 Long testTime = 600L;
                 log.warn("Schedule resubscribe should be within: {}. Will test with only 10 minute delay. Resubscribe within: {} seconds", expires, testTime);
                 reSubscribeIntervalInSeconds = testTime;
-                //scheduleResubscribe(reSubscribeIntervalInSeconds);
+                //Resubscribe is now handled by the onClose method
+                // scheduleResubscribe(reSubscribeIntervalInSeconds);
             }
         }
     }
