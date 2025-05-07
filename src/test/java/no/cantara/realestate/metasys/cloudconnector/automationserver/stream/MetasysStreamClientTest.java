@@ -69,7 +69,8 @@ class MetasysStreamClientTest {
 
 
         try {
-            metasysStreamClient.openStream("http://localhost:" + HTTP_PORT + "/api/v4/stream", "dummyToken", null, null);
+            StreamListener streamListenerMock = mock(StreamListener.class);
+            metasysStreamClient.openStream("http://localhost:" + HTTP_PORT + "/api/v4/stream", "dummyToken", null, streamListenerMock);
             metasysStreamClient.close();
         } catch (Exception e) {
             System.out.println(e);
