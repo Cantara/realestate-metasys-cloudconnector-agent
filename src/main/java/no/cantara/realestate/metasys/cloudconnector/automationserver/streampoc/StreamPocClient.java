@@ -142,9 +142,13 @@ public class StreamPocClient {
             String subscriptionId = streamPocClient.getSubscriptionId();
             log.info("Stream created. SubscriptionId: {}", subscriptionId);
             List<String> metasysObjectIds = List.of("408eb7e4-f63b-5db0-b665-999bfa6ad588");
-            if (subscriptionId == null && event.getEvent() == "hello") {
+            if (subscriptionId == null && event.getEvent().equals("hello")) {
                 subscriptionId = event.getData();
-                log.info("Stream opened with subscriptionId: {}", subscriptionId);
+
+                log.info("Stream opened. Received subscriptionId: {}", subscriptionId);
+            }
+            if (subscriptionId != null) {
+                subscriptionId = subscriptionId.replaceAll("\"", "");
             }
             streamPocClient.subscribeToStream(subscriptionId, metasysObjectIds);
 
