@@ -138,9 +138,14 @@ public class StreamPocClient {
             if (event == null) {
                 throw new MetasysCloudConnectorException("StreamPocClient returned null events. Closing stream.");
             }
+            log.info("First event: {}", event);
             String subscriptionId = streamPocClient.getSubscriptionId();
             log.info("Stream created. SubscriptionId: {}", subscriptionId);
             List<String> metasysObjectIds = List.of("408eb7e4-f63b-5db0-b665-999bfa6ad588");
+            if (subscriptionId == null && event.getEvent() == "hello") {
+                subscriptionId = event.getData();
+                log.info("Stream opened with subscriptionId: {}", subscriptionId);
+            }
             streamPocClient.subscribeToStream(subscriptionId, metasysObjectIds);
 
             do {
@@ -269,7 +274,7 @@ public class StreamPocClient {
 
                         // Set the subscriptionId from the first open event
                         if (currentEvent.getEvent() != null &&
-                                currentEvent.getEvent().equals("open") &&
+                                currentEvent.getEvent().equals("hello") &&
                                 subscriptionId == null) {
                             subscriptionId = currentEvent.getData();
                             log.info("Stream opened with subscriptionId: {}", subscriptionId);
