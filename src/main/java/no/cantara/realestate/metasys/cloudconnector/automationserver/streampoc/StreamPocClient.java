@@ -12,6 +12,10 @@ import org.slf4j.Logger;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -20,22 +24,28 @@ import static org.slf4j.LoggerFactory.getLogger;
 
 public class StreamPocClient {
     private static final Logger log = getLogger(StreamPocClient.class);
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
     private final MetasysClient metasysClient;
     private final ScheduledExecutorService scheduler;
+    private final URI sdUri;
     private UserToken userToken;
+    private String subscriptionId = null;
+    private HttpClient httpClient;
+    private Thread streamListenerThread;
 
     public StreamPocClient() {
         this(MetasysClient.getInstance());
-
     }
 
-    // For testing
     protected StreamPocClient(MetasysClient metasysClient) {
-        this.metasysClient = metasysClient.getInstance();
+        this.metasysClient = metasysClient;
         scheduler = Executors.newScheduledThreadPool(1);
         findLatestUserToken();
         scheduleTokenRefresh();
-
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(REQUEST_TIMEOUT)
+                .build();
+        sdUri = metasysClient.getApiUri();
     }
 
     protected void findLatestUserToken() {
@@ -57,6 +67,10 @@ public class StreamPocClient {
 
     public UserToken getUserToken() {
         return userToken;
+    }
+
+    public String getSubscriptionId() {
+        return subscriptionId;
     }
 
     private static MetasysClient initializeMetasysClient(ApplicationProperties config) {
@@ -111,8 +125,14 @@ public class StreamPocClient {
         String accessToken = streamPocClient.getUserToken().getAccessToken();
         String shortAccessToken = shortenedAccessToken(accessToken);
         log.info("AT: {}", shortAccessToken);
-        do {
-            try {
+        try {
+            streamPocClient.createStream();
+            Thread.sleep(10000);
+            String subscriptionId = streamPocClient.getSubscriptionId();
+            log.info("Stream created. SubscriptionId: {}", subscriptionId);
+            streamPocClient.subscribeToStream(subscriptionId);
+
+            do {
                 String newAccessToken = streamPocClient.getUserToken().getAccessToken();
                 String newShortAccessToken = shortenedAccessToken(newAccessToken);
                 if (!newShortAccessToken.equals(shortAccessToken)) {
@@ -123,9 +143,64 @@ public class StreamPocClient {
                     log.trace("Access token not changed. Expires: {}", streamPocClient.getUserToken().getExpires());
                 }
                 Thread.sleep(10000);
+
+            } while (true);
+        } catch (InterruptedException e) {
+            log.error("Error in main thread", e);
+        } finally {
+            log.info("Closing StreamPocClient");
+            streamPocClient.close();
+//            basClient.close();
+        }
+    }
+
+    void close() {
+        if (streamListenerThread != null) {
+            streamListenerThread.interrupt();
+            try {
+                streamListenerThread.join();
             } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+                log.error("Error while closing stream listener thread", e);
             }
-        } while (true);
+        }
+    }
+
+    protected void subscribeToStream(String subscriptionId) {
+
+    }
+
+    protected void createStream() {
+        Runnable streamTask = () -> {
+            String streamUrl = sdUri + "stream";
+            log.info("Connecting to SSE stream at: {}", streamUrl);
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(streamUrl))
+                    .header("Authorization", "Bearer " + userToken.getAccessToken())
+                    .GET()
+                    .build();
+
+            log.debug("Outgoing request: {}", request);
+
+            try {
+                httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofLines())
+                        .thenAccept(response -> {
+                            log.debug("Response status: {}", response.statusCode());
+                            response.body().forEach(line -> {
+                                log.debug("Incoming SSE data: {}", line);
+                                // Process the incoming SSE data here if needed
+                            });
+                        })
+                        .exceptionally(e -> {
+                            log.error("Error while listening to SSE stream", e);
+                            return null;
+                        });
+            } catch (Exception e) {
+                log.error("Failed to connect to SSE stream", e);
+            }
+        };
+
+        streamListenerThread = new Thread(streamTask, "StreamListenerPoc");
+        streamListenerThread.start();
     }
 }

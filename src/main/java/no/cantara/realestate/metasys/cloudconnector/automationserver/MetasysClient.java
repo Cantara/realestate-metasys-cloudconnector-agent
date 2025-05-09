@@ -773,6 +773,10 @@ public class MetasysClient implements BasClient {
         return userToken;
     }
 
+    public URI getApiUri() {
+        return apiUri;
+    }
+
     protected void updateWhenLastTrendSampleReceived() {
         whenLastTrendSampleReceived = Instant.ofEpochMilli(System.currentTimeMillis());
     }
