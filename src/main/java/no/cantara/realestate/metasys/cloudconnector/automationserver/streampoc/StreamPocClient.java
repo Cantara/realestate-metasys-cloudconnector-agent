@@ -148,7 +148,7 @@ public class StreamPocClient {
                 log.info("Stream opened. Received subscriptionId: {}", subscriptionId);
             }
             if (subscriptionId != null) {
-                subscriptionId = subscriptionId.replaceAll("\"", "");
+                subscriptionId = subscriptionId.replace("\"", "");
             }
             streamPocClient.subscribeToStream(subscriptionId, metasysObjectIds);
 
