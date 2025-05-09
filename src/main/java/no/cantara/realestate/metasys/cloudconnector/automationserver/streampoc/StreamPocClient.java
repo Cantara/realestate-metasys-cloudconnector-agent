@@ -16,9 +16,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.*;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -32,6 +32,8 @@ public class StreamPocClient {
     private String subscriptionId = null;
     private HttpClient httpClient;
     private Thread streamListenerThread;
+    private final BlockingQueue<ServerSentEvent> eventQueue = new LinkedBlockingQueue<>();
+
 
     public StreamPocClient() {
         this(MetasysClient.getInstance());
@@ -127,10 +129,14 @@ public class StreamPocClient {
         log.info("AT: {}", shortAccessToken);
         try {
             streamPocClient.createStream();
-            Thread.sleep(10000);
-            String subscriptionId = streamPocClient.getSubscriptionId();
+            ServerSentEvent event = streamPocClient.eventQueue.poll(10, TimeUnit.SECONDS);
+            if (event == null) {
+                throw new MetasysCloudConnectorException("StreamPocClient returned null events. Closing stream.");
+            }
+            String subscriptionId = event.getData();
             log.info("Stream created. SubscriptionId: {}", subscriptionId);
-            streamPocClient.subscribeToStream(subscriptionId);
+            List<String> metasysObjectIds = List.of("408eb7e4-f63b-5db0-b665-999bfa6ad588");
+            streamPocClient.subscribeToStream(subscriptionId, metasysObjectIds);
 
             do {
                 String newAccessToken = streamPocClient.getUserToken().getAccessToken();
@@ -141,6 +147,10 @@ public class StreamPocClient {
                     shortAccessToken = newShortAccessToken;
                 } else {
                     log.trace("Access token not changed. Expires: {}", streamPocClient.getUserToken().getExpires());
+                }
+                log.info("Waiting for events...");
+                while (!streamPocClient.eventQueue.isEmpty()) {
+                    log.trace("Event: {}", streamPocClient.eventQueue.poll());
                 }
                 Thread.sleep(10000);
 
@@ -165,8 +175,17 @@ public class StreamPocClient {
         }
     }
 
-    protected void subscribeToStream(String subscriptionId) {
-
+    protected void subscribeToStream(String subscriptionId, List<String> metasysObjectIds) {
+        for (String metasysObjectId : metasysObjectIds) {
+            log.trace("Subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId);
+            try {
+                Integer httpStatus = metasysClient.subscribePresentValueChange(getSubscriptionId(), metasysObjectId);
+                log.debug("Subscription to metasysObjectId: {} subscriptionId: {}, returned httpStatus: {}", metasysObjectId, subscriptionId, httpStatus);
+            } catch (LogonFailedException e) {
+                log.warn("Failed to logon to SD system. Could not subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
+                throw e;
+            }
+        }
     }
 
     protected void createStream() {
@@ -190,7 +209,28 @@ public class StreamPocClient {
                             if (statusCode == 200) {
                                 response.body().forEach(line -> {
                                     log.debug("Incoming SSE data: {}", line);
-                                    // Process the incoming SSE data here if needed
+                                    ServerSentEvent event = new ServerSentEvent();
+                                    List<String> dataLines = new ArrayList<>();
+                                    String[] lines = line.split("\n");
+                                    for (String l : lines) {
+                                        if (l.startsWith("id:")) {
+                                            event.setId(l.substring(3).trim());
+                                        } else if (l.startsWith("event:")) {
+                                            event.setEvent(l.substring(6).trim());
+                                        } else if (l.startsWith("data:")) {
+                                            dataLines.add(l.substring(5).trim());
+                                        } else if (l.startsWith("retry:")) {
+                                            event.setRetry(Integer.parseInt(l.substring(6).trim()));
+                                        }
+                                    }
+                                    event.setData(String.join("\n", dataLines));
+                                    log.info("Mapped SSE event: {}", event);
+                                    try {
+                                        eventQueue.put(event);
+                                    } catch (InterruptedException e) {
+                                        Thread.currentThread().interrupt();
+                                        log.error("Failed to add event to queue", e);
+                                    }
                                 });
                             } else if (statusCode == 204) {
                                 log.warn("Received 204 response");
