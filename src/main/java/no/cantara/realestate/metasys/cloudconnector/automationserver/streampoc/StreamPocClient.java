@@ -116,7 +116,7 @@ public class StreamPocClient {
                 String newAccessToken = streamPocClient.getUserToken().getAccessToken();
                 String newShortAccessToken = shortenedAccessToken(newAccessToken);
                 if (!newShortAccessToken.equals(shortAccessToken)) {
-                    log.info("AT: {} -> {}, expires: {}", newAccessToken, newShortAccessToken, streamPocClient.getUserToken().getExpires());
+                    log.info("AT: {} -> {}, expires: {}", shortAccessToken, newShortAccessToken, streamPocClient.getUserToken().getExpires());
                     accessToken = newShortAccessToken;
                     shortAccessToken = newShortAccessToken;
                 } else {
