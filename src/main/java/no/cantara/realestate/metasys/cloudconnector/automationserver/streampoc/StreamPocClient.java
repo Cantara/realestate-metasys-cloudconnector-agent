@@ -193,7 +193,7 @@ public class StreamPocClient {
         for (String metasysObjectId : metasysObjectIds) {
             log.trace("Subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId);
             try {
-                Integer httpStatus = metasysClient.subscribePresentValueChange(getSubscriptionId(), metasysObjectId);
+                Integer httpStatus = metasysClient.subscribePresentValueChange(subscriptionId, metasysObjectId);
                 log.debug("Subscription to metasysObjectId: {} subscriptionId: {}, returned httpStatus: {}", metasysObjectId, subscriptionId, httpStatus);
             } catch (LogonFailedException e) {
                 log.warn("Failed to logon to SD system. Could not subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
