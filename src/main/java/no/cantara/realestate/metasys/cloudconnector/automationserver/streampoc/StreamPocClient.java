@@ -27,6 +27,9 @@ import java.util.concurrent.*;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
+/**
+ * Connect to Stream, and keep the observations flowing. With Refreshing the token.
+ */
 public class StreamPocClient {
     private static final Logger log = getLogger(StreamPocClient.class);
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
