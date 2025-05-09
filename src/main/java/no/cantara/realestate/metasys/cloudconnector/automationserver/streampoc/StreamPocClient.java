@@ -10,11 +10,16 @@ import no.cantara.realestate.security.LogonFailedException;
 import no.cantara.realestate.security.UserToken;
 import org.slf4j.Logger;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -133,7 +138,7 @@ public class StreamPocClient {
             if (event == null) {
                 throw new MetasysCloudConnectorException("StreamPocClient returned null events. Closing stream.");
             }
-            String subscriptionId = event.getData();
+            String subscriptionId = streamPocClient.getSubscriptionId();
             log.info("Stream created. SubscriptionId: {}", subscriptionId);
             List<String> metasysObjectIds = List.of("408eb7e4-f63b-5db0-b665-999bfa6ad588");
             streamPocClient.subscribeToStream(subscriptionId, metasysObjectIds);
@@ -202,50 +207,30 @@ public class StreamPocClient {
             log.debug("Outgoing request: {}", request);
 
             try {
-                httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofLines())
-                        .thenAccept(response -> {
-                            log.debug("Response status: {}", response.statusCode());
-                            int statusCode = response.statusCode();
-                            if (statusCode == 200) {
-                                response.body().forEach(line -> {
-                                    log.debug("Incoming SSE data: {}", line);
-                                    ServerSentEvent event = new ServerSentEvent();
-                                    List<String> dataLines = new ArrayList<>();
-                                    String[] lines = line.split("\n");
-                                    for (String l : lines) {
-                                        if (l.startsWith("id:")) {
-                                            event.setId(l.substring(3).trim());
-                                        } else if (l.startsWith("event:")) {
-                                            event.setEvent(l.substring(6).trim());
-                                        } else if (l.startsWith("data:")) {
-                                            dataLines.add(l.substring(5).trim());
-                                        } else if (l.startsWith("retry:")) {
-                                            event.setRetry(Integer.parseInt(l.substring(6).trim()));
-                                        }
-                                    }
-                                    event.setData(String.join("\n", dataLines));
-                                    log.info("Mapped SSE event: {}", event);
-                                    try {
-                                        eventQueue.put(event);
-                                    } catch (InterruptedException e) {
-                                        Thread.currentThread().interrupt();
-                                        log.error("Failed to add event to queue", e);
-                                    }
-                                });
-                            } else if (statusCode == 204) {
-                                log.warn("Received 204 response");
-                                throw new MetasysCloudConnectorException("Reconnect to stream with LastKnownEventId is " +
-                                        "not possible. Please Reconnect, and resubscribe to the stream.");
-                            } else {
-                                log.error("Unexpected response: {}", response);
-                                throw new MetasysCloudConnectorException("Unexpected response status: " + statusCode + ", body:" + response.body());
-                            }
-                        })
-                        .exceptionally(e -> {
-                            log.error("Error while listening to SSE stream", e);
-                            return null;
-                        });
-            } catch (Exception e) {
+                // Use a blocking approach for simplicity
+                HttpResponse<InputStream> response = httpClient.send(
+                        request,
+                        HttpResponse.BodyHandlers.ofInputStream()
+                );
+
+                int statusCode = response.statusCode();
+                log.debug("Response status: {}", statusCode);
+
+                if (statusCode == 200) {
+                    try (InputStreamReader reader = new InputStreamReader(response.body(), StandardCharsets.UTF_8);
+                         BufferedReader bufferedReader = new BufferedReader(reader)) {
+
+                        processEventStream(bufferedReader);
+                    }
+                } else if (statusCode == 204) {
+                    log.warn("Received 204 response");
+                    throw new MetasysCloudConnectorException("Reconnect to stream with LastKnownEventId is " +
+                            "not possible. Please Reconnect, and resubscribe to the stream.");
+                } else {
+                    log.error("Unexpected response status: {}", statusCode);
+                    throw new MetasysCloudConnectorException("Unexpected response status: " + statusCode);
+                }
+            } catch (IOException | InterruptedException e) {
                 log.error("Failed to connect to SSE stream", e);
                 throw new MetasysCloudConnectorException("Failed to connect to SSE stream", e);
             }
@@ -253,5 +238,91 @@ public class StreamPocClient {
 
         streamListenerThread = new Thread(streamTask, "StreamListenerPoc");
         streamListenerThread.start();
+    }
+    /**
+     * Process the incoming SSE event stream according to the specification.
+     * Events are separated by blank lines and consist of fields starting with "id:", "event:", "data:", or "retry:".
+     *
+     * @param reader The buffered reader for the event stream
+     * @throws IOException If an I/O error occurs
+     */
+    private void processEventStream(BufferedReader reader) throws IOException {
+        String line;
+        ServerSentEvent currentEvent = new ServerSentEvent();
+        List<String> dataLines = new ArrayList<>();
+        boolean hasData = false;
+
+        while ((line = reader.readLine()) != null) {
+            log.debug("Incoming SSE line: {}", line);
+
+            // Empty line indicates the end of an event
+            if (line.isEmpty()) {
+                if (hasData) {
+                    // Complete the current event
+                    if (!dataLines.isEmpty()) {
+                        currentEvent.setData(String.join("\n", dataLines));
+                    }
+
+                    log.info("Mapped SSE event: {}", currentEvent);
+                    try {
+                        eventQueue.put(currentEvent);
+
+                        // Set the subscriptionId from the first open event
+                        if (currentEvent.getEvent() != null &&
+                                currentEvent.getEvent().equals("open") &&
+                                subscriptionId == null) {
+                            subscriptionId = currentEvent.getData();
+                            log.info("Stream opened with subscriptionId: {}", subscriptionId);
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        log.error("Failed to add event to queue", e);
+                        break;
+                    }
+                }
+
+                // Reset for the next event
+                currentEvent = new ServerSentEvent();
+                dataLines.clear();
+                hasData = false;
+                continue;
+            }
+
+            // Process the field
+            if (line.startsWith("id:")) {
+                currentEvent.setId(line.substring(3).trim());
+                hasData = true;
+            } else if (line.startsWith("event:")) {
+                currentEvent.setEvent(line.substring(6).trim());
+                hasData = true;
+            } else if (line.startsWith("data:")) {
+                dataLines.add(line.substring(5).trim());
+                hasData = true;
+            } else if (line.startsWith("retry:")) {
+                try {
+                    currentEvent.setRetry(Integer.parseInt(line.substring(6).trim()));
+                    hasData = true;
+                } catch (NumberFormatException e) {
+                    log.warn("Invalid retry value in SSE: {}", line);
+                }
+            } else {
+                log.debug("Ignoring unknown SSE line: {}", line);
+            }
+        }
+
+        // Handle any final event (in case the stream ends without an empty line)
+        if (hasData) {
+            if (!dataLines.isEmpty()) {
+                currentEvent.setData(String.join("\n", dataLines));
+            }
+
+            log.info("Mapped final SSE event: {}", currentEvent);
+            try {
+                eventQueue.put(currentEvent);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.error("Failed to add final event to queue", e);
+            }
+        }
     }
 }
