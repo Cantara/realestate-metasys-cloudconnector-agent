@@ -186,10 +186,20 @@ public class StreamPocClient {
                 httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofLines())
                         .thenAccept(response -> {
                             log.debug("Response status: {}", response.statusCode());
-                            response.body().forEach(line -> {
-                                log.debug("Incoming SSE data: {}", line);
-                                // Process the incoming SSE data here if needed
-                            });
+                            int statusCode = response.statusCode();
+                            if (statusCode == 200) {
+                                response.body().forEach(line -> {
+                                    log.debug("Incoming SSE data: {}", line);
+                                    // Process the incoming SSE data here if needed
+                                });
+                            } else if (statusCode == 204) {
+                                log.warn("Received 204 response");
+                                throw new MetasysCloudConnectorException("Reconnect to stream with LastKnownEventId is " +
+                                        "not possible. Please Reconnect, and resubscribe to the stream.");
+                            } else {
+                                log.error("Unexpected response: {}", response);
+                                throw new MetasysCloudConnectorException("Unexpected response status: " + statusCode + ", body:" + response.body());
+                            }
                         })
                         .exceptionally(e -> {
                             log.error("Error while listening to SSE stream", e);
@@ -197,6 +207,7 @@ public class StreamPocClient {
                         });
             } catch (Exception e) {
                 log.error("Failed to connect to SSE stream", e);
+                throw new MetasysCloudConnectorException("Failed to connect to SSE stream", e);
             }
         };
 
