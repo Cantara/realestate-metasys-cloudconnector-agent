@@ -230,6 +230,10 @@ public class MetasysClient implements BasClient {
     synchronized void refreshTokenSilently() throws MetasysApiException {
         String shortenedAccessToken = null;
         URI refreshTokenUri = null;
+        if (accessToken == null) {
+            log.warn("Access token param is null. Will use UserToken to get access token.");
+            accessToken = userToken.getAccessToken();
+        }
         try {
             refreshTokenUri = URI.create(apiUri + "refreshToken");
             log.trace("RefreshToken: {} to {}", truncateAccessToken(accessToken), refreshTokenUri);

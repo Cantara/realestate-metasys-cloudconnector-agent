@@ -41,6 +41,7 @@ public class StreamPocClient {
     private HttpClient httpClient;
     private Thread streamListenerThread;
     private final BlockingQueue<ServerSentEvent> eventQueue = new LinkedBlockingQueue<>();
+    private volatile String lastKnownEventId = null;
 
 
     public StreamPocClient() {
@@ -187,9 +188,17 @@ public class StreamPocClient {
                     log.warn("Unexpected response status: {}", statusCode);
                     throw new MetasysCloudConnectorException("Unexpected response status: " + statusCode);
                 }
-            } catch (IOException | InterruptedException e) {
-                log.warn("Failed to connect to SSE stream", e);
-                throw new MetasysCloudConnectorException("Failed to connect to SSE stream", e);
+            } catch (IOException e) {
+                //InterruptedException when Metasys Server calls .close()
+                //IOException when there is a network error
+                String message = "SSE stream experienced network hickup. Need to reconnect with LastKnownEventId: " + lastKnownEventId;
+                MetasysCloudConnectorException exception = new MetasysCloudConnectorException(message, e);
+                log.debug(message, exception);
+            } catch (InterruptedException e) {
+                String message = "SSE stream was closed from Metasys server. Need to reconnect with LastKnownEventId: " + lastKnownEventId;
+                MetasysCloudConnectorException exception = new MetasysCloudConnectorException(message, e);
+                log.debug(message, exception);
+
             }
         };
 
@@ -248,6 +257,7 @@ public class StreamPocClient {
             // Process the field
             if (line.startsWith("id:")) {
                 currentEvent.setId(line.substring(3).trim());
+                lastKnownEventId = currentEvent.getId();
                 hasData = true;
             } else if (line.startsWith("event:")) {
                 currentEvent.setEvent(line.substring(6).trim());
@@ -324,7 +334,7 @@ public class StreamPocClient {
                 } else {
                     log.trace("Access token not changed. Expires: {}", streamPocClient.getUserToken().getExpires());
                 }
-                log.info("Waiting for events...");
+                log.trace("Waiting for events...");
                 while (!streamPocClient.eventQueue.isEmpty()) {
                     log.trace("Event: {}", streamPocClient.eventQueue.poll());
                 }
