@@ -69,6 +69,7 @@ public class StreamPocClient {
         // 2 min before user token expires, call findLatestUserToken
         // create new shcedule to call findLatestUserToken
         Runnable reminderTask = () -> {
+            log.debug("Run scheduled token refresh. Scheduler has {} tasks", ((ScheduledThreadPoolExecutor) scheduler).getQueue().size());
             this.findLatestUserToken();
             this.scheduleTokenRefresh();
         };
@@ -124,64 +125,8 @@ public class StreamPocClient {
         return accessToken.length() > 200 ? accessToken.substring(0, 50) + "..." + accessToken.substring(accessToken.length() - 50) : accessToken;
     }
 
-    public static void main(String[] args) {
-        ApplicationProperties config = new MetasysCloudconnectorApplicationFactory()
-                .conventions(ApplicationProperties.builder())
-                .buildAndSetStaticSingleton();
-        BasClient basClient = initializeMetasysClient(config);
-        StreamPocClient streamPocClient = new StreamPocClient();
-
-        //Verify that token refresh is working
-        String accessToken = streamPocClient.getUserToken().getAccessToken();
-        String shortAccessToken = shortenedAccessToken(accessToken);
-        log.info("AT: {}", shortAccessToken);
-        try {
-            streamPocClient.createStream();
-            ServerSentEvent event = streamPocClient.eventQueue.poll(10, TimeUnit.SECONDS);
-            if (event == null) {
-                throw new MetasysCloudConnectorException("StreamPocClient returned null events. Closing stream.");
-            }
-            log.info("First event: {}", event);
-            String subscriptionId = streamPocClient.getSubscriptionId();
-            log.info("Stream created. SubscriptionId: {}", subscriptionId);
-            List<String> metasysObjectIds = List.of("408eb7e4-f63b-5db0-b665-999bfa6ad588");
-            if (subscriptionId == null && event.getEvent().equals("hello")) {
-                subscriptionId = event.getData();
-
-                log.info("Stream opened. Received subscriptionId: {}", subscriptionId);
-            }
-            if (subscriptionId != null) {
-                subscriptionId = subscriptionId.replace("\"", "");
-            }
-            streamPocClient.subscribeToStream(subscriptionId, metasysObjectIds);
-
-            do {
-                String newAccessToken = streamPocClient.getUserToken().getAccessToken();
-                String newShortAccessToken = shortenedAccessToken(newAccessToken);
-                if (!newShortAccessToken.equals(shortAccessToken)) {
-                    log.info("AT: {} -> {}, expires: {}", shortAccessToken, newShortAccessToken, streamPocClient.getUserToken().getExpires());
-                    accessToken = newShortAccessToken;
-                    shortAccessToken = newShortAccessToken;
-                } else {
-                    log.trace("Access token not changed. Expires: {}", streamPocClient.getUserToken().getExpires());
-                }
-                log.info("Waiting for events...");
-                while (!streamPocClient.eventQueue.isEmpty()) {
-                    log.trace("Event: {}", streamPocClient.eventQueue.poll());
-                }
-                Thread.sleep(10000);
-
-            } while (true);
-        } catch (InterruptedException e) {
-            log.error("Error in main thread", e);
-        } finally {
-            log.info("Closing StreamPocClient");
-            streamPocClient.close();
-//            basClient.close();
-        }
-    }
-
     void close() {
+        log.info("Closing Metasys stream client");
         if (streamListenerThread != null) {
             streamListenerThread.interrupt();
             try {
@@ -235,15 +180,15 @@ public class StreamPocClient {
                         processEventStream(bufferedReader);
                     }
                 } else if (statusCode == 204) {
-                    log.warn("Received 204 response");
+                    log.info("Received 204 response");
                     throw new MetasysCloudConnectorException("Reconnect to stream with LastKnownEventId is " +
                             "not possible. Please Reconnect, and resubscribe to the stream.");
                 } else {
-                    log.error("Unexpected response status: {}", statusCode);
+                    log.warn("Unexpected response status: {}", statusCode);
                     throw new MetasysCloudConnectorException("Unexpected response status: " + statusCode);
                 }
             } catch (IOException | InterruptedException e) {
-                log.error("Failed to connect to SSE stream", e);
+                log.warn("Failed to connect to SSE stream", e);
                 throw new MetasysCloudConnectorException("Failed to connect to SSE stream", e);
             }
         };
@@ -265,7 +210,7 @@ public class StreamPocClient {
         boolean hasData = false;
 
         while ((line = reader.readLine()) != null) {
-            log.debug("Incoming SSE line: {}", line);
+            log.trace("Received SSE line: {}", line);
 
             // Empty line indicates the end of an event
             if (line.isEmpty()) {
@@ -275,7 +220,7 @@ public class StreamPocClient {
                         currentEvent.setData(String.join("\n", dataLines));
                     }
 
-                    log.info("Mapped SSE event: {}", currentEvent);
+                    log.debug("Mapped to SSE event: {}", currentEvent);
                     try {
                         eventQueue.put(currentEvent);
 
@@ -335,6 +280,63 @@ public class StreamPocClient {
                 Thread.currentThread().interrupt();
                 log.error("Failed to add final event to queue", e);
             }
+        }
+    }
+
+    public static void main(String[] args) {
+        ApplicationProperties config = new MetasysCloudconnectorApplicationFactory()
+                .conventions(ApplicationProperties.builder())
+                .buildAndSetStaticSingleton();
+        BasClient basClient = initializeMetasysClient(config);
+        StreamPocClient streamPocClient = new StreamPocClient();
+
+        //Verify that token refresh is working
+        String accessToken = streamPocClient.getUserToken().getAccessToken();
+        String shortAccessToken = shortenedAccessToken(accessToken);
+        log.info("AccessToken: {}, expires at: {}", shortAccessToken, streamPocClient.getUserToken().getExpires());
+        try {
+            streamPocClient.createStream();
+            ServerSentEvent event = streamPocClient.eventQueue.poll(10, TimeUnit.SECONDS);
+            if (event == null) {
+                throw new MetasysCloudConnectorException("StreamPocClient returned null events. Closing stream.");
+            }
+            log.info("First event: {}", event);
+            String subscriptionId = streamPocClient.getSubscriptionId();
+            log.info("Stream created. SubscriptionId: {}", subscriptionId);
+            List<String> metasysObjectIds = List.of("408eb7e4-f63b-5db0-b665-999bfa6ad588");
+            if (subscriptionId == null && event.getEvent().equals("hello")) {
+                subscriptionId = event.getData();
+
+                log.info("Stream opened. Received subscriptionId: {}", subscriptionId);
+            }
+            if (subscriptionId != null) {
+                subscriptionId = subscriptionId.replace("\"", "");
+            }
+            streamPocClient.subscribeToStream(subscriptionId, metasysObjectIds);
+
+            do {
+                String newAccessToken = streamPocClient.getUserToken().getAccessToken();
+                String newShortAccessToken = shortenedAccessToken(newAccessToken);
+                if (!newShortAccessToken.equals(shortAccessToken)) {
+                    log.info("AT: {} -> {}, expires: {}", shortAccessToken, newShortAccessToken, streamPocClient.getUserToken().getExpires());
+                    accessToken = newShortAccessToken;
+                    shortAccessToken = newShortAccessToken;
+                } else {
+                    log.trace("Access token not changed. Expires: {}", streamPocClient.getUserToken().getExpires());
+                }
+                log.info("Waiting for events...");
+                while (!streamPocClient.eventQueue.isEmpty()) {
+                    log.trace("Event: {}", streamPocClient.eventQueue.poll());
+                }
+                Thread.sleep(10000);
+
+            } while (true);
+        } catch (InterruptedException e) {
+            log.error("Error in main thread", e);
+        } finally {
+            log.info("Closing StreamPocClient");
+            streamPocClient.close();
+//            basClient.close();
         }
     }
 }
