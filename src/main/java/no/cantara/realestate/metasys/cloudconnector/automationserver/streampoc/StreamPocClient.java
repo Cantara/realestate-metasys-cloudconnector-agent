@@ -24,6 +24,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -33,6 +34,11 @@ import static org.slf4j.LoggerFactory.getLogger;
 public class StreamPocClient {
     private static final Logger log = getLogger(StreamPocClient.class);
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
+    private static final String LOGON_FAILED = "Logon Failed";
+    private static final String RECONNECT_WITH_LAST_KNOWN_EVENT_ID_FAILED = "Reconnect with LastKnownEventId failed";
+    private static final String UNKNOWN_STATUS_CODE = "Unknown status code";
+    private static final String METASYS_SERVER_CLOSED_STREAM = "Metasys server closed stream";
+    private static final String NETWORK_INTERRUPTED = "Network connection to Metays server interrupted";
     private final MetasysClient metasysClient;
     private final ScheduledExecutorService scheduler;
     private final URI sdUri;
@@ -42,6 +48,7 @@ public class StreamPocClient {
     private Thread streamListenerThread;
     private final BlockingQueue<ServerSentEvent> eventQueue = new LinkedBlockingQueue<>();
     private volatile String lastKnownEventId = null;
+    private AtomicReference<String> closingStreamReason = new AtomicReference<>(null);
 
 
     public StreamPocClient() {
@@ -146,6 +153,7 @@ public class StreamPocClient {
                 log.debug("Subscription to metasysObjectId: {} subscriptionId: {}, returned httpStatus: {}", metasysObjectId, subscriptionId, httpStatus);
             } catch (LogonFailedException e) {
                 log.warn("Failed to logon to SD system. Could not subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
+                closingStreamReason = new AtomicReference(LOGON_FAILED);
                 throw e;
             }
         }
@@ -182,10 +190,12 @@ public class StreamPocClient {
                     }
                 } else if (statusCode == 204) {
                     log.info("Received 204 response");
+                    closingStreamReason = new AtomicReference(RECONNECT_WITH_LAST_KNOWN_EVENT_ID_FAILED);
                     throw new MetasysCloudConnectorException("Reconnect to stream with LastKnownEventId is " +
                             "not possible. Please Reconnect, and resubscribe to the stream.");
                 } else {
                     log.warn("Unexpected response status: {}", statusCode);
+                    closingStreamReason = new AtomicReference(UNKNOWN_STATUS_CODE + ":" + statusCode);
                     throw new MetasysCloudConnectorException("Unexpected response status: " + statusCode);
                 }
             } catch (IOException e) {
@@ -194,11 +204,14 @@ public class StreamPocClient {
                 String message = "SSE stream experienced network hickup. Need to reconnect with LastKnownEventId: " + lastKnownEventId;
                 MetasysCloudConnectorException exception = new MetasysCloudConnectorException(message, e);
                 log.debug(message, exception);
+                closingStreamReason = new AtomicReference(METASYS_SERVER_CLOSED_STREAM);
+                throw exception;
             } catch (InterruptedException e) {
                 String message = "SSE stream was closed from Metasys server. Need to reconnect with LastKnownEventId: " + lastKnownEventId;
                 MetasysCloudConnectorException exception = new MetasysCloudConnectorException(message, e);
                 log.debug(message, exception);
-
+                closingStreamReason = new AtomicReference(NETWORK_INTERRUPTED);
+                throw exception;
             }
         };
 
@@ -325,6 +338,13 @@ public class StreamPocClient {
             streamPocClient.subscribeToStream(subscriptionId, metasysObjectIds);
 
             do {
+                //Check if the stream is still alive
+                boolean isAlive = streamPocClient.streamListenerThread.isAlive();
+                if (!isAlive) {
+                    log.info("Stream is not alive. Closing Stream Reason: " + streamPocClient.closingStreamReason.get() );
+                    break;
+                }
+                //Check if access token is still valid
                 String newAccessToken = streamPocClient.getUserToken().getAccessToken();
                 String newShortAccessToken = shortenedAccessToken(newAccessToken);
                 if (!newShortAccessToken.equals(shortAccessToken)) {
@@ -334,13 +354,14 @@ public class StreamPocClient {
                 } else {
                     log.trace("Access token not changed. Expires: {}", streamPocClient.getUserToken().getExpires());
                 }
-                log.trace("Waiting for events...");
+//                log.trace("Waiting for events...");
                 while (!streamPocClient.eventQueue.isEmpty()) {
                     log.trace("Event: {}", streamPocClient.eventQueue.poll());
                 }
                 Thread.sleep(10000);
 
             } while (true);
+            log.info("Stream closed. StreamPocClient will be closed.");
         } catch (InterruptedException e) {
             log.error("Error in main thread", e);
         } finally {
