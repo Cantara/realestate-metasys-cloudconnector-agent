@@ -306,6 +306,20 @@ public class StreamPocClient {
         }
     }
 
+    public boolean isStreamOpen() {
+        boolean isOpen = streamListenerThread != null && streamListenerThread.isAlive();
+        log.debug("Stream is open: {}", isOpen);
+        return isOpen;
+    }
+
+    public boolean isStreamThreadInterrupted() {
+        if (streamListenerThread != null) {
+            return streamListenerThread.isInterrupted();
+        } else {
+            return false;
+        }
+    }
+
     public static void main(String[] args) {
         ApplicationProperties config = new MetasysCloudconnectorApplicationFactory()
                 .conventions(ApplicationProperties.builder())
@@ -319,6 +333,7 @@ public class StreamPocClient {
         log.info("AccessToken: {}, expires at: {}", shortAccessToken, streamPocClient.getUserToken().getExpires());
         try {
             streamPocClient.createStream();
+            log.debug("Waiting for first event... IsStreamOpen? {}", streamPocClient.isStreamOpen());
             ServerSentEvent event = streamPocClient.eventQueue.poll(10, TimeUnit.SECONDS);
             if (event == null) {
                 throw new MetasysCloudConnectorException("StreamPocClient returned null events. Closing stream.");
@@ -370,4 +385,6 @@ public class StreamPocClient {
 //            basClient.close();
         }
     }
+
+
 }
