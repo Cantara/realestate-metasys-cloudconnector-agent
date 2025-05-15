@@ -34,11 +34,16 @@ import static org.slf4j.LoggerFactory.getLogger;
 public class StreamPocClient {
     private static final Logger log = getLogger(StreamPocClient.class);
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
-    private static final String LOGON_FAILED = "Logon Failed";
-    private static final String RECONNECT_WITH_LAST_KNOWN_EVENT_ID_FAILED = "Reconnect with LastKnownEventId failed";
-    private static final String UNKNOWN_STATUS_CODE = "Unknown status code";
-    private static final String METASYS_SERVER_CLOSED_STREAM = "Metasys server closed stream";
-    private static final String NETWORK_INTERRUPTED = "Network connection to Metays server interrupted";
+    public static final String LOGON_FAILED = "Logon Failed";
+    public static final String RECONNECT_WITH_LAST_KNOWN_EVENT_ID_FAILED = "Reconnect with LastKnownEventId failed";
+    public static final String UNKNOWN_STATUS_CODE = "Unknown status code";
+    public static final String METASYS_SERVER_CLOSED_STREAM = "Metasys server closed stream";
+    public static final String NETWORK_INTERRUPTED = "Network connection to Metays server interrupted";
+    public static final String PROCESSING_STREAM_ERROR = "Connecting to, or processing stream failed";
+    public static final String UNEXPECTED_ERROR = "Unexpected error";
+    public static final String STREAM_CLOSED_UNEXPECTEDLY = "Stream closed unexpectedly";
+    public static final String STREAM_ENDED_WITHOUT_EMPTY_LINE = "Stream ended without empty line.";
+    public static final String STREAM_ENDED_WITH_NULL = "Stream ended because readLine returned null.";
     private final MetasysClient metasysClient;
     private final ScheduledExecutorService scheduler;
     private final URI sdUri;
@@ -190,34 +195,62 @@ public class StreamPocClient {
                     }
                 } else if (statusCode == 204) {
                     log.info("Received 204 response");
-                    closingStreamReason = new AtomicReference(RECONNECT_WITH_LAST_KNOWN_EVENT_ID_FAILED);
-                    throw new MetasysCloudConnectorException("Reconnect to stream with LastKnownEventId is " +
-                            "not possible. Please Reconnect, and resubscribe to the stream.");
+//                    closingStreamReason.set(RECONNECT_WITH_LAST_KNOWN_EVENT_ID_FAILED);
+                    throw new MetasysCloudConnectorException(RECONNECT_WITH_LAST_KNOWN_EVENT_ID_FAILED + " Please Reconnect, and resubscribe to the stream.");
                 } else {
                     log.warn("Unexpected response status: {}", statusCode);
-                    closingStreamReason = new AtomicReference(UNKNOWN_STATUS_CODE + ":" + statusCode);
-                    throw new MetasysCloudConnectorException("Unexpected response status: " + statusCode);
+//                    closingStreamReason.set(UNKNOWN_STATUS_CODE + ":" + statusCode);
+                    throw new MetasysCloudConnectorException(UNKNOWN_STATUS_CODE + ": " + statusCode);
                 }
+            } catch (MetasysCloudConnectorException e) {
+                log.warn("Failure while processing, or connecting to stream: {}", e.getMessage(), e);
+                if (closingStreamReason.get() == null) {
+                    closingStreamReason.set(PROCESSING_STREAM_ERROR + ": " + e.getMessage());
+                }
+                throw e;
             } catch (IOException e) {
                 //InterruptedException when Metasys Server calls .close()
                 //IOException when there is a network error
                 String message = "SSE stream experienced network hickup. Need to reconnect with LastKnownEventId: " + lastKnownEventId;
                 MetasysCloudConnectorException exception = new MetasysCloudConnectorException(message, e);
                 log.debug(message, exception);
-                closingStreamReason = new AtomicReference(METASYS_SERVER_CLOSED_STREAM);
+                if (closingStreamReason.get() == null) {
+                    closingStreamReason.set(NETWORK_INTERRUPTED + ": " + e.getMessage());
+                }
                 throw exception;
             } catch (InterruptedException e) {
                 String message = "SSE stream was closed from Metasys server. Need to reconnect with LastKnownEventId: " + lastKnownEventId;
                 MetasysCloudConnectorException exception = new MetasysCloudConnectorException(message, e);
                 log.debug(message, exception);
-                closingStreamReason = new AtomicReference(NETWORK_INTERRUPTED);
+                closingStreamReason.set(METASYS_SERVER_CLOSED_STREAM + ": " + e.getMessage());
                 throw exception;
+            } catch (Exception e) {
+                // Catch any other unexpected exceptions
+                String message = "Unexpected error in stream processing: " + e.getMessage();
+                log.error(message, e);
+                closingStreamReason.set(UNEXPECTED_ERROR + ": " + e.getMessage());
+                throw new MetasysCloudConnectorException(message, e);
+            } finally {
+                // Ensure we always set a reason if none is set already
+                if (closingStreamReason.get() == null) {
+                    closingStreamReason.set(STREAM_CLOSED_UNEXPECTEDLY);
+                    log.warn("Stream closed without a specific reason being set");
+                }
             }
         };
 
+        closingStreamReason.set(null);
         streamListenerThread = new Thread(streamTask, "StreamListenerPoc");
+        // Add a thread shutdown hook to catch any uncaught exceptions
+        streamListenerThread.setUncaughtExceptionHandler((t, e) -> {
+            log.error("Uncaught exception in stream thread: {}", e.getMessage(), e);
+            if (closingStreamReason.get() == null) {
+                closingStreamReason.set("UNCAUGHT_EXCEPTION: " + e.getMessage());
+            }
+        });
         streamListenerThread.start();
     }
+
     /**
      * Process the incoming SSE event stream according to the specification.
      * Events are separated by blank lines and consist of fields starting with "id:", "event:", "data:", or "retry:".
@@ -303,6 +336,15 @@ public class StreamPocClient {
                 Thread.currentThread().interrupt();
                 log.error("Failed to add final event to queue", e);
             }
+            log.warn("Stream ended without empty line. Last event: {}", currentEvent);
+            if (closingStreamReason.get() == null) {
+                closingStreamReason.set(STREAM_ENDED_WITHOUT_EMPTY_LINE + " This could be network-error, or server closing the connection. Please reconnect with LastKnownEventId.");
+            }
+        } else {
+            log.warn("Stream ended because readLine returned null");
+            if (closingStreamReason.get() == null) {
+                closingStreamReason.set(STREAM_ENDED_WITH_NULL + " This could be network-error, or server closing the connection. Please reconnect with LastKnownEventId.");
+            }
         }
     }
 
@@ -318,6 +360,10 @@ public class StreamPocClient {
         } else {
             return false;
         }
+    }
+
+    public AtomicReference<String> getClosingStreamReason() {
+        return closingStreamReason;
     }
 
     public static void main(String[] args) {
@@ -356,7 +402,7 @@ public class StreamPocClient {
                 //Check if the stream is still alive
                 boolean isAlive = streamPocClient.streamListenerThread.isAlive();
                 if (!isAlive) {
-                    log.info("Stream is not alive. Closing Stream Reason: " + streamPocClient.closingStreamReason.get() );
+                    log.info("Stream is not alive. Closing Stream Reason: " + streamPocClient.closingStreamReason.get());
                     break;
                 }
                 //Check if access token is still valid

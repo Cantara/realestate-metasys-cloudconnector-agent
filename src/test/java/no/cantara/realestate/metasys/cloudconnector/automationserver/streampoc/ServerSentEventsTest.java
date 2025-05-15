@@ -12,8 +12,8 @@ import java.net.ServerSocket;
 import java.net.URI;
 import java.time.Instant;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static no.cantara.realestate.metasys.cloudconnector.automationserver.streampoc.StreamPocClient.*;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.slf4j.LoggerFactory.getLogger;
@@ -66,6 +66,10 @@ public class ServerSentEventsTest {
         streamPocClient.createStream();
         //Wait for response from the stream.
         Thread.sleep(100);
+        if (!streamPocClient.getClosingStreamReason().get().contains(RECONNECT_WITH_LAST_KNOWN_EVENT_ID_FAILED)){
+            log.debug("TestResult: {}", streamPocClient.getClosingStreamReason().get());
+        }
+        assertTrue(streamPocClient.getClosingStreamReason().get().contains(RECONNECT_WITH_LAST_KNOWN_EVENT_ID_FAILED));
     }
 
     @Test
@@ -75,6 +79,10 @@ public class ServerSentEventsTest {
         //Wait for response from the stream.
         Thread.sleep(100);
         assertFalse(streamPocClient.isStreamOpen());
+        if (!streamPocClient.getClosingStreamReason().get().contains(STREAM_ENDED_WITH_NULL)){
+            log.debug("TestResult: {}", streamPocClient.getClosingStreamReason().get()+ ", got: \n" + streamPocClient.getClosingStreamReason().get());
+        }
+        assertTrue(streamPocClient.getClosingStreamReason().get().contains(STREAM_ENDED_WITH_NULL));
     }
 
     @Test
@@ -84,7 +92,13 @@ public class ServerSentEventsTest {
         //Wait for response from the stream.
         Thread.sleep(100);
         assertFalse(streamPocClient.isStreamOpen());
+        if (!streamPocClient.getClosingStreamReason().get().contains(NETWORK_INTERRUPTED)){
+            log.debug("TestResult: {}", streamPocClient.getClosingStreamReason().get());
+        }
+        assertTrue(streamPocClient.getClosingStreamReason().get().contains(NETWORK_INTERRUPTED));
     }
+
+
 
     private static int findFreePort() throws IOException {
         try (ServerSocket socket = new ServerSocket(0)) {
