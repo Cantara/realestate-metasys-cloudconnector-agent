@@ -54,6 +54,7 @@ public class StreamPocClient {
     private final BlockingQueue<ServerSentEvent> eventQueue = new LinkedBlockingQueue<>();
     private volatile String lastKnownEventId = null;
     private AtomicReference<String> closingStreamReason = new AtomicReference<>(null);
+    private boolean reconnectOnError = true;
 
 
     public StreamPocClient() {
@@ -364,6 +365,14 @@ public class StreamPocClient {
 
     public AtomicReference<String> getClosingStreamReason() {
         return closingStreamReason;
+    }
+
+    public boolean isReconnectOnError() {
+        return reconnectOnError;
+    }
+
+    public void setReconnectOnError(boolean reconnectOnError) {
+        this.reconnectOnError = reconnectOnError;
     }
 
     public static void main(String[] args) {

@@ -56,56 +56,9 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
     }
 
 
-    public static void main(String[] args) {
-        String externalConfigPath = "./logback_override.xml";
-        LogbackConfigLoader.loadExternalConfig(externalConfigPath);
-        log = getLogger(MetasysCloudconnectorApplication.class);
-
-        ApplicationProperties config = new MetasysCloudconnectorApplicationFactory()
-                .conventions(ApplicationProperties.builder())
-                .buildAndSetStaticSingleton();
-
-        try {
-            MetasysCloudconnectorApplication application = new MetasysCloudconnectorApplication(config).init().start();
-            log.info("Server started. See status on {}:{}{}/health", "http://localhost", config.get("server.port"), config.get("server.context-path"));
-            application.startImportingObservations();
-        } catch (Exception e) {
-            log.error("Failed to start MetasysCloudconnectorApplication", e);
-        }
-
-    }
-
-    protected void startImportingObservations() {
-        // Start import scheduler and stream
-        if (enableStream) {
-            log.info("Stream import is enabled.");
-            List<String> importAllFromRealestates = findListOfRealestatesToImportFrom();
-            log.info("Stream import all from these RealEstates: {}", importAllFromRealestates);
-            List<MappedIdQuery> idQueries = new ArrayList<>();
-            if (importAllFromRealestates != null && importAllFromRealestates.size() > 0) {
-                for (String realestate : importAllFromRealestates) {
-                    MappedIdQuery mappedIdQuery = new MetasysMappedIdQueryBuilder().realEstate(realestate).build();
-                    idQueries.add(mappedIdQuery);
-                }
-            }
-
-            try {
-                log.info("Stream import with these queries: {}", idQueries);
-                get(MetasysStreamImporter.class).startSubscribing(idQueries);
-            } catch (SdLogonFailedException e) {
-                setUnhealthy();
-                log.warn("Failed to start subscribing to stream. Reason: {}", e.getMessage());
-            }
-        } else {
-            log.info("Stream import is disabled.");
-        }
-        if (enableScheduledImport) {
-            get(ScheduledImportManager.class).startScheduledImportOfTrendIds();
-        } else {
-            log.info("Scheduled import is disabled.");
-        }
-    }
-
+    /*
+    Initialization of the application below.
+     */
 
 
     @Override
@@ -323,6 +276,62 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
     private RandomizerResource createRandomizerResource() {
         Random random = get(Random.class);
         return new RandomizerResource(random);
+    }
+
+    /*
+    Start application
+     */
+    public static void main(String[] args) {
+        String externalConfigPath = "./logback_override.xml";
+        LogbackConfigLoader.loadExternalConfig(externalConfigPath);
+        log = getLogger(MetasysCloudconnectorApplication.class);
+
+        ApplicationProperties config = new MetasysCloudconnectorApplicationFactory()
+                .conventions(ApplicationProperties.builder())
+                .buildAndSetStaticSingleton();
+
+        try {
+            MetasysCloudconnectorApplication application = new MetasysCloudconnectorApplication(config).init().start();
+            log.info("Server started. See status on {}:{}{}/health", "http://localhost", config.get("server.port"), config.get("server.context-path"));
+            application.startImportingObservations();
+        } catch (Exception e) {
+            log.error("Failed to start MetasysCloudconnectorApplication", e);
+        }
+
+    }
+
+    /*
+    Start importing observations from Metasys thorough stream and/or scheduled import.
+     */
+    protected void startImportingObservations() {
+        // Start import scheduler and stream
+        if (enableStream) {
+            log.info("Stream import is enabled.");
+            List<String> importAllFromRealestates = findListOfRealestatesToImportFrom();
+            log.info("Stream import all from these RealEstates: {}", importAllFromRealestates);
+            List<MappedIdQuery> idQueries = new ArrayList<>();
+            if (importAllFromRealestates != null && importAllFromRealestates.size() > 0) {
+                for (String realestate : importAllFromRealestates) {
+                    MappedIdQuery mappedIdQuery = new MetasysMappedIdQueryBuilder().realEstate(realestate).build();
+                    idQueries.add(mappedIdQuery);
+                }
+            }
+
+            try {
+                log.info("Stream import with these queries: {}", idQueries);
+                get(MetasysStreamImporter.class).startSubscribing(idQueries);
+            } catch (SdLogonFailedException e) {
+                setUnhealthy();
+                log.warn("Failed to start subscribing to stream. Reason: {}", e.getMessage());
+            }
+        } else {
+            log.info("Stream import is disabled.");
+        }
+        if (enableScheduledImport) {
+            get(ScheduledImportManager.class).startScheduledImportOfTrendIds();
+        } else {
+            log.info("Scheduled import is disabled.");
+        }
     }
 
 }
