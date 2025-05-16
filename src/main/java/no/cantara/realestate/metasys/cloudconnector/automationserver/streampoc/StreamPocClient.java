@@ -5,9 +5,7 @@ import no.cantara.realestate.automationserver.BasClient;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorException;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnectorApplicationFactory;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.ConnectionCloseInfo;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.StreamEvent;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.StreamListener;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.*;
 import no.cantara.realestate.metasys.cloudconnector.notifications.NotificationService;
 import no.cantara.realestate.security.LogonFailedException;
 import no.cantara.realestate.security.UserToken;
@@ -333,8 +331,10 @@ public class StreamPocClient {
                     // If we have a StreamListener, call onEvent
                     if (streamListener != null) {
                         try {
-                            StreamEvent streamEvent = convertToStreamEvent(currentEvent);
-                            streamListener.onEvent(streamEvent);
+                            StreamEvent streamEvent = EventInputMapper.toStreamEvent(currentEvent);
+                            if (streamEvent != null && streamEvent instanceof MetasysObservedValueEvent) {
+                                streamListener.onEvent(streamEvent);
+                            }
                         } catch (Exception e) {
                             log.error("Error in StreamListener.onEvent", e);
                         }
@@ -399,8 +399,10 @@ public class StreamPocClient {
             // If we have a StreamListener, call onEvent
             if (streamListener != null) {
                 try {
-                    StreamEvent streamEvent = convertToStreamEvent(currentEvent);
-                    streamListener.onEvent(streamEvent);
+                    StreamEvent streamEvent = EventInputMapper.toStreamEvent(currentEvent);
+                    if (streamEvent != null && streamEvent instanceof MetasysObservedValueEvent) {
+                        streamListener.onEvent(streamEvent);
+                    }
                 } catch (Exception e) {
                     log.error("Error in StreamListener.onEvent for final event", e);
                 }
@@ -425,32 +427,6 @@ public class StreamPocClient {
         }
     }
 
-    /**
-     * Converts a ServerSentEvent to a StreamEvent
-     */
-    private StreamEvent convertToStreamEvent(ServerSentEvent sseEvent) {
-        return new StreamEvent() {
-            @Override
-            public String getId() {
-                return sseEvent.getId();
-            }
-
-            @Override
-            public String getName() {
-                return sseEvent.getEvent();
-            }
-
-            @Override
-            public String getData() {
-                return sseEvent.getData();
-            }
-
-            @Override
-            public String toString() {
-                return "StreamEvent{id='" + getId() + "', name='" + getName() + "', data='" + getData() + "'}";
-            }
-        };
-    }
 
     public boolean isStreamOpen() {
         boolean isOpen = streamListenerThread != null && streamListenerThread.isAlive();
