@@ -2,11 +2,16 @@ package no.cantara.realestate.metasys.cloudconnector.automationserver.streampoc;
 
 import no.cantara.config.ApplicationProperties;
 import no.cantara.realestate.automationserver.BasClient;
+import no.cantara.realestate.distribution.ObservationDistributionClient;
+import no.cantara.realestate.mappingtable.MappedSensorId;
+import no.cantara.realestate.mappingtable.rec.SensorRecObject;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorException;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnectorApplicationFactory;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.*;
 import no.cantara.realestate.metasys.cloudconnector.notifications.NotificationService;
+import no.cantara.realestate.metasys.cloudconnector.observations.MetasysObservationMessage;
+import no.cantara.realestate.observations.ObservationMessage;
 import no.cantara.realestate.security.LogonFailedException;
 import no.cantara.realestate.security.UserToken;
 import org.slf4j.Logger;
@@ -33,7 +38,7 @@ import static org.slf4j.LoggerFactory.getLogger;
 /**
  * Connect to Stream, and keep the observations flowing. With Refreshing the token.
  */
-public class StreamPocClient {
+public class StreamPocClient implements StreamListener {
     private static final Logger log = getLogger(StreamPocClient.class);
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
     public static final String LOGON_FAILED = "Logon Failed";
@@ -58,6 +63,7 @@ public class StreamPocClient {
     private AtomicReference<String> closingStreamReason = new AtomicReference<>(null);
     private boolean reconnectOnError = true;
     private StreamListener streamListener = null;
+    private final ObservationDistributionClient distributionClient;
 
 
     public StreamPocClient() {
@@ -73,6 +79,50 @@ public class StreamPocClient {
                 .connectTimeout(REQUEST_TIMEOUT)
                 .build();
         sdUri = metasysClient.getApiUri();
+        distributionClient = initializeStubDistributionClient();
+    }
+
+    ObservationDistributionClient initializeStubDistributionClient() {
+        return new ObservationDistributionClient() {
+            int messageCount = 0;
+            List<ObservationMessage> observedMessages = new ArrayList<>();
+            @Override
+            public String getName() {
+                return "StubDistributionClient";
+            }
+
+            @Override
+            public void openConnection() {
+            log.debug("Opening connection to StubDistributionClient");
+            }
+
+            @Override
+            public void closeConnection() {
+                log.debug("Closing connection to StubDistributionClient");
+            }
+
+            @Override
+            public boolean isConnectionEstablished() {
+                return true;
+            }
+
+            @Override
+            public void publish(ObservationMessage observationMessage) {
+                log.info("Publishing ObservationMessage: {}", observationMessage);
+                messageCount++;
+                observedMessages.add(observationMessage);
+            }
+
+            @Override
+            public long getNumberOfMessagesObserved() {
+                return messageCount;
+            }
+
+            @Override
+            public List<ObservationMessage> getObservedMessages() {
+                return observedMessages;
+            }
+        };
     }
 
     protected void findLatestUserToken() {
@@ -427,6 +477,38 @@ public class StreamPocClient {
         }
     }
 
+    @Override
+    public void onEvent(StreamEvent event) {
+        log.info("StreamListener received event: {}", event);
+        if (event instanceof MetasysObservedValueEvent) {
+            MetasysObservedValueEvent observedValueEvent = (MetasysObservedValueEvent) event;
+            log.info("StreamListener received observed value event: {}", observedValueEvent);
+            ObservedValue observedValue = observedValueEvent.getObservedValue();
+            final String metricKey = "metasys_stream_observation_received";
+            String metasysObjectId = observedValueEvent.getObservedValue().getId();
+            no.cantara.realestate.mappingtable.SensorId sensorId = new no.cantara.realestate.mappingtable.metasys.MetasysSensorId(metasysObjectId, null);
+            String adtSensorId = "stubSensorId"; // TODO: Replace with actual sensor ID
+            SensorRecObject rec = new SensorRecObject(adtSensorId);
+            MappedSensorId mappedId = new no.cantara.realestate.mappingtable.MappedSensorId(sensorId, rec);
+            if (observedValue instanceof ObservedValueNumber) {
+                ObservationMessage observationMessage = new MetasysObservationMessage((ObservedValueNumber) observedValue, mappedId);
+                distributionClient.publish(observationMessage);
+            } else if (observedValue instanceof ObservedValueBoolean) {
+                ObservedValueNumber observedValueNumber = new ObservedValueNumber(observedValue.getId(), ((ObservedValueBoolean) observedValue).getValue() ? 1 : 0, observedValue.getItemReference());
+                ObservationMessage observationMessage = new MetasysObservationMessage(observedValueNumber, mappedId);
+                distributionClient.publish(observationMessage);
+            } else {
+                log.trace("ObservedValue is not a number. Not publishing to distributionClient. ObservedValue: {}", observedValue);
+            }
+        } else {
+            log.warn("StreamListener received unknown event type: {}", event.getClass().getName());
+        }
+    }
+
+    @Override
+    public void onClose(ConnectionCloseInfo closeInfo) {
+        log.info("StreamListener connection closed: {}", closeInfo);
+    }
 
     public boolean isStreamOpen() {
         boolean isOpen = streamListenerThread != null && streamListenerThread.isAlive();
@@ -461,18 +543,6 @@ public class StreamPocClient {
         BasClient basClient = initializeMetasysClient(config);
         StreamPocClient streamPocClient = new StreamPocClient();
 
-        // Create a StreamListener for demonstration
-        StreamListener demoListener = new StreamListener() {
-            @Override
-            public void onEvent(StreamEvent event) {
-                log.info("StreamListener received event: {}", event);
-            }
-
-            @Override
-            public void onClose(ConnectionCloseInfo closeInfo) {
-                log.info("StreamListener connection closed: {}", closeInfo);
-            }
-        };
 
         //Verify that token refresh is working
         String accessToken = streamPocClient.getUserToken().getAccessToken();
@@ -480,7 +550,7 @@ public class StreamPocClient {
         log.info("AccessToken: {}, expires at: {}", shortAccessToken, streamPocClient.getUserToken().getExpires());
         try {
             // Use the StreamListener based approach
-            streamPocClient.createStream(demoListener);
+            streamPocClient.createStream(streamPocClient);
             log.debug("Waiting for events... IsStreamOpen? {}", streamPocClient.isStreamOpen());
 
             // For backward compatibility demonstration, also check the queue
