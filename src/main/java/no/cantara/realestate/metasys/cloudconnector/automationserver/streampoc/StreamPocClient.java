@@ -5,6 +5,9 @@ import no.cantara.realestate.automationserver.BasClient;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorException;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnectorApplicationFactory;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.ConnectionCloseInfo;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.StreamEvent;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.StreamListener;
 import no.cantara.realestate.metasys.cloudconnector.notifications.NotificationService;
 import no.cantara.realestate.security.LogonFailedException;
 import no.cantara.realestate.security.UserToken;
@@ -21,6 +24,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
@@ -55,6 +59,7 @@ public class StreamPocClient {
     private volatile String lastKnownEventId = null;
     private AtomicReference<String> closingStreamReason = new AtomicReference<>(null);
     private boolean reconnectOnError = true;
+    private StreamListener streamListener = null;
 
 
     public StreamPocClient() {
@@ -165,7 +170,21 @@ public class StreamPocClient {
         }
     }
 
+    /**
+     * Creates and starts a new stream connection.
+     */
     protected void createStream() {
+        createStream(null);
+    }
+
+    /**
+     * Creates and starts a new stream connection with a StreamListener.
+     *
+     * @param listener the StreamListener to handle incoming events
+     */
+    protected void createStream(StreamListener listener) {
+        this.streamListener = listener;
+
         Runnable streamTask = () -> {
             String streamUrl = sdUri + "stream";
             log.info("Connecting to SSE stream at: {}", streamUrl);
@@ -196,11 +215,9 @@ public class StreamPocClient {
                     }
                 } else if (statusCode == 204) {
                     log.info("Received 204 response");
-//                    closingStreamReason.set(RECONNECT_WITH_LAST_KNOWN_EVENT_ID_FAILED);
                     throw new MetasysCloudConnectorException(RECONNECT_WITH_LAST_KNOWN_EVENT_ID_FAILED + " Please Reconnect, and resubscribe to the stream.");
                 } else {
                     log.warn("Unexpected response status: {}", statusCode);
-//                    closingStreamReason.set(UNKNOWN_STATUS_CODE + ":" + statusCode);
                     throw new MetasysCloudConnectorException(UNKNOWN_STATUS_CODE + ": " + statusCode);
                 }
             } catch (MetasysCloudConnectorException e) {
@@ -237,6 +254,20 @@ public class StreamPocClient {
                     closingStreamReason.set(STREAM_CLOSED_UNEXPECTEDLY);
                     log.warn("Stream closed without a specific reason being set");
                 }
+
+                // Notify the StreamListener that the connection is closed
+                if (streamListener != null) {
+                    ConnectionCloseInfo closeInfo = new ConnectionCloseInfo(
+                            mapToConnectionCloseReason(closingStreamReason.get()),
+                            null,  // No status code available in this implementation
+                            Instant.now()
+                    );
+                    try {
+                        streamListener.onClose(closeInfo);
+                    } catch (Exception e) {
+                        log.error("Error while notifying StreamListener of connection close", e);
+                    }
+                }
             }
         };
 
@@ -250,6 +281,27 @@ public class StreamPocClient {
             }
         });
         streamListenerThread.start();
+    }
+
+    /**
+     * Maps the string reason to a ConnectionCloseReason enum value
+     */
+    private no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysStreamClient.ConnectionCloseReason mapToConnectionCloseReason(String reason) {
+        if (reason == null) {
+            return no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysStreamClient.ConnectionCloseReason.UNKNOWN;
+        }
+
+        if (reason.contains(LOGON_FAILED)) {
+            return no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysStreamClient.ConnectionCloseReason.AUTHENTICATION_ERROR;
+        } else if (reason.contains(RECONNECT_WITH_LAST_KNOWN_EVENT_ID_FAILED)) {
+            return no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysStreamClient.ConnectionCloseReason.STREAM_NOT_RESUMABLE;
+        } else if (reason.contains(NETWORK_INTERRUPTED)) {
+            return no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysStreamClient.ConnectionCloseReason.NETWORK_ERROR;
+        } else if (reason.contains(METASYS_SERVER_CLOSED_STREAM)) {
+            return no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysStreamClient.ConnectionCloseReason.SERVER_CLOSED;
+        } else {
+            return no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysStreamClient.ConnectionCloseReason.UNKNOWN;
+        }
     }
 
     /**
@@ -277,6 +329,18 @@ public class StreamPocClient {
                     }
 
                     log.debug("Mapped to SSE event: {}", currentEvent);
+
+                    // If we have a StreamListener, call onEvent
+                    if (streamListener != null) {
+                        try {
+                            StreamEvent streamEvent = convertToStreamEvent(currentEvent);
+                            streamListener.onEvent(streamEvent);
+                        } catch (Exception e) {
+                            log.error("Error in StreamListener.onEvent", e);
+                        }
+                    }
+
+                    // For backward compatibility, also add to queue if needed
                     try {
                         eventQueue.put(currentEvent);
 
@@ -331,6 +395,18 @@ public class StreamPocClient {
             }
 
             log.info("Mapped final SSE event: {}", currentEvent);
+
+            // If we have a StreamListener, call onEvent
+            if (streamListener != null) {
+                try {
+                    StreamEvent streamEvent = convertToStreamEvent(currentEvent);
+                    streamListener.onEvent(streamEvent);
+                } catch (Exception e) {
+                    log.error("Error in StreamListener.onEvent for final event", e);
+                }
+            }
+
+            // For backward compatibility, also add to queue if needed
             try {
                 eventQueue.put(currentEvent);
             } catch (InterruptedException e) {
@@ -347,6 +423,33 @@ public class StreamPocClient {
                 closingStreamReason.set(STREAM_ENDED_WITH_NULL + " This could be network-error, or server closing the connection. Please reconnect with LastKnownEventId.");
             }
         }
+    }
+
+    /**
+     * Converts a ServerSentEvent to a StreamEvent
+     */
+    private StreamEvent convertToStreamEvent(ServerSentEvent sseEvent) {
+        return new StreamEvent() {
+            @Override
+            public String getId() {
+                return sseEvent.getId();
+            }
+
+            @Override
+            public String getName() {
+                return sseEvent.getEvent();
+            }
+
+            @Override
+            public String getData() {
+                return sseEvent.getData();
+            }
+
+            @Override
+            public String toString() {
+                return "StreamEvent{id='" + getId() + "', name='" + getName() + "', data='" + getData() + "'}";
+            }
+        };
     }
 
     public boolean isStreamOpen() {
@@ -382,18 +485,34 @@ public class StreamPocClient {
         BasClient basClient = initializeMetasysClient(config);
         StreamPocClient streamPocClient = new StreamPocClient();
 
+        // Create a StreamListener for demonstration
+        StreamListener demoListener = new StreamListener() {
+            @Override
+            public void onEvent(StreamEvent event) {
+                log.info("StreamListener received event: {}", event);
+            }
+
+            @Override
+            public void onClose(ConnectionCloseInfo closeInfo) {
+                log.info("StreamListener connection closed: {}", closeInfo);
+            }
+        };
+
         //Verify that token refresh is working
         String accessToken = streamPocClient.getUserToken().getAccessToken();
         String shortAccessToken = shortenedAccessToken(accessToken);
         log.info("AccessToken: {}, expires at: {}", shortAccessToken, streamPocClient.getUserToken().getExpires());
         try {
-            streamPocClient.createStream();
-            log.debug("Waiting for first event... IsStreamOpen? {}", streamPocClient.isStreamOpen());
+            // Use the StreamListener based approach
+            streamPocClient.createStream(demoListener);
+            log.debug("Waiting for events... IsStreamOpen? {}", streamPocClient.isStreamOpen());
+
+            // For backward compatibility demonstration, also check the queue
             ServerSentEvent event = streamPocClient.eventQueue.poll(10, TimeUnit.SECONDS);
             if (event == null) {
                 throw new MetasysCloudConnectorException("StreamPocClient returned null events. Closing stream.");
             }
-            log.info("First event: {}", event);
+            log.info("First event from queue: {}", event);
             String subscriptionId = streamPocClient.getSubscriptionId();
             log.info("Stream created. SubscriptionId: {}", subscriptionId);
             List<String> metasysObjectIds = List.of("408eb7e4-f63b-5db0-b665-999bfa6ad588");
@@ -424,9 +543,10 @@ public class StreamPocClient {
                 } else {
                     log.trace("Access token not changed. Expires: {}", streamPocClient.getUserToken().getExpires());
                 }
-//                log.trace("Waiting for events...");
+
+                // For backward compatibility, also check the queue
                 while (!streamPocClient.eventQueue.isEmpty()) {
-                    log.trace("Event: {}", streamPocClient.eventQueue.poll());
+                    log.trace("Event from queue: {}", streamPocClient.eventQueue.poll());
                 }
                 Thread.sleep(10000);
 
@@ -437,9 +557,6 @@ public class StreamPocClient {
         } finally {
             log.info("Closing StreamPocClient");
             streamPocClient.close();
-//            basClient.close();
         }
     }
-
-
 }
