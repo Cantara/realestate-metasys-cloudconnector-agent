@@ -102,7 +102,7 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         MetasysMetricsDistributionClient metricsDistributionClient = new MetricsDistributionServiceStub(measurementsName);
         MappedIdRepository mappedIdRepository = init(MappedIdRepository.class, () -> createMappedIdRepository(doImportData));
         ObservationDistributionClient finalObservationDistributionClient = observationDistributionClient;
-        ScheduledImportManager scheduledImportManager = init(ScheduledImportManager.class, () -> wireScheduledImportManager(sdClient, finalObservationDistributionClient, metricsDistributionClient, mappedIdRepository));
+        ScheduledImportManager scheduledImportManager = init(ScheduledImportManager.class, () -> wireScheduledImportManager(sdClient, finalObservationDistributionClient, metricsDistributionClient, mappedIdRepository, auditTrail));
         ObservationDistributionResource observationDistributionResource = initAndRegisterJaxRsWsComponent(ObservationDistributionResource.class, () -> createObservationDistributionResource(finalObservationDistributionClient));
 
         get(StingrayHealthService.class).registerHealthProbe("mappedIdRepository.size", mappedIdRepository::size);
@@ -180,7 +180,7 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
 
 
     protected MetasysStreamImporter wireMetasysStreamImporter(MetasysStreamClient streamClient, BasClient sdClient, MappedIdRepository mappedIdRepository, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsClient) {
-        MetasysStreamImporter streamImporter = new MetasysStreamImporter(streamClient, sdClient, mappedIdRepository, distributionClient, metricsClient);
+        MetasysStreamImporter streamImporter = new MetasysStreamImporter(streamClient, sdClient, mappedIdRepository, distributionClient, metricsClient, auditTrail);
 
         return streamImporter;
     }
@@ -223,16 +223,16 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         return mappedIdRepository;
     }
 
-    private ScheduledImportManager wireScheduledImportManager(BasClient sdClient, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsClient, MappedIdRepository mappedIdRepository) {
+    private ScheduledImportManager wireScheduledImportManager(BasClient sdClient, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsClient, MappedIdRepository mappedIdRepository, InMemoryAuditTrail auditTrail) {
 
         ScheduledImportManager scheduledImportManager = null;
-
+//FIXME simplify. Need only one MappedIdBasedImporter. Remove individual real estate queries.
         List<String> importAllFromRealestates = findListOfRealestatesToImportFrom();
         log.info("Importallres: {}", importAllFromRealestates);
         if (importAllFromRealestates != null && importAllFromRealestates.size() > 0) {
             for (String realestate : importAllFromRealestates) {
                 MappedIdQuery mappedIdQuery = new MetasysMappedIdQueryBuilder().realEstate(realestate).build();
-                TrendLogsImporter trendLogsImporter = new MappedIdBasedImporter(mappedIdQuery, sdClient, distributionClient, metricsClient, mappedIdRepository);
+                TrendLogsImporter trendLogsImporter = new MappedIdBasedImporter(mappedIdQuery, sdClient, distributionClient, metricsClient, mappedIdRepository, auditTrail);
                 if (scheduledImportManager == null) {
                     scheduledImportManager = new ScheduledImportManager(trendLogsImporter, config);
                 } else {
@@ -242,19 +242,19 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         } else {
             log.warn("Using Template import config for RealEstates: REstate1 and RealEst2");
             MappedIdQuery mappedIdQuery = new MetasysMappedIdQueryBuilder().realEstate("REstate1").build();
-            TrendLogsImporter trendLogsImporter = new MappedIdBasedImporter(mappedIdQuery, sdClient, distributionClient, metricsClient, mappedIdRepository);
+            TrendLogsImporter trendLogsImporter = new MappedIdBasedImporter(mappedIdQuery, sdClient, distributionClient, metricsClient, mappedIdRepository, auditTrail);
             scheduledImportManager = new ScheduledImportManager(trendLogsImporter, config);
 
             MappedIdQuery energyOnlyQuery = new MappedIdQueryBuilder().realEstate("RealEst2")
                     .sensorType(SensorType.energy.name())
                     .build();
 
-            TrendLogsImporter mappedIdBasedImporter = new MappedIdBasedImporter(energyOnlyQuery, sdClient, distributionClient, metricsClient, mappedIdRepository);
+            TrendLogsImporter mappedIdBasedImporter = new MappedIdBasedImporter(energyOnlyQuery, sdClient, distributionClient, metricsClient, mappedIdRepository, auditTrail);
             scheduledImportManager.addTrendLogsImporter(mappedIdBasedImporter);
 
             MappedIdQuery mysteryHouseQuery = new MappedIdQueryBuilder().realEstate("511")
                     .build();
-            TrendLogsImporter mysteryImporter = new MappedIdBasedImporter(mysteryHouseQuery, sdClient, distributionClient, metricsClient, mappedIdRepository);
+            TrendLogsImporter mysteryImporter = new MappedIdBasedImporter(mysteryHouseQuery, sdClient, distributionClient, metricsClient, mappedIdRepository, auditTrail);
             scheduledImportManager.addTrendLogsImporter(mysteryImporter);
         }
 

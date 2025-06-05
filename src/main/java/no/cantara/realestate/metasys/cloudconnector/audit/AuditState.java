@@ -1,13 +1,18 @@
 package no.cantara.realestate.metasys.cloudconnector.audit;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 public class AuditState {
 
-    Map<AuditEvent.Type, AuditEvent> events = new ConcurrentHashMap<>();
+    List<AuditEvent> events = new ArrayList<>();
+    private AuditEvent lastObservedTrendEvent = null;
+    private AuditEvent lastObservedStreamEvent = null;
+    private AuditEvent lastObservedPresentValueEvent = null;
+    private volatile Instant lastObservedTimestamp = null;
 
     public AuditState(String sensorId) {
         // Initialize with a FOUND event to indicate the sensorId is being tracked
@@ -19,32 +24,66 @@ public class AuditState {
     }
 
     public void addEvent(AuditEvent event) {
-        events.put(event.getType(), event);
+        events.add( event);
     }
 
     public void setSubscribed(String sensorId, String comment) {
         addEvent(new AuditEvent(sensorId, AuditEvent.Type.SUBSCRIBED, comment));
     }
 
-    public void setObserved(String sensorId, String comment) {
-        addEvent(new AuditEvent(sensorId, AuditEvent.Type.OBSERVED, comment));
-    }
 
     public void setCreated(String sensorId, String comment) {
         addEvent(new AuditEvent(sensorId, AuditEvent.Type.CREATED, comment));
     }
 
-    public List<AuditEvent> getall() {
-        return List.copyOf(events.values());
+    public List<AuditEvent> allEventsByTimestamp() {
+        List<AuditEvent> allEvents = new ArrayList<>(events);
+        allEvents.addAll(events);
+        if (lastObservedTrendEvent != null) {
+            allEvents.add(lastObservedTrendEvent);
+        }
+        if (lastObservedStreamEvent != null) {
+            allEvents.add(lastObservedStreamEvent);
+        }
+        if (lastObservedPresentValueEvent != null) {
+            allEvents.add(lastObservedPresentValueEvent);
+        }
+        return allEvents.stream().sorted(Comparator.comparing(AuditEvent::getTimestamp)).collect(Collectors.toList());
     }
 
-    public Instant getLastUpdated() {
-        Instant lastUpdated = null;
-        AuditEvent lastObservedEvent = events.get(AuditEvent.Type.OBSERVED);
-        if (lastObservedEvent != null) {
-            lastUpdated = lastObservedEvent.getTimestamp();
-        }
-        return lastUpdated;
+    public AuditEvent getLastObservedPresentValueEvent() {
+        return lastObservedPresentValueEvent;
+    }
+
+    public void setLastObservedPresentValueEvent(AuditEvent lastObservedPresentValueEvent) {
+        this.lastObservedPresentValueEvent = lastObservedPresentValueEvent;
+        setLastObservedTimestamp(lastObservedPresentValueEvent.getTimestamp());
+    }
+
+    public AuditEvent getLastObservedStreamEvent() {
+        return lastObservedStreamEvent;
+    }
+
+    public void setLastObservedStreamEvent(AuditEvent lastObservedStreamEvent) {
+        this.lastObservedStreamEvent = lastObservedStreamEvent;
+        setLastObservedTimestamp(lastObservedStreamEvent.getTimestamp());
+    }
+
+    public Instant getLastObservedTimestamp() {
+        return lastObservedTimestamp;
+    }
+
+    public void setLastObservedTimestamp(Instant lastObservedTimestamp) {
+        this.lastObservedTimestamp = lastObservedTimestamp;
+    }
+
+    public AuditEvent getLastObservedTrendEvent() {
+        return lastObservedTrendEvent;
+    }
+
+    public void setLastObservedTrendEvent(AuditEvent lastObservedTrendEvent) {
+        this.lastObservedTrendEvent = lastObservedTrendEvent;
+        setLastObservedTimestamp(lastObservedTrendEvent.getTimestamp());
     }
 }
 

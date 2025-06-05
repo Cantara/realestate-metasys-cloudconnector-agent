@@ -18,9 +18,22 @@ public class InMemoryAuditTrail {
         sensorIdState.setSubscribed(sensorId, detail);
     }
 
-    public void logObserved(String sensorId, String detail) {
+    public void logObservedTrend(String sensorId, String detail) {
         AuditState sensorIdState = getNullSafeState(sensorId);
-        sensorIdState.setObserved(sensorId, detail);
+        AuditEvent event = new AuditEvent(sensorId, AuditEvent.Type.OBSERVED, "Trend:" + detail);
+        sensorIdState.setLastObservedTrendEvent(event);
+    }
+
+    public void logObservedStream(String sensorId, String detail) {
+        AuditState sensorIdState = getNullSafeState(sensorId);
+        AuditEvent event = new AuditEvent(sensorId, AuditEvent.Type.OBSERVED, "Stream:" + detail);
+        sensorIdState.setLastObservedStreamEvent(event);
+    }
+
+    public void logObservedPresentValue(String sensorId, String detail) {
+        AuditState sensorIdState = getNullSafeState(sensorId);
+        AuditEvent event = new AuditEvent(sensorId, AuditEvent.Type.OBSERVED, "PresentValue:" + detail);
+        sensorIdState.setLastObservedPresentValueEvent(event);
     }
 
     public Optional<AuditState> getState(String sensorId) {
@@ -28,7 +41,7 @@ public class InMemoryAuditTrail {
     }
     private AuditState getNullSafeState(String sensorId) {
         if (sensorId == null || sensorId.isBlank()) {
-            throw new IllegalArgumentException("Sensor ID cannot be null or blank");
+            return null;
         }
         AuditState sensorIdState = states.get(sensorId);
         if (sensorIdState == null) {

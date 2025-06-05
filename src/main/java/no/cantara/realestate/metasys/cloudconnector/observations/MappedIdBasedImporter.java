@@ -38,6 +38,7 @@ import java.time.Instant;
 import java.util.*;
 
 import static no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealthResource.lastImportedObservationTypes;
+import static no.cantara.realestate.utils.StringUtils.hasValue;
 import static org.slf4j.LoggerFactory.getLogger;
 
 public class MappedIdBasedImporter implements TrendLogsImporter {
@@ -49,6 +50,7 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
     private final ObservationDistributionClient distributionClient;
     private final MetasysMetricsDistributionClient metricsClient;
     private final MappedIdRepository mappedIdRepository;
+    private final InMemoryAuditTrail auditTrail;
     private List<MappedSensorId> importableTrendIds = new ArrayList<>();
     private final Map<String, Instant> lastSuccessfulImportAt;
     private Timer metricsDistributor;
@@ -57,12 +59,13 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
 
 
     public MappedIdBasedImporter(MappedIdQuery mappedIdQuery, BasClient basClient, ObservationDistributionClient distributionClient,
-                                    MetasysMetricsDistributionClient metricsClient, MappedIdRepository mappedIdRepository) {
+                                    MetasysMetricsDistributionClient metricsClient, MappedIdRepository mappedIdRepository, InMemoryAuditTrail auditTrail) {
         this.mappedIdQuery = mappedIdQuery;
         this.basClient = basClient;
         this.distributionClient = distributionClient;
         this.metricsClient = metricsClient;
         this.mappedIdRepository = mappedIdRepository;
+        this.auditTrail = auditTrail;
         lastSuccessfulImportAt = new HashMap<>();
     }
 
@@ -71,6 +74,17 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
         try {
             importableTrendIds = mappedIdRepository.find(mappedIdQuery);
             log.debug("Found {} trendIds to import. Query: {}", importableTrendIds.size(), mappedIdQuery);
+            for (MappedSensorId importableTrendId : importableTrendIds) {
+                String sensorId = importableTrendId.getSensorId().getId();
+                if (sensorId == null && importableTrendId.getRec() != null) {
+                    sensorId = importableTrendId.getRec().getRecId();
+                }
+                if (hasValue(sensorId)) {
+                    auditTrail.logSubscribed(sensorId, "Subsribe to trendId");
+                } else {
+                    log.warn("MappedSensorId has no sensorId. Skipping import of trendId: {}", importableTrendId);
+                }
+            }
             metricsClient.openDb();
             lastImportedObservationTypes.loadLastUpdatedStatus();
             TemporaryHealthResource.lastImportedObservationTypes = lastImportedObservationTypes;
@@ -146,10 +160,10 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
             int skip = 0;
             if (mappedSensorId.getSensorId() != null && mappedSensorId.getSensorId() instanceof MetasysSensorId) {
 
-                MetasysSensorId sensorId = (MetasysSensorId) mappedSensorId.getSensorId();
-                String trendId = sensorId.getMetasysObjectId();
+                MetasysSensorId metasysSensorId = (MetasysSensorId) mappedSensorId.getSensorId();
+                String trendId = metasysSensorId.getMetasysObjectId();
                 if (trendId == null) {
-                    log.warn("TrendId is null for sensorId: {}", sensorId);
+                    log.warn("TrendId is null for sensorId: {}", metasysSensorId);
                 } else {
                     Instant importFrom = lastSuccessfulImportAt.get(trendId);
                     if (importFrom == null) {
@@ -179,6 +193,11 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
                             log.trace("Found {} samples for trendId: {}", trendSamples.size(), trendId);
                             if (trendSamples.size() > 0) {
                                 lastSuccessfulImportAt.put(trendId, Instant.now());
+                                String sensorId = null;
+                                if (mappedSensorId.getRec() != null) {
+                                    sensorId = mappedSensorId.getRec().getRecId();
+                                }
+                                auditTrail.logObservedTrend(sensorId, "Observed: " + trendSamples.size());
                             }
 
                             successfulImport++;
@@ -292,7 +311,7 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
         String configDirectory = config.get("importdata.directory");
         InMemoryAuditTrail auditTrail = new InMemoryAuditTrail();
         MappedIdRepository mappedIdRepository = createMappedIdRepository(true, configDirectory, auditTrail);
-        MappedIdBasedImporter importer = new MappedIdBasedImporter(tfm2RecQuery, sdClient, observationClient, metricsClient, mappedIdRepository);
+        MappedIdBasedImporter importer = new MappedIdBasedImporter(tfm2RecQuery, sdClient, observationClient, metricsClient, mappedIdRepository, auditTrail);
         importer.startup();
         log.info("Startup finished.");
         importer.importAllAfterDateTime(Instant.now().minusSeconds(60 * 15));

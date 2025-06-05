@@ -9,6 +9,7 @@ import no.cantara.realestate.mappingtable.metasys.MetasysSensorId;
 import no.cantara.realestate.mappingtable.metasys.MetasysUniqueKey;
 import no.cantara.realestate.mappingtable.repository.MappedIdQuery;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
+import no.cantara.realestate.metasys.cloudconnector.audit.InMemoryAuditTrail;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.*;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
@@ -40,6 +41,7 @@ public class MetasysStreamImporter implements StreamListener {
     private final MappedIdRepository idRepository;
     private final ObservationDistributionClient distributionClient;
     private final MetasysMetricsDistributionClient metricsDistributionClient;
+    private final InMemoryAuditTrail auditTrail;
     private String subscriptionId = null;
 
     private boolean isHealthy = false;
@@ -58,12 +60,13 @@ public class MetasysStreamImporter implements StreamListener {
     private List<MappedIdQuery> idQueries;
 
 
-    public MetasysStreamImporter(MetasysStreamClient streamClient, BasClient sdClient, MappedIdRepository idRepository, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsDistributionClient) {
+    public MetasysStreamImporter(MetasysStreamClient streamClient, BasClient sdClient, MappedIdRepository idRepository, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsDistributionClient, InMemoryAuditTrail auditTrail) {
         this.streamClient = streamClient;
         this.sdClient = sdClient;
         this.idRepository = idRepository;
         this.distributionClient = distributionClient;
         this.metricsDistributionClient = metricsDistributionClient;
+        this.auditTrail = auditTrail;
 //        scheduledExecutorService = new ScheduledThreadPoolExecutor(1);
 //        scheduledExecutorService.setRemoveOnCancelPolicy(true);
     }
@@ -190,7 +193,9 @@ public class MetasysStreamImporter implements StreamListener {
                 try {
                     Integer httpStatus = sdClient.subscribePresentValueChange(getSubscriptionId(), metasysObjectId);
                     log.debug("Subscription to metasysObjectId: {} subscriptionId: {}, returned httpStatus: {}", metasysObjectId, subscriptionId, httpStatus);
+                    auditTrail.logSubscribed(sensorId.getId(), metasysObjectId);
                 } catch (URISyntaxException e) {
+                    auditTrail.logFailed(sensorId.getId(), "Failed to subscribe to MetasysObjectId: " + metasysObjectId);
                     log.warn("SD URL is misconfigured. Failed to subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
                 } catch (LogonFailedException e) {
                     log.warn("Failed to logon to SD system. Could not subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);

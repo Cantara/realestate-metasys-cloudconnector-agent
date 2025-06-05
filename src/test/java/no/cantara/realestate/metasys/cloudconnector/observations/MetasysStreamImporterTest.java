@@ -11,6 +11,7 @@ import no.cantara.realestate.mappingtable.metasys.MetasysSensorId;
 import no.cantara.realestate.mappingtable.metasys.MetasysUniqueKey;
 import no.cantara.realestate.mappingtable.rec.SensorRecObject;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
+import no.cantara.realestate.metasys.cloudconnector.audit.InMemoryAuditTrail;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysTokenManager;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysUserToken;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.*;
@@ -37,6 +38,7 @@ class MetasysStreamImporterTest {
     private ObservationDistributionClient distributionClient;
     private MetasysMetricsDistributionClient metricsDistributionClient;
     private MetasysTokenManager metasysTokenManager;
+    private InMemoryAuditTrail auditTrail;
 
     @BeforeAll
     static void beforeAll() {
@@ -52,10 +54,12 @@ class MetasysStreamImporterTest {
         distributionClient = mock(ObservationDistributionClient.class);
         metricsDistributionClient = mock(MetasysMetricsDistributionClient.class);
         metasysTokenManager = mock(MetasysTokenManager.class);
+        auditTrail = mock(InMemoryAuditTrail.class);
         MetasysUserToken metasysUserToken = new MetasysUserToken();
         metasysUserToken.setExpires(Instant.now().plusSeconds(60));
         when(metasysTokenManager.getCurrentToken()).thenReturn(metasysUserToken);
-        metasysStreamImporter = new MetasysStreamImporter(metasysStreamClient, sdClient, idRepository, distributionClient, metricsDistributionClient);
+
+        metasysStreamImporter = new MetasysStreamImporter(metasysStreamClient, sdClient, idRepository, distributionClient, metricsDistributionClient,auditTrail);
     }
 
     /*

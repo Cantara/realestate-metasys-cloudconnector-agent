@@ -73,7 +73,7 @@ public class ScheduledImportManager {
                             scheduled_import_running = false;
                         } catch (Exception e) {
 
-                            log.info("Exception trying to run scheduled imports of trendIds for {}. Reason: {}", trendLogsImporter, e.getMessage());
+                            log.info("Exception trying to run scheduled imports of trendIds for {}. Reason: {}", trendLogsImporter, e.getMessage(), e);
                             scheduled_import_running = false;
                         }
                     }

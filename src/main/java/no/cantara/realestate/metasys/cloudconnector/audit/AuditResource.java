@@ -10,6 +10,7 @@ import no.cantara.stingray.security.application.StingrayAction;
 import no.cantara.stingray.security.application.StingraySecurityOverride;
 import org.slf4j.Logger;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -38,7 +39,7 @@ public class AuditResource {
         if (!state.isPresent()) {
             return Response.ok( "<html><body><h2>No state found for sensorId: " + sensorId + "</h2></body></html>").build();
         }
-        List<AuditEvent> events = state.get().getall();
+        List<AuditEvent> events = state.get().allEventsByTimestamp();
         if (events.isEmpty()) {
             return Response.ok( "<html><body><h2>No events found for sensorId: " + sensorId + "</h2></body></html>").build();
         }
@@ -69,13 +70,15 @@ public class AuditResource {
 
         StringBuilder html = new StringBuilder("<html><body>");
         html.append("<h1>All Audit States</h1><table border='1'>");
-        html.append("<tr><th>Sensor ID</th><th>Last Updated</th></tr>");
+        html.append("<tr><th>Sensor ID</th><th>Last Observed</th></tr>");
         for (Map.Entry<String, AuditState> entry : allStates.entrySet()) {
-            AuditState state = entry.getValue();
             String sensorId = entry.getKey();
+            AuditState auditState = entry.getValue();
+            Instant lastUpdated = auditState.getLastObservedTimestamp();
+
             html.append("<tr>")
                     .append("<td><a href=\"./"+sensorId +"\">"+sensorId +"</a></td>")
-                    .append("<td>").append(state.getLastUpdated()).append("</td>")
+                    .append("<td>").append(lastUpdated).append("</td>")
                     .append("</tr>");
         }
         html.append("</table></body></html>");

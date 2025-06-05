@@ -10,6 +10,7 @@ import no.cantara.realestate.mappingtable.rec.SensorRecObject;
 import no.cantara.realestate.mappingtable.repository.MappedIdQuery;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
 import no.cantara.realestate.mappingtable.tfm.Tfm;
+import no.cantara.realestate.metasys.cloudconnector.audit.InMemoryAuditTrail;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
 import no.cantara.realestate.security.UserToken;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,11 +35,12 @@ class MappedIdBasedImporterTest {
         ApplicationPropertiesTestHelper.enableMutableSingleton();
         config = ApplicationProperties.builder().buildAndSetStaticSingleton();
         MappedIdQuery mockIdQuery = mock(MappedIdQuery.class);
+        InMemoryAuditTrail auditTrail = mock(InMemoryAuditTrail.class);
         mockBasClient = mock(BasClient.class);
         ObservationDistributionClient mockDistributionClient = mock(ObservationDistributionClient.class);
         MetasysMetricsDistributionClient mockMetricsClient = mock(MetasysMetricsDistributionClient.class);
         MappedIdRepository mockRepository = mock(MappedIdRepository.class);
-        importer = new MappedIdBasedImporter(mockIdQuery, mockBasClient, mockDistributionClient, mockMetricsClient, mockRepository);
+        importer = new MappedIdBasedImporter(mockIdQuery, mockBasClient, mockDistributionClient, mockMetricsClient, mockRepository, auditTrail);
     }
 
     @Test
