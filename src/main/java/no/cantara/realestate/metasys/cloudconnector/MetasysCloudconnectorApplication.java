@@ -8,6 +8,8 @@ import no.cantara.realestate.mappingtable.repository.MappedIdQuery;
 import no.cantara.realestate.mappingtable.repository.MappedIdQueryBuilder;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepositoryImpl;
+import no.cantara.realestate.metasys.cloudconnector.audit.AuditResource;
+import no.cantara.realestate.metasys.cloudconnector.audit.InMemoryAuditTrail;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClientSimulator;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
@@ -43,6 +45,7 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
     private boolean enableStream;
     private boolean enableScheduledImport;
     private NotificationService notificationService;
+    private InMemoryAuditTrail auditTrail;
 
     public static final String INSTRUMENTATION_SCOPE_NAME_KEY = "opentelemetry.instrumentationScopeName";
     public static final String INSTRUMENTATION_SCOPE_NAME_VALUE = "no.cantara.realestate";
@@ -67,6 +70,7 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         StingraySecurity.initSecurity(this);
 
         initNotificationServices();
+        initAuditTrail();
         boolean doImportData = config.asBoolean("import.data");
         enableStream = config.asBoolean("sd.stream.enabled");
         enableScheduledImport = config.asBoolean("sd.scheduledImport.enabled");
@@ -158,6 +162,11 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         }
     }
 
+    private void initAuditTrail() {
+        auditTrail = init(InMemoryAuditTrail.class, InMemoryAuditTrail::new);
+        AuditResource auditResource = initAndRegisterJaxRsWsComponent(AuditResource.class, () -> new AuditResource(auditTrail));
+    }
+
     private void initNotificationServices() {
         ServiceLoader<NotificationService> notificationServices = ServiceLoader.load(NotificationService.class);
         if (notificationServices != null && notificationServices.iterator().hasNext()) {
@@ -209,7 +218,7 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
             if (!Paths.get(configDirectory).toFile().exists()) {
                 throw new MetasysCloudConnectorException("Import of data from " + configDirectory + " failed. Directory does not exist.");
             }
-            new MetasysConfigImporter().importMetasysConfig(configDirectory, mappedIdRepository);
+            new MetasysConfigImporter().importMetasysConfig(configDirectory, mappedIdRepository, auditTrail);
         }
         return mappedIdRepository;
     }

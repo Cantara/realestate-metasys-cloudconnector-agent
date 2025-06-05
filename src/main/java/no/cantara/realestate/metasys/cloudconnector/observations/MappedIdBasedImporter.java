@@ -12,6 +12,7 @@ import no.cantara.realestate.mappingtable.repository.MappedIdRepositoryImpl;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorException;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnectorApplicationFactory;
 import no.cantara.realestate.metasys.cloudconnector.StatusType;
+import no.cantara.realestate.metasys.cloudconnector.audit.InMemoryAuditTrail;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysTrendSample;
 import no.cantara.realestate.metasys.cloudconnector.distribution.ObservationDistributionServiceStub;
@@ -289,7 +290,8 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
                 .sensorType(SensorType.co2.name())
                 .build();
         String configDirectory = config.get("importdata.directory");
-        MappedIdRepository mappedIdRepository = createMappedIdRepository(true, configDirectory);
+        InMemoryAuditTrail auditTrail = new InMemoryAuditTrail();
+        MappedIdRepository mappedIdRepository = createMappedIdRepository(true, configDirectory, auditTrail);
         MappedIdBasedImporter importer = new MappedIdBasedImporter(tfm2RecQuery, sdClient, observationClient, metricsClient, mappedIdRepository);
         importer.startup();
         log.info("Startup finished.");
@@ -303,14 +305,14 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
     }
 
 
-
-    private static MappedIdRepository createMappedIdRepository(boolean doImportData, String configDirectory) {
+    //FIXME duplicate code with MappedIdRepositoryImpl
+    private static MappedIdRepository createMappedIdRepository(boolean doImportData, String configDirectory, InMemoryAuditTrail auditTrail) {
         MappedIdRepository mappedIdRepository = new MappedIdRepositoryImpl();
         if (doImportData) {
             if (!Paths.get(configDirectory).toFile().exists()) {
                 throw new MetasysCloudConnectorException("Import of data from " + configDirectory + " failed. Directory does not exist.");
             }
-            new MetasysConfigImporter().importMetasysConfig(configDirectory, mappedIdRepository);
+            new MetasysConfigImporter().importMetasysConfig(configDirectory, mappedIdRepository, auditTrail);
         }
         return mappedIdRepository;
     }
