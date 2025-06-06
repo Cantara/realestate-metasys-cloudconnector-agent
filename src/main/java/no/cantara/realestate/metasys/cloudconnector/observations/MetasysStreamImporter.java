@@ -212,7 +212,6 @@ public class MetasysStreamImporter implements StreamListener {
                     } else {
                         log.warn("MappedSensorId has no sensorId. Skipping stream import for MetasysObjectId: {}", metasysObjectId);
                     }
-                    auditTrail.logSubscribed(metasysSensorId.getId(), metasysObjectId);
                 } catch (URISyntaxException e) {
                     auditTrail.logFailed(metasysSensorId.getId(), "Failed to subscribe to MetasysObjectId: " + metasysObjectId);
                     log.warn("SD URL is misconfigured. Failed to subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
