@@ -31,6 +31,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import static no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient.truncateAccessToken;
+import static no.cantara.realestate.utils.StringUtils.hasValue;
 import static org.slf4j.LoggerFactory.getLogger;
 
 public class MetasysStreamImporter implements StreamListener {
@@ -186,16 +187,25 @@ public class MetasysStreamImporter implements StreamListener {
             List<MappedSensorId> mappedSensorIds = idRepository.find(idQuery);
             log.trace("Subscribing to {} mappedSensorIds for idQuery: {}", mappedSensorIds.size(), idQuery);
             for (MappedSensorId mappedSensorId : mappedSensorIds) {
-                MetasysSensorId sensorId = (MetasysSensorId) mappedSensorId.getSensorId();
-                String metasysObjectId = sensorId.getMetasysObjectId();
+                MetasysSensorId metasysSensorId = (MetasysSensorId) mappedSensorId.getSensorId();
+                String metasysObjectId = metasysSensorId.getMetasysObjectId();
                 String subscriptionId = getSubscriptionId();
                 log.trace("Subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId);
                 try {
                     Integer httpStatus = sdClient.subscribePresentValueChange(getSubscriptionId(), metasysObjectId);
                     log.debug("Subscription to metasysObjectId: {} subscriptionId: {}, returned httpStatus: {}", metasysObjectId, subscriptionId, httpStatus);
-                    auditTrail.logSubscribed(sensorId.getId(), metasysObjectId);
+                    String sensorId = mappedSensorId.getSensorId().getId();
+                    if (sensorId == null && mappedSensorId.getRec() != null) {
+                        sensorId = mappedSensorId.getRec().getRecId();
+                    }
+                    if (hasValue(sensorId)) {
+                        auditTrail.logSubscribed(sensorId, "Subscribe to Stream for MetasysObjectId: " + metasysObjectId);
+                    } else {
+                        log.warn("MappedSensorId has no sensorId. Skipping stream import for MetasysObjectId: {}", metasysObjectId);
+                    }
+                    auditTrail.logSubscribed(metasysSensorId.getId(), metasysObjectId);
                 } catch (URISyntaxException e) {
-                    auditTrail.logFailed(sensorId.getId(), "Failed to subscribe to MetasysObjectId: " + metasysObjectId);
+                    auditTrail.logFailed(metasysSensorId.getId(), "Failed to subscribe to MetasysObjectId: " + metasysObjectId);
                     log.warn("SD URL is misconfigured. Failed to subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
                 } catch (LogonFailedException e) {
                     log.warn("Failed to logon to SD system. Could not subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
