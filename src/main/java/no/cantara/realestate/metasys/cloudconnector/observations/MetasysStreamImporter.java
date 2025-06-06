@@ -89,18 +89,27 @@ public class MetasysStreamImporter implements StreamListener {
                 log.trace("MappedId found for metasysObjectId: {} mappedIds: {}", metasysObjectId, mappedIds.toString());
                 for (MappedSensorId mappedId : mappedIds) {
                     ObservedValue observedValue = observedValueEvent.getObservedValue();
+
                     final String metricKey = "metasys_stream_observation_received";
                     Metric observedMetric = new Metric(metricKey, 1);
                     if (observedValue instanceof ObservedValueNumber) {
                         ObservationMessage observationMessage = new MetasysObservationMessage((ObservedValueNumber) observedValue, mappedId);
                         distributionClient.publish(observationMessage);
                         metricsDistributionClient.sendMetrics(observedMetric);
+                        String sensorTwinId = observationMessage.getSensorId();
+                        if (sensorTwinId != null) {
+                            auditTrail.logObservedStream(sensorTwinId, "Stream observation received for MetasysObjectId: " + metasysObjectId + " with value: " + observedValue.getValue());
+                        }
                     } else if (observedValue instanceof ObservedValueBoolean) {
                         ObservedValueNumber observedValueNumber = new ObservedValueNumber(observedValue.getId(), ((ObservedValueBoolean) observedValue).getValue() ? 1 : 0, observedValue.getItemReference());
                         ObservationMessage observationMessage = new MetasysObservationMessage(observedValueNumber, mappedId);
                         distributionClient.publish(observationMessage);
                         metricsDistributionClient.sendMetrics(observedMetric);
-                    } else {
+                        String sensorTwinId = observationMessage.getSensorId();
+                        if (sensorTwinId != null) {
+                            auditTrail.logObservedStream(sensorTwinId, "Stream observation received for MetasysObjectId: " + metasysObjectId + " with value: " + observedValue.getValue());
+                        }
+                        } else {
                         log.trace("ObservedValue is not a number. Not publishing to distributionClient. ObservedValue: {}", observedValue);
                     }
                     //TODO publish metrics metricsDistributionClient.publish(observationMessage);
