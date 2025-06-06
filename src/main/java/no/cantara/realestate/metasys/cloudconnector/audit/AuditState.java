@@ -1,5 +1,7 @@
 package no.cantara.realestate.metasys.cloudconnector.audit;
 
+import edu.emory.mathcs.backport.java.util.LinkedList;
+
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -9,6 +11,7 @@ import java.util.stream.Collectors;
 public class AuditState {
 
     List<AuditEvent> events = new ArrayList<>();
+    List<AuditEvent> subscribedEvents = new LinkedList();
     private AuditEvent lastObservedTrendEvent = null;
     private AuditEvent lastObservedStreamEvent = null;
     private AuditEvent lastObservedPresentValueEvent = null;
@@ -28,7 +31,11 @@ public class AuditState {
     }
 
     public void setSubscribed(String sensorId, String comment) {
-        addEvent(new AuditEvent(sensorId, AuditEvent.Type.SUBSCRIBED, comment));
+        AuditEvent event = new AuditEvent(sensorId, AuditEvent.Type.SUBSCRIBED, comment);
+        subscribedEvents.add(event);
+        if (subscribedEvents.size() > 10) {
+            subscribedEvents.remove(0);
+        }
     }
 
 
@@ -39,6 +46,7 @@ public class AuditState {
     public List<AuditEvent> allEventsByTimestamp() {
         List<AuditEvent> allEvents = new ArrayList<>(events);
         allEvents.addAll(events);
+        allEvents.addAll(subscribedEvents);
         if (lastObservedTrendEvent != null) {
             allEvents.add(lastObservedTrendEvent);
         }
