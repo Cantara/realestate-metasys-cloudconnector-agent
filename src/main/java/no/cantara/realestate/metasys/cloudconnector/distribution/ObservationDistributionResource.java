@@ -17,7 +17,7 @@ import org.slf4j.Logger;
 import java.util.List;
 
 import static org.slf4j.LoggerFactory.getLogger;
-
+//FIXME move to common agent
 @Path("/")
 public class ObservationDistributionResource {
     private static final Logger log = getLogger(ObservationDistributionResource.class);

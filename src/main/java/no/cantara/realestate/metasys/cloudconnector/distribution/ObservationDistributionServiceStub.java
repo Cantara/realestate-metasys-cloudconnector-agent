@@ -18,6 +18,7 @@ import java.util.Set;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
+//FIXME move to common agent
 public class ObservationDistributionServiceStub implements ObservationDistributionClient {
     private static final Logger log = getLogger(ObservationDistributionServiceStub.class);
 
