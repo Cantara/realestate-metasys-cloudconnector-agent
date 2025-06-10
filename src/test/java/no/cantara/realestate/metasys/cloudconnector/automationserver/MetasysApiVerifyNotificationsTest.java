@@ -2,8 +2,8 @@ package no.cantara.realestate.metasys.cloudconnector.automationserver;
 
 import no.cantara.config.ApplicationProperties;
 import no.cantara.config.testsupport.ApplicationPropertiesTestHelper;
+import no.cantara.realestate.cloudconnector.notifications.NotificationService;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnectorApplicationFactory;
-import no.cantara.realestate.metasys.cloudconnector.notifications.NotificationService;
 import org.junit.jupiter.api.*;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.model.MediaType;

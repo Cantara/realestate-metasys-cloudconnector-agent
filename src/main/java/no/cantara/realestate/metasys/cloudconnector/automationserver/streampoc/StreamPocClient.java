@@ -2,6 +2,7 @@ package no.cantara.realestate.metasys.cloudconnector.automationserver.streampoc;
 
 import no.cantara.config.ApplicationProperties;
 import no.cantara.realestate.automationserver.BasClient;
+import no.cantara.realestate.cloudconnector.notifications.NotificationService;
 import no.cantara.realestate.distribution.ObservationDistributionClient;
 import no.cantara.realestate.mappingtable.MappedSensorId;
 import no.cantara.realestate.mappingtable.rec.SensorRecObject;
@@ -9,7 +10,6 @@ import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorExcepti
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnectorApplicationFactory;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.*;
-import no.cantara.realestate.metasys.cloudconnector.notifications.NotificationService;
 import no.cantara.realestate.metasys.cloudconnector.observations.MetasysObservationMessage;
 import no.cantara.realestate.observations.ObservationMessage;
 import no.cantara.realestate.security.LogonFailedException;

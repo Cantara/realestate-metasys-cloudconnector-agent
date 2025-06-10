@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 
+@Deprecated
 public class SlackNotificationService implements NotificationService {
     public static final Logger logger = LoggerFactory.getLogger(SlackNotificationService.class);
 

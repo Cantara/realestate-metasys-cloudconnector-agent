@@ -8,7 +8,7 @@ import org.slf4j.Logger;
 
 import java.net.URI;
 
-import static junit.framework.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.slf4j.LoggerFactory.getLogger;
 
 public class MetasysApiClientManualTest {

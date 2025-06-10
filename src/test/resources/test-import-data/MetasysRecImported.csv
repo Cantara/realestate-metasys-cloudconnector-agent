@@ -1,0 +1,3 @@
+RecId,Tfm,MetasysObjectReference,MetasysObjectId,Name,Description,RealEstate,Building,Section,Floor,ServesRoom,PlacementRoom,SensorType,MeasurementUnit,Interval
+Sensor-640f4b48-4f87-4337-93e4-123456,+511=564.01001-RT601,,7c0b9098-e858-5d1a-abdc-2597583a2934,+511=564.01001-RT601,+511=564.01001-RT601,511,511,,01,51101001,51101001,temp,celsius,
+Sensor-9f5f0d65-5dab-495a-93b4-123456,+511=564.01001-RB601,anObjectReference,d1d75efd-0652-5dd4-bc5c-72bba7b33ff2,+511=564.01001-RB601,+511=564.01001-RB601,511,511,,01,51101001,51101001,Tilstedevarelse,unknown,

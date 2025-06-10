@@ -7,8 +7,8 @@ import com.slack.api.methods.response.chat.ChatPostMessageResponse;
 import no.cantara.config.ApplicationProperties;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnectorApplicationFactory;
 
-import static junit.framework.Assert.assertTrue;
 import static no.cantara.realestate.metasys.cloudconnector.notifications.SlackNotificationService.*;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SlackNotificationServiceManualTest {
 

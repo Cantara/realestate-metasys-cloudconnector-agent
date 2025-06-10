@@ -2,7 +2,11 @@ package no.cantara.realestate.metasys.cloudconnector;
 
 import no.cantara.config.ApplicationProperties;
 import no.cantara.realestate.automationserver.BasClient;
-import no.cantara.realestate.azure.AzureObservationDistributionClient;
+import no.cantara.realestate.cloudconnector.RealestateCloudconnectorApplication;
+import no.cantara.realestate.cloudconnector.notifications.NotificationService;
+import no.cantara.realestate.cloudconnector.notifications.SlackNotificationService;
+import no.cantara.realestate.cloudconnector.routing.ObservationsRepository;
+import no.cantara.realestate.cloudconnector.sensorid.SensorIdRepository;
 import no.cantara.realestate.distribution.ObservationDistributionClient;
 import no.cantara.realestate.mappingtable.repository.MappedIdQuery;
 import no.cantara.realestate.mappingtable.repository.MappedIdQueryBuilder;
@@ -15,20 +19,25 @@ import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClientSim
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysStreamClient;
 import no.cantara.realestate.metasys.cloudconnector.distribution.ObservationDistributionResource;
-import no.cantara.realestate.metasys.cloudconnector.distribution.ObservationDistributionServiceStub;
+import no.cantara.realestate.metasys.cloudconnector.ingestion.MetasysTrendsIngestionService;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
-import no.cantara.realestate.metasys.cloudconnector.metrics.MetricsDistributionServiceStub;
-import no.cantara.realestate.metasys.cloudconnector.notifications.NotificationService;
-import no.cantara.realestate.metasys.cloudconnector.notifications.SlackNotificationService;
 import no.cantara.realestate.metasys.cloudconnector.observations.*;
 import no.cantara.realestate.metasys.cloudconnector.sensors.MetasysConfigImporter;
+import no.cantara.realestate.metasys.cloudconnector.sensors.MetasysCsvSensorImporter;
 import no.cantara.realestate.metasys.cloudconnector.sensors.SensorType;
+import no.cantara.realestate.metasys.cloudconnector.trends.InMemoryTrendsLastUpdatedService;
+import no.cantara.realestate.metasys.cloudconnector.trends.TrendsLastUpdatedService;
 import no.cantara.realestate.metasys.cloudconnector.utils.LogbackConfigLoader;
-import no.cantara.realestate.observations.ObservationMessage;
+import no.cantara.realestate.observations.ObservationListener;
+import no.cantara.realestate.plugins.ingestion.TrendsIngestionService;
+import no.cantara.realestate.plugins.notifications.NotificationListener;
+import no.cantara.realestate.rec.RecRepository;
+import no.cantara.realestate.rec.RecTags;
 import no.cantara.realestate.security.LogonFailedException;
-import no.cantara.stingray.application.AbstractStingrayApplication;
+import no.cantara.realestate.sensors.MappedSensorId;
+import no.cantara.realestate.sensors.SensorId;
+import no.cantara.realestate.sensors.metasys.MetasysSensorId;
 import no.cantara.stingray.application.health.StingrayHealthService;
-import no.cantara.stingray.security.StingraySecurity;
 import org.slf4j.Logger;
 
 import java.net.URI;
@@ -36,11 +45,10 @@ import java.net.URISyntaxException;
 import java.nio.file.Paths;
 import java.util.*;
 
-import static no.cantara.realestate.metasys.cloudconnector.ObservationMesstageStubs.buildStubObservation;
 import static no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealthResource.setUnhealthy;
 import static org.slf4j.LoggerFactory.getLogger;
 
-public class MetasysCloudconnectorApplication extends AbstractStingrayApplication<MetasysCloudconnectorApplication> {
+public class MetasysCloudconnectorApplication extends RealestateCloudconnectorApplication {
     private static Logger log = getLogger(MetasysCloudconnectorApplication.class);
     private boolean enableStream;
     private boolean enableScheduledImport;
@@ -52,10 +60,11 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
 
 
     public MetasysCloudconnectorApplication(ApplicationProperties config) {
-        super("MetasysCloudconnector",
-                readMetaInfMavenPomVersion("no.cantara.realestate", "metasys-cloudconnector-app"),
-                config
-        );
+        super(config, "no.cantara.realestate", "metasys-cloudconnector-agent");
+//        super("MetasysCloudconnector",
+//                readMetaInfMavenPomVersion("no.cantara.realestate", "metasys-cloudconnector-app"),
+//                config
+//        );
     }
 
 
@@ -66,6 +75,47 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
 
     @Override
     protected void doInit() {
+        final MappedIdRepository mappedIdRepository = null;
+        final ObservationDistributionClient finalObservationDistributionClient = null;
+        final MetasysMetricsDistributionClient metricsDistributionClient = null;
+
+        initAuditTrail();
+        boolean doImportData = config.asBoolean("import.data");
+        enableStream = config.asBoolean("sd.stream.enabled");
+        enableScheduledImport = config.asBoolean("sd.scheduledImport.enabled");
+
+        super.doInit();
+
+        ObservationListener observationListener = get(ObservationsRepository.class);
+        NotificationListener notificationListener = get(NotificationListener.class);
+        notificationService = get(no.cantara.realestate.cloudconnector.notifications.NotificationService.class);
+        BasClient sdClient = createSdClient(config);
+        if (sdClient instanceof MetasysClient) {
+            get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-whenLastObservationImported", ((MetasysClient) sdClient)::getWhenLastTrendSampleReceived);
+        }
+        TrendsLastUpdatedService trendsLastUpdatedService = init(TrendsLastUpdatedService.class, () -> new InMemoryTrendsLastUpdatedService());
+        TrendsIngestionService trendsIngestionService = new MetasysTrendsIngestionService(config,  observationListener, notificationListener, sdClient, trendsLastUpdatedService);
+        SensorIdRepository sensorIdRepository = get(SensorIdRepository.class);
+        //FIXME Add sensorIds to the repository, figure out how to start subscribing.
+        String importDirectory = config.get("importdata.directory");
+        List<MetasysSensorId> metasysSensorIds = MetasysCsvSensorImporter.importSensorIdsFromDirectory(importDirectory,"Metasys");
+        sensorIdRepository.addAll(metasysSensorIds);
+        List<SensorId> sensorIds = sensorIdRepository.all();
+        trendsIngestionService.addSubscriptions(sensorIds);
+        log.info("Starting MetasysTrendsIngestionService with {} sensorIds", trendsIngestionService.getSubscriptionsCount());
+        //FIXME Add RecTags
+        RecRepository recRepository = get(RecRepository.class);
+        List<RecTags> recTagsList = MetasysCsvSensorImporter.importRecTagsFromDirectory(importDirectory,"Metasys");
+        for (RecTags recTags : recTagsList) {
+            String twinId = recTags.getTwinId();
+            SensorId sensorId = sensorIds.stream().filter(sensorId1 ->  sensorId1.getId().equals(twinId)).findFirst().orElse(null);
+            if (sensorId != null) {
+                recRepository.addRecTags(sensorId, recTags);
+                log.info("Added RecTags: {}", recTags);
+            }
+        }
+//        ScheduledImportManager scheduledImportManager = init(ScheduledImportManager.class, () -> wireScheduledImportManager(sdClient, finalObservationDistributionClient, metricsDistributionClient, mappedIdRepository, auditTrail));
+         /*
         initBuiltinDefaults();
         StingraySecurity.initSecurity(this);
 
@@ -74,7 +124,8 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         boolean doImportData = config.asBoolean("import.data");
         enableStream = config.asBoolean("sd.stream.enabled");
         enableScheduledImport = config.asBoolean("sd.scheduledImport.enabled");
-        BasClient sdClient = createSdClient(config);
+       BasClient sdClient = createSdClient(config);
+
 
         ServiceLoader<ObservationDistributionClient> observationDistributionClients = ServiceLoader.load(ObservationDistributionClient.class);
         ObservationDistributionClient observationDistributionClient = null;
@@ -102,7 +153,9 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         MetasysMetricsDistributionClient metricsDistributionClient = new MetricsDistributionServiceStub(measurementsName);
         MappedIdRepository mappedIdRepository = init(MappedIdRepository.class, () -> createMappedIdRepository(doImportData));
         ObservationDistributionClient finalObservationDistributionClient = observationDistributionClient;
+
         ScheduledImportManager scheduledImportManager = init(ScheduledImportManager.class, () -> wireScheduledImportManager(sdClient, finalObservationDistributionClient, metricsDistributionClient, mappedIdRepository, auditTrail));
+
         ObservationDistributionResource observationDistributionResource = initAndRegisterJaxRsWsComponent(ObservationDistributionResource.class, () -> createObservationDistributionResource(finalObservationDistributionClient));
 
         get(StingrayHealthService.class).registerHealthProbe("mappedIdRepository.size", mappedIdRepository::size);
@@ -116,6 +169,8 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         //Random Example
         init(Random.class, this::createRandom);
         RandomizerResource randomizerResource = initAndRegisterJaxRsWsComponent(RandomizerResource.class, this::createRandomizerResource);
+
+          */
 
         //Wire up the stream importer
         if (enableStream) {
@@ -159,6 +214,7 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
                 }
             });
             */
+
         }
     }
 
@@ -261,7 +317,7 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
         return scheduledImportManager;
     }
 
-    private List<String> findListOfRealestatesToImportFrom() {
+    protected List<String> findListOfRealestatesToImportFrom() {
         List<String> realEstates = null;
         try {
             String reCsvSplitted = config.get("importsensorsQuery.realestates");
@@ -299,10 +355,15 @@ public class MetasysCloudconnectorApplication extends AbstractStingrayApplicatio
                 .conventions(ApplicationProperties.builder())
                 .buildAndSetStaticSingleton();
 
+        MetasysCloudconnectorApplication application = null;
         try {
-            MetasysCloudconnectorApplication application = new MetasysCloudconnectorApplication(config).init().start();
-            log.info("Server started. See status on {}:{}{}/health", "http://localhost", config.get("server.port"), config.get("server.context-path"));
-            application.startImportingObservations();
+            application = new MetasysCloudconnectorApplication(config);
+            application.init().start();
+            String baseUrl = "http://localhost:"+config.get("server.port")+config.get("server.context-path");
+            log.info("Server started. See status on {}/health", baseUrl);
+            log.info("   SensorIds: {}/sensorids/status", baseUrl);
+            log.info("   Recs: {}/rec/status", baseUrl);
+//            application.startImportingObservations();
         } catch (Exception e) {
             log.error("Failed to start MetasysCloudconnectorApplication", e);
         }
