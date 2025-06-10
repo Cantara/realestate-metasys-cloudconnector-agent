@@ -47,8 +47,54 @@ public class MetasysCsvSensorImporter {
     }
 
     public static List<RecTags> importRecTagsFromDirectory(String directoryName, String prefix) {
-        //FIXME
-        return List.of();
+        List<RecTags> recTagsList = new ArrayList<>();
+        List<Path> files = findFilesInDirectory(directoryName, prefix);
+        for (Path file : files) {
+            log.info("Importing RecTags from file: {}", file);
+            List<RecTags> fileRecTags = importRecTagsFromFile(file);
+            recTagsList.addAll(fileRecTags);
+        }
+        return recTagsList;
+    }
+
+    private static List<RecTags> importRecTagsFromFile(Path file) {
+        //RecId,Tfm,MetasysObjectReference,MetasysObjectId,Name,Description,RealEstate,Building,Section,Floor,ServesRoom,PlacementRoom,SensorType,MeasurementUnit,Interval
+        List<RecTags> recTagsList = new ArrayList<>();
+        CsvCollection collection = CsvReader.parse(file.toString());
+        log.debug("ColumnNames: {}", collection.getColumnNames());
+        for (Map<String, String> record : collection.getRecords()) {
+            String recId = record.get("RecId");
+            if (recId == null || recId.isEmpty()) {
+                log.warn("RecId is missing in record: {}", record);
+                continue;
+            }
+            RecTags recTags = new RecTags(recId);
+            recTags.setSensorSystem("Metasys");
+            String tfm = record.get("Tfm");
+            recTags.setTfm(tfm);
+            String name = record.get("Name");
+            recTags.setName(name);
+//            String description = record.get("Description");
+//            recTags.setDescription(description);
+            String realEstate = record.get("RealEstate");
+            recTags.setRealEstate(realEstate);
+            String building = record.get("Building");
+            recTags.setBuilding(building);
+            String section = record.get("Section");
+            recTags.setSection(section);
+            String floor = record.get("Floor");
+            recTags.setFloor(floor);
+            String servesRoom = record.get("ServesRoom");
+            recTags.setServesRoom(servesRoom);
+            String placementRoom = record.get("PlacementRoom");
+            recTags.setPlacementRoom(placementRoom);
+            String sensorType = record.get("SensorType");
+            recTags.setSensorType(sensorType);
+            String measurementUnit = record.get("MeasurementUnit");
+            recTags.setMeasurementUnit(measurementUnit);
+            recTagsList.add(recTags);
+        }
+     return  recTagsList;
     }
 
     public static List<Path> findFilesInDirectory(String directoryName, String prefix) {
