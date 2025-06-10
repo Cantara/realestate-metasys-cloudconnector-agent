@@ -28,7 +28,6 @@ public class InMemoryTrendsLastUpdatedService implements TrendsLastUpdatedServic
 
     @Override
     public void readLastUpdated() {
-
     }
 
     @Override
@@ -58,7 +57,7 @@ public class InMemoryTrendsLastUpdatedService implements TrendsLastUpdatedServic
 
     @Override
     public <T extends SensorId> void persistLastUpdated(List<T> sensorIds) {
-        log.info("Simulating persisting last failed for {} sensors", sensorIds.size());
+        log.info("Simulating persisting last updated for {} sensors", sensorIds.size());
     }
 
     @Override

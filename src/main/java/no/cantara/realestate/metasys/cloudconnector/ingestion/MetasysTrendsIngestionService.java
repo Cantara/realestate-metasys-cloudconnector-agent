@@ -78,6 +78,7 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
 
     @Override
     public void ingestTrends() {
+        //Read last updated from file or database TODO should be done automatically when starting the service.
         try {
             trendsLastUpdatedService.readLastUpdated();
         } catch (NullPointerException npe) {
@@ -86,7 +87,7 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
             log.warn(de.getMessage());
             throw de;
         }
-        log.info("Runing ingetsTrends for {} sensors", sensorIds.size());
+        log.info("Running ingestTrends for {} sensors", sensorIds.size());
 
 
         List<MetasysSensorId> updatedSensors = new ArrayList<>();
@@ -95,6 +96,7 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
         for (SensorId sensorId : sensorIds) {
             if (sensorId instanceof MetasysSensorId) {
                 updatedSensors.add((MetasysSensorId) sensorId);
+                trendsLastUpdatedService.setLastUpdatedAt(sensorId, Instant.now());
             }
         }
         /*

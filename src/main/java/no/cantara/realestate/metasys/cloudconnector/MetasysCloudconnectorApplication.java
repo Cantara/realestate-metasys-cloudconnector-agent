@@ -89,21 +89,24 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
         ObservationListener observationListener = get(ObservationsRepository.class);
         NotificationListener notificationListener = get(NotificationListener.class);
         notificationService = get(no.cantara.realestate.cloudconnector.notifications.NotificationService.class);
+        //MetasysClient
         BasClient sdClient = createSdClient(config);
         if (sdClient instanceof MetasysClient) {
             get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-whenLastObservationImported", ((MetasysClient) sdClient)::getWhenLastTrendSampleReceived);
         }
+
+        //SensorIdRepository
         TrendsLastUpdatedService trendsLastUpdatedService = init(TrendsLastUpdatedService.class, () -> new InMemoryTrendsLastUpdatedService());
         TrendsIngestionService trendsIngestionService = new MetasysTrendsIngestionService(config,  observationListener, notificationListener, sdClient, trendsLastUpdatedService);
         SensorIdRepository sensorIdRepository = get(SensorIdRepository.class);
-        //FIXME Add sensorIds to the repository, figure out how to start subscribing.
         String importDirectory = config.get("importdata.directory");
         List<MetasysSensorId> metasysSensorIds = MetasysCsvSensorImporter.importSensorIdsFromDirectory(importDirectory,"Metasys");
         sensorIdRepository.addAll(metasysSensorIds);
         List<SensorId> sensorIds = sensorIdRepository.all();
         trendsIngestionService.addSubscriptions(sensorIds);
         log.info("Starting MetasysTrendsIngestionService with {} sensorIds", trendsIngestionService.getSubscriptionsCount());
-        //FIXME Add RecTags
+
+        //RecRepository
         RecRepository recRepository = get(RecRepository.class);
         List<RecTags> recTagsList = MetasysCsvSensorImporter.importRecTagsFromDirectory(importDirectory,"Metasys");
         for (RecTags recTags : recTagsList) {
@@ -114,6 +117,10 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
                 log.info("Added RecTags: {}", recTags);
             }
         }
+
+        //Start ingestion and routing
+        super.initIngestionService(trendsIngestionService);
+        super.initRouter();
 //        ScheduledImportManager scheduledImportManager = init(ScheduledImportManager.class, () -> wireScheduledImportManager(sdClient, finalObservationDistributionClient, metricsDistributionClient, mappedIdRepository, auditTrail));
          /*
         initBuiltinDefaults();
