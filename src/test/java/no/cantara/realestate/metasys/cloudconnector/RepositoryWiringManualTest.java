@@ -1,9 +1,10 @@
 package no.cantara.realestate.metasys.cloudconnector;
 
 import no.cantara.config.ApplicationProperties;
+import no.cantara.realestate.cloudconnector.audit.AuditTrail;
+import no.cantara.realestate.cloudconnector.audit.InMemoryAuditTrail;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepositoryImpl;
-import no.cantara.realestate.metasys.cloudconnector.audit.InMemoryAuditTrail;
 import no.cantara.realestate.metasys.cloudconnector.sensors.MetasysConfigImporter;
 import org.slf4j.Logger;
 
@@ -23,13 +24,13 @@ class RepositoryWiringManualTest {
 
     public static void main(String[] args) {
         RepositoryWiringManualTest repositoryTest = new RepositoryWiringManualTest();
-        InMemoryAuditTrail auditTrail = new InMemoryAuditTrail();
+        AuditTrail auditTrail = new InMemoryAuditTrail();
         repositoryTest.createMappedIdRepository(true, auditTrail);
         assertTrue(repositoryTest.mappedIdRepository.size() > 0);
 
     }
 
-    protected MappedIdRepository createMappedIdRepository(boolean doImportData, InMemoryAuditTrail auditTrail) {
+    protected MappedIdRepository createMappedIdRepository(boolean doImportData, AuditTrail auditTrail) {
         mappedIdRepository = new MappedIdRepositoryImpl();
         if (doImportData) {
             String configDirectory = config.get("importdata.directory");

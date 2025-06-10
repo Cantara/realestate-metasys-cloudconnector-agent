@@ -3,6 +3,7 @@ package no.cantara.realestate.metasys.cloudconnector.observations;
 import no.cantara.config.ApplicationProperties;
 import no.cantara.config.testsupport.ApplicationPropertiesTestHelper;
 import no.cantara.realestate.automationserver.BasClient;
+import no.cantara.realestate.cloudconnector.audit.AuditTrail;
 import no.cantara.realestate.distribution.ObservationDistributionClient;
 import no.cantara.realestate.mappingtable.MappedSensorId;
 import no.cantara.realestate.mappingtable.SensorId;
@@ -11,7 +12,6 @@ import no.cantara.realestate.mappingtable.metasys.MetasysSensorId;
 import no.cantara.realestate.mappingtable.metasys.MetasysUniqueKey;
 import no.cantara.realestate.mappingtable.rec.SensorRecObject;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
-import no.cantara.realestate.metasys.cloudconnector.audit.InMemoryAuditTrail;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysTokenManager;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysUserToken;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.*;
@@ -38,7 +38,7 @@ class MetasysStreamImporterTest {
     private ObservationDistributionClient distributionClient;
     private MetasysMetricsDistributionClient metricsDistributionClient;
     private MetasysTokenManager metasysTokenManager;
-    private InMemoryAuditTrail auditTrail;
+    private AuditTrail auditTrail;
 
     @BeforeAll
     static void beforeAll() {
@@ -54,7 +54,7 @@ class MetasysStreamImporterTest {
         distributionClient = mock(ObservationDistributionClient.class);
         metricsDistributionClient = mock(MetasysMetricsDistributionClient.class);
         metasysTokenManager = mock(MetasysTokenManager.class);
-        auditTrail = mock(InMemoryAuditTrail.class);
+        auditTrail = mock(AuditTrail.class);
         MetasysUserToken metasysUserToken = new MetasysUserToken();
         metasysUserToken.setExpires(Instant.now().plusSeconds(60));
         when(metasysTokenManager.getCurrentToken()).thenReturn(metasysUserToken);

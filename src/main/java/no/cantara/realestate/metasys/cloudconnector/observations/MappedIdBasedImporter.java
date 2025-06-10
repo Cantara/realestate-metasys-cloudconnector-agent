@@ -3,6 +3,8 @@ package no.cantara.realestate.metasys.cloudconnector.observations;
 import no.cantara.config.ApplicationProperties;
 import no.cantara.realestate.automationserver.BasClient;
 import no.cantara.realestate.cloudconnector.RealestateCloudconnectorException;
+import no.cantara.realestate.cloudconnector.audit.AuditTrail;
+import no.cantara.realestate.cloudconnector.audit.InMemoryAuditTrail;
 import no.cantara.realestate.distribution.ObservationDistributionClient;
 import no.cantara.realestate.mappingtable.MappedSensorId;
 import no.cantara.realestate.mappingtable.metasys.MetasysSensorId;
@@ -12,7 +14,6 @@ import no.cantara.realestate.mappingtable.repository.MappedIdRepositoryImpl;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorException;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnectorApplicationFactory;
 import no.cantara.realestate.metasys.cloudconnector.StatusType;
-import no.cantara.realestate.metasys.cloudconnector.audit.InMemoryAuditTrail;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysTrendSample;
 import no.cantara.realestate.metasys.cloudconnector.distribution.ObservationDistributionServiceStub;
@@ -41,6 +42,7 @@ import static no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealt
 import static no.cantara.realestate.utils.StringUtils.hasValue;
 import static org.slf4j.LoggerFactory.getLogger;
 
+@Deprecated
 public class MappedIdBasedImporter implements TrendLogsImporter {
     private static final Logger log = getLogger(MappedIdBasedImporter.class);
     public static final int FIRST_IMPORT_LATEST_SECONDS = 60 * 60 * 24;
@@ -50,7 +52,7 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
     private final ObservationDistributionClient distributionClient;
     private final MetasysMetricsDistributionClient metricsClient;
     private final MappedIdRepository mappedIdRepository;
-    private final InMemoryAuditTrail auditTrail;
+    private final AuditTrail auditTrail;
     private List<MappedSensorId> importableTrendIds = new ArrayList<>();
     private final Map<String, Instant> lastSuccessfulImportAt;
     private Timer metricsDistributor;
@@ -59,7 +61,7 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
 
 
     public MappedIdBasedImporter(MappedIdQuery mappedIdQuery, BasClient basClient, ObservationDistributionClient distributionClient,
-                                    MetasysMetricsDistributionClient metricsClient, MappedIdRepository mappedIdRepository, InMemoryAuditTrail auditTrail) {
+                                    MetasysMetricsDistributionClient metricsClient, MappedIdRepository mappedIdRepository, AuditTrail auditTrail) {
         this.mappedIdQuery = mappedIdQuery;
         this.basClient = basClient;
         this.distributionClient = distributionClient;
@@ -309,7 +311,7 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
                 .sensorType(SensorType.co2.name())
                 .build();
         String configDirectory = config.get("importdata.directory");
-        InMemoryAuditTrail auditTrail = new InMemoryAuditTrail();
+        AuditTrail auditTrail = new InMemoryAuditTrail();
         MappedIdRepository mappedIdRepository = createMappedIdRepository(true, configDirectory, auditTrail);
         MappedIdBasedImporter importer = new MappedIdBasedImporter(tfm2RecQuery, sdClient, observationClient, metricsClient, mappedIdRepository, auditTrail);
         importer.startup();
@@ -325,7 +327,7 @@ public class MappedIdBasedImporter implements TrendLogsImporter {
 
 
     //FIXME duplicate code with MappedIdRepositoryImpl
-    private static MappedIdRepository createMappedIdRepository(boolean doImportData, String configDirectory, InMemoryAuditTrail auditTrail) {
+    private static MappedIdRepository createMappedIdRepository(boolean doImportData, String configDirectory, AuditTrail auditTrail) {
         MappedIdRepository mappedIdRepository = new MappedIdRepositoryImpl();
         if (doImportData) {
             if (!Paths.get(configDirectory).toFile().exists()) {

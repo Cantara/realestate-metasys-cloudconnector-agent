@@ -4,27 +4,17 @@ import no.cantara.config.ApplicationProperties;
 import no.cantara.realestate.automationserver.BasClient;
 import no.cantara.realestate.cloudconnector.RealestateCloudconnectorApplication;
 import no.cantara.realestate.cloudconnector.notifications.NotificationService;
-import no.cantara.realestate.cloudconnector.notifications.SlackNotificationService;
 import no.cantara.realestate.cloudconnector.routing.ObservationsRepository;
 import no.cantara.realestate.cloudconnector.sensorid.SensorIdRepository;
 import no.cantara.realestate.distribution.ObservationDistributionClient;
-import no.cantara.realestate.mappingtable.repository.MappedIdQuery;
-import no.cantara.realestate.mappingtable.repository.MappedIdQueryBuilder;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
-import no.cantara.realestate.mappingtable.repository.MappedIdRepositoryImpl;
-import no.cantara.realestate.metasys.cloudconnector.audit.AuditResource;
-import no.cantara.realestate.metasys.cloudconnector.audit.InMemoryAuditTrail;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClientSimulator;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysStreamClient;
-import no.cantara.realestate.metasys.cloudconnector.distribution.ObservationDistributionResource;
 import no.cantara.realestate.metasys.cloudconnector.ingestion.MetasysTrendsIngestionService;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
-import no.cantara.realestate.metasys.cloudconnector.observations.*;
-import no.cantara.realestate.metasys.cloudconnector.sensors.MetasysConfigImporter;
+import no.cantara.realestate.metasys.cloudconnector.observations.MetasysStreamImporter;
 import no.cantara.realestate.metasys.cloudconnector.sensors.MetasysCsvSensorImporter;
-import no.cantara.realestate.metasys.cloudconnector.sensors.SensorType;
 import no.cantara.realestate.metasys.cloudconnector.trends.InMemoryTrendsLastUpdatedService;
 import no.cantara.realestate.metasys.cloudconnector.trends.TrendsLastUpdatedService;
 import no.cantara.realestate.metasys.cloudconnector.utils.LogbackConfigLoader;
@@ -34,7 +24,6 @@ import no.cantara.realestate.plugins.notifications.NotificationListener;
 import no.cantara.realestate.rec.RecRepository;
 import no.cantara.realestate.rec.RecTags;
 import no.cantara.realestate.security.LogonFailedException;
-import no.cantara.realestate.sensors.MappedSensorId;
 import no.cantara.realestate.sensors.SensorId;
 import no.cantara.realestate.sensors.metasys.MetasysSensorId;
 import no.cantara.stingray.application.health.StingrayHealthService;
@@ -42,10 +31,8 @@ import org.slf4j.Logger;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.file.Paths;
-import java.util.*;
+import java.util.List;
 
-import static no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealthResource.setUnhealthy;
 import static org.slf4j.LoggerFactory.getLogger;
 
 public class MetasysCloudconnectorApplication extends RealestateCloudconnectorApplication {
@@ -53,7 +40,6 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
     private boolean enableStream;
     private boolean enableScheduledImport;
     private NotificationService notificationService;
-    private InMemoryAuditTrail auditTrail;
 
     public static final String INSTRUMENTATION_SCOPE_NAME_KEY = "opentelemetry.instrumentationScopeName";
     public static final String INSTRUMENTATION_SCOPE_NAME_VALUE = "no.cantara.realestate";
@@ -79,7 +65,9 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
         final ObservationDistributionClient finalObservationDistributionClient = null;
         final MetasysMetricsDistributionClient metricsDistributionClient = null;
 
-        initAuditTrail();
+//        initAuditTrail();
+//        auditTrail = init(InMemoryAuditTrail.class, InMemoryAuditTrail::new);
+//        AuditResource auditResource = initAndRegisterJaxRsWsComponent(AuditResource.class, this::createAuditResource);
         boolean doImportData = config.asBoolean("import.data");
         enableStream = config.asBoolean("sd.stream.enabled");
         enableScheduledImport = config.asBoolean("sd.scheduledImport.enabled");
@@ -97,13 +85,21 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
 
         //SensorIdRepository
         TrendsLastUpdatedService trendsLastUpdatedService = init(TrendsLastUpdatedService.class, () -> new InMemoryTrendsLastUpdatedService());
-        TrendsIngestionService trendsIngestionService = new MetasysTrendsIngestionService(config,  observationListener, notificationListener, sdClient, trendsLastUpdatedService);
+        TrendsIngestionService trendsIngestionService = new MetasysTrendsIngestionService(config,  observationListener, notificationListener, sdClient, trendsLastUpdatedService,auditTrail);
         SensorIdRepository sensorIdRepository = get(SensorIdRepository.class);
         String importDirectory = config.get("importdata.directory");
         List<MetasysSensorId> metasysSensorIds = MetasysCsvSensorImporter.importSensorIdsFromDirectory(importDirectory,"Metasys");
-        sensorIdRepository.addAll(metasysSensorIds);
+        for (MetasysSensorId metasysSensorId : metasysSensorIds) {
+            auditTrail.logCreated(metasysSensorId.getId(), "Added to SensorIdRepository");
+            sensorIdRepository.add(metasysSensorId);
+        }
+//        sensorIdRepository.addAll(metasysSensorIds);
         List<SensorId> sensorIds = sensorIdRepository.all();
-        trendsIngestionService.addSubscriptions(sensorIds);
+        for (SensorId sensorId : sensorIds) {
+            auditTrail.logSubscribed(sensorId.getId(), "Subscribed to TrendsIngestionService");
+            trendsIngestionService.addSubscription(sensorId);
+        }
+//        trendsIngestionService.addSubscriptions(sensorIds);
         log.info("Starting MetasysTrendsIngestionService with {} sensorIds", trendsIngestionService.getSubscriptionsCount());
 
         //RecRepository
@@ -121,6 +117,8 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
         //Start ingestion and routing
         super.initIngestionService(trendsIngestionService);
         super.initRouter();
+
+
 //        ScheduledImportManager scheduledImportManager = init(ScheduledImportManager.class, () -> wireScheduledImportManager(sdClient, finalObservationDistributionClient, metricsDistributionClient, mappedIdRepository, auditTrail));
          /*
         initBuiltinDefaults();
@@ -225,23 +223,6 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
         }
     }
 
-    private void initAuditTrail() {
-        auditTrail = init(InMemoryAuditTrail.class, InMemoryAuditTrail::new);
-        AuditResource auditResource = initAndRegisterJaxRsWsComponent(AuditResource.class, () -> new AuditResource(auditTrail));
-    }
-
-    private void initNotificationServices() {
-        ServiceLoader<NotificationService> notificationServices = ServiceLoader.load(NotificationService.class);
-        if (notificationServices != null && notificationServices.iterator().hasNext()) {
-            notificationService = notificationServices.findFirst().orElse(null);
-            log.trace("Alerts and Warnings will be sent with NotificationService: {}", notificationService);
-        } else {
-            log.warn("ServiceLoader could not find any implementation of NotificationService. Using SlackNotificationService.");
-            notificationService = new SlackNotificationService();
-        }
-    }
-
-
     protected MetasysStreamImporter wireMetasysStreamImporter(MetasysStreamClient streamClient, BasClient sdClient, MappedIdRepository mappedIdRepository, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsClient) {
         MetasysStreamImporter streamImporter = new MetasysStreamImporter(streamClient, sdClient, mappedIdRepository, distributionClient, metricsClient, auditTrail);
 
@@ -274,85 +255,8 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
         return sdClient;
     }
 
-    protected MappedIdRepository createMappedIdRepository(boolean doImportData) {
-        MappedIdRepository mappedIdRepository = new MappedIdRepositoryImpl();
-        if (doImportData) {
-            String configDirectory = config.get("importdata.directory");
-            if (!Paths.get(configDirectory).toFile().exists()) {
-                throw new MetasysCloudConnectorException("Import of data from " + configDirectory + " failed. Directory does not exist.");
-            }
-            new MetasysConfigImporter().importMetasysConfig(configDirectory, mappedIdRepository, auditTrail);
-        }
-        return mappedIdRepository;
-    }
 
-    private ScheduledImportManager wireScheduledImportManager(BasClient sdClient, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsClient, MappedIdRepository mappedIdRepository, InMemoryAuditTrail auditTrail) {
 
-        ScheduledImportManager scheduledImportManager = null;
-//FIXME simplify. Need only one MappedIdBasedImporter. Remove individual real estate queries.
-        List<String> importAllFromRealestates = findListOfRealestatesToImportFrom();
-        log.info("Importallres: {}", importAllFromRealestates);
-        if (importAllFromRealestates != null && importAllFromRealestates.size() > 0) {
-            for (String realestate : importAllFromRealestates) {
-                MappedIdQuery mappedIdQuery = new MetasysMappedIdQueryBuilder().realEstate(realestate).build();
-                TrendLogsImporter trendLogsImporter = new MappedIdBasedImporter(mappedIdQuery, sdClient, distributionClient, metricsClient, mappedIdRepository, auditTrail);
-                if (scheduledImportManager == null) {
-                    scheduledImportManager = new ScheduledImportManager(trendLogsImporter, config);
-                } else {
-                    scheduledImportManager.addTrendLogsImporter(trendLogsImporter);
-                }
-            }
-        } else {
-            log.warn("Using Template import config for RealEstates: REstate1 and RealEst2");
-            MappedIdQuery mappedIdQuery = new MetasysMappedIdQueryBuilder().realEstate("REstate1").build();
-            TrendLogsImporter trendLogsImporter = new MappedIdBasedImporter(mappedIdQuery, sdClient, distributionClient, metricsClient, mappedIdRepository, auditTrail);
-            scheduledImportManager = new ScheduledImportManager(trendLogsImporter, config);
-
-            MappedIdQuery energyOnlyQuery = new MappedIdQueryBuilder().realEstate("RealEst2")
-                    .sensorType(SensorType.energy.name())
-                    .build();
-
-            TrendLogsImporter mappedIdBasedImporter = new MappedIdBasedImporter(energyOnlyQuery, sdClient, distributionClient, metricsClient, mappedIdRepository, auditTrail);
-            scheduledImportManager.addTrendLogsImporter(mappedIdBasedImporter);
-
-            MappedIdQuery mysteryHouseQuery = new MappedIdQueryBuilder().realEstate("511")
-                    .build();
-            TrendLogsImporter mysteryImporter = new MappedIdBasedImporter(mysteryHouseQuery, sdClient, distributionClient, metricsClient, mappedIdRepository, auditTrail);
-            scheduledImportManager.addTrendLogsImporter(mysteryImporter);
-        }
-
-        return scheduledImportManager;
-    }
-
-    protected List<String> findListOfRealestatesToImportFrom() {
-        List<String> realEstates = null;
-        try {
-            String reCsvSplitted = config.get("importsensorsQuery.realestates");
-            if (reCsvSplitted != null) {
-                realEstates = Arrays.asList(reCsvSplitted.split(","));
-            }
-        } catch (Exception e) {
-            log.warn("Failed to read list of RealEstates used for import.", e);
-        }
-        return realEstates;
-    }
-
-    private ObservationDistributionResource createObservationDistributionResource(ObservationDistributionClient observationDistributionClient) {
-        return new ObservationDistributionResource(observationDistributionClient);
-    }
-
-    private Random createRandom() {
-        return new Random(System.currentTimeMillis());
-    }
-
-    private RandomizerResource createRandomizerResource() {
-        Random random = get(Random.class);
-        return new RandomizerResource(random);
-    }
-
-    /*
-    Start application
-     */
     public static void main(String[] args) {
         String externalConfigPath = "./logback_override.xml";
         LogbackConfigLoader.loadExternalConfig(externalConfigPath);
@@ -370,45 +274,11 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
             log.info("Server started. See status on {}/health", baseUrl);
             log.info("   SensorIds: {}/sensorids/status", baseUrl);
             log.info("   Recs: {}/rec/status", baseUrl);
-//            application.startImportingObservations();
+            log.info("   Audit: {}/audit", baseUrl);
         } catch (Exception e) {
             log.error("Failed to start MetasysCloudconnectorApplication", e);
         }
 
-    }
-
-    /*
-    Start importing observations from Metasys thorough stream and/or scheduled import.
-     */
-    protected void startImportingObservations() {
-        // Start import scheduler and stream
-        if (enableStream) {
-            log.info("Stream import is enabled.");
-            List<String> importAllFromRealestates = findListOfRealestatesToImportFrom();
-            log.info("Stream import all from these RealEstates: {}", importAllFromRealestates);
-            List<MappedIdQuery> idQueries = new ArrayList<>();
-            if (importAllFromRealestates != null && importAllFromRealestates.size() > 0) {
-                for (String realestate : importAllFromRealestates) {
-                    MappedIdQuery mappedIdQuery = new MetasysMappedIdQueryBuilder().realEstate(realestate).build();
-                    idQueries.add(mappedIdQuery);
-                }
-            }
-
-            try {
-                log.info("Stream import with these queries: {}", idQueries);
-                get(MetasysStreamImporter.class).startSubscribing(idQueries);
-            } catch (SdLogonFailedException e) {
-                setUnhealthy();
-                log.warn("Failed to start subscribing to stream. Reason: {}", e.getMessage());
-            }
-        } else {
-            log.info("Stream import is disabled.");
-        }
-        if (enableScheduledImport) {
-            get(ScheduledImportManager.class).startScheduledImportOfTrendIds();
-        } else {
-            log.info("Scheduled import is disabled.");
-        }
     }
 
 }

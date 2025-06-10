@@ -3,6 +3,7 @@ package no.cantara.realestate.metasys.cloudconnector.ingestion;
 import no.cantara.config.ApplicationProperties;
 import no.cantara.realestate.automationserver.BasClient;
 import no.cantara.realestate.cloudconnector.RealestateCloudconnectorException;
+import no.cantara.realestate.cloudconnector.audit.AuditTrail;
 import no.cantara.realestate.mappingtable.MappedSensorId;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorException;
 import no.cantara.realestate.metasys.cloudconnector.StatusType;
@@ -35,6 +36,7 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
     private static final Logger log = getLogger(MetasysTrendsIngestionService.class);
 
     public static final String BAS_URL_KEY = "sd.api.url";
+    private final AuditTrail auditTrail;
     private ObservationListener observationListener;
     private NotificationListener notificationListener;
     private BasClient metasysApiClient;
@@ -58,7 +60,7 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
      * @param notificationListener
      * @param metasysApiClient
      */
-    public MetasysTrendsIngestionService(ApplicationProperties config, ObservationListener observationListener, NotificationListener notificationListener, BasClient metasysApiClient, TrendsLastUpdatedService trendsLastUpdatedService) {
+    public MetasysTrendsIngestionService(ApplicationProperties config, ObservationListener observationListener, NotificationListener notificationListener, BasClient metasysApiClient, TrendsLastUpdatedService trendsLastUpdatedService, AuditTrail auditTrail) {
         sensorIds = new ArrayList<>();
         this.config = config;
         if (config == null || observationListener == null || notificationListener == null || metasysApiClient == null || trendsLastUpdatedService == null) {
@@ -74,6 +76,7 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
         this.notificationListener = notificationListener;
         this.metasysApiClient = metasysApiClient;
         this.trendsLastUpdatedService = trendsLastUpdatedService;
+        this.auditTrail = auditTrail;
 
     }
 
@@ -120,6 +123,7 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
                     isHealthy = true;
                     if (trendSamples != null && trendSamples.size() > 0) {
                         updateWhenLastObservationReceived();
+                        auditTrail.logObservedTrend(sensorId.getId(), "Observed: " + trendSamples.size());
                         auditLog.trace("Ingest__TrendSamplesFound__{}__{}__{}__{}", trendId, sensorId.getClass(), sensorId.getId(), trendSamples.size());
                     } else {
                         auditLog.trace("Ingest__TrendSamplesFound__{}__{}__{}__{}", trendId, sensorId.getClass(), sensorId.getId(), 0);

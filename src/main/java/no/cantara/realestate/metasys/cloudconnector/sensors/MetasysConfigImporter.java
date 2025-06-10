@@ -1,11 +1,10 @@
 package no.cantara.realestate.metasys.cloudconnector.sensors;
 
+import no.cantara.realestate.cloudconnector.audit.AuditTrail;
 import no.cantara.realestate.mappingtable.MappedSensorId;
 import no.cantara.realestate.mappingtable.importer.CsvSensorImporter;
 import no.cantara.realestate.mappingtable.metasys.MetasysCsvSensorImporter;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
-import no.cantara.realestate.metasys.cloudconnector.audit.InMemoryAuditTrail;
-import no.cantara.realestate.rec.RecTags;
 import no.cantara.realestate.sensors.metasys.MetasysSensorId;
 import org.slf4j.Logger;
 
@@ -30,7 +29,7 @@ public class MetasysConfigImporter {
 
 
 
-    public long importMetasysConfig(String configDirectory, MappedIdRepository mappedIdRepository, InMemoryAuditTrail auditTrail) {
+    public long importMetasysConfig(String configDirectory, MappedIdRepository mappedIdRepository, AuditTrail auditTrail) {
         File importDirectory = new File(configDirectory);
         CsvSensorImporter csvImporter = new MetasysCsvSensorImporter(importDirectory);
         List<MappedSensorId> mappedSensorIds = csvImporter.importMappedId("Metasys");

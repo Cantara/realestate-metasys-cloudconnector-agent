@@ -2,6 +2,7 @@ package no.cantara.realestate.metasys.cloudconnector.observations;
 
 import no.cantara.config.ApplicationProperties;
 import no.cantara.realestate.automationserver.BasClient;
+import no.cantara.realestate.cloudconnector.audit.AuditTrail;
 import no.cantara.realestate.distribution.ObservationDistributionClient;
 import no.cantara.realestate.mappingtable.MappedSensorId;
 import no.cantara.realestate.mappingtable.UniqueKey;
@@ -9,7 +10,6 @@ import no.cantara.realestate.mappingtable.metasys.MetasysSensorId;
 import no.cantara.realestate.mappingtable.metasys.MetasysUniqueKey;
 import no.cantara.realestate.mappingtable.repository.MappedIdQuery;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
-import no.cantara.realestate.metasys.cloudconnector.audit.InMemoryAuditTrail;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.*;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
@@ -42,7 +42,7 @@ public class MetasysStreamImporter implements StreamListener {
     private final MappedIdRepository idRepository;
     private final ObservationDistributionClient distributionClient;
     private final MetasysMetricsDistributionClient metricsDistributionClient;
-    private final InMemoryAuditTrail auditTrail;
+    private final AuditTrail auditTrail;
     private String subscriptionId = null;
 
     private boolean isHealthy = false;
@@ -61,7 +61,7 @@ public class MetasysStreamImporter implements StreamListener {
     private List<MappedIdQuery> idQueries;
 
 
-    public MetasysStreamImporter(MetasysStreamClient streamClient, BasClient sdClient, MappedIdRepository idRepository, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsDistributionClient, InMemoryAuditTrail auditTrail) {
+    public MetasysStreamImporter(MetasysStreamClient streamClient, BasClient sdClient, MappedIdRepository idRepository, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsDistributionClient, AuditTrail auditTrail) {
         this.streamClient = streamClient;
         this.sdClient = sdClient;
         this.idRepository = idRepository;
