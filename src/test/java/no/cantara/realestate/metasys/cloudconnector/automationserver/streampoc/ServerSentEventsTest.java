@@ -6,6 +6,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledIfEnvironmentVariable;
 import org.slf4j.Logger;
 
 import java.io.IOException;
@@ -19,6 +20,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.slf4j.LoggerFactory.getLogger;
 
+@DisabledIfEnvironmentVariable(named = "JENKINS_URL", matches = ".*")
 public class ServerSentEventsTest {
     private static final Logger log = getLogger(ServerSentEventsTest.class);
 
@@ -50,7 +52,7 @@ public class ServerSentEventsTest {
         }
     }
 
-    @Disabled("Disabled due to unstable test environment")
+
     @Test
     void receiveHello() throws InterruptedException {
         sseMockServer.start(port, MockServerSentEventsRunner.Scenario.HELLO);
