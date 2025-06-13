@@ -2,33 +2,27 @@ package no.cantara.realestate.metasys.cloudconnector.ingestion;
 
 import no.cantara.config.ApplicationProperties;
 import no.cantara.realestate.automationserver.BasClient;
-import no.cantara.realestate.cloudconnector.RealestateCloudconnectorException;
 import no.cantara.realestate.cloudconnector.audit.AuditTrail;
-import no.cantara.realestate.mappingtable.MappedSensorId;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorException;
-import no.cantara.realestate.metasys.cloudconnector.StatusType;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysTrendSample;
-import no.cantara.realestate.metasys.cloudconnector.observations.MetasysObservationMessage;
 import no.cantara.realestate.metasys.cloudconnector.trends.TrendsLastUpdatedService;
-import no.cantara.realestate.observations.*;
+import no.cantara.realestate.observations.ObservationListener;
+import no.cantara.realestate.observations.ObservedTrendedValue;
+import no.cantara.realestate.observations.ObservedValue;
+import no.cantara.realestate.observations.TrendSample;
 import no.cantara.realestate.plugins.config.PluginConfig;
 import no.cantara.realestate.plugins.ingestion.TrendsIngestionService;
 import no.cantara.realestate.plugins.notifications.NotificationListener;
-import no.cantara.realestate.security.InvalidTokenException;
 import no.cantara.realestate.security.LogonFailedException;
 import no.cantara.realestate.sensors.SensorId;
-import static no.cantara.realestate.metasys.cloudconnector.utils.MetasysConstants.auditLog;
-
 import no.cantara.realestate.sensors.metasys.MetasysSensorId;
 import org.slf4j.Logger;
 
 import java.net.URISyntaxException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
+import static no.cantara.realestate.metasys.cloudconnector.utils.MetasysConstants.auditLog;
 import static no.cantara.realestate.utils.StringUtils.hasValue;
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -77,7 +71,6 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
         this.metasysApiClient = metasysApiClient;
         this.trendsLastUpdatedService = trendsLastUpdatedService;
         this.auditTrail = auditTrail;
-
     }
 
     //FIXME Sjekk mot MetasysClient, og hva som kjører denne ingestTrends periodisk i CloudConnector-Common. ScheduledObservationMessageRouter
@@ -110,38 +103,41 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
          */
 
         for (SensorId sensorId : sensorIds) {
-            String trendId = ((MetasysSensorId)sensorId).getMetasysObjectId();
-            if (trendId != null && !trendId.isEmpty()) {
+            String metasysObjectId = ((MetasysSensorId)sensorId).getMetasysObjectId();
+            if (metasysObjectId != null && !metasysObjectId.isEmpty()) {
                 auditLog.trace("Ingest__TrendFindSamples__{}__{}", sensorId.getClass(), sensorId.getId());
                 try {
                     Instant lastObservedAt = trendsLastUpdatedService.getLastUpdatedAt((MetasysSensorId) sensorId);
                     auditLog.trace("Ingest__TrendLastUpdatedAt__{}__{}__{}", sensorId.getClass(), sensorId.getId(), lastObservedAt);
                     if (lastObservedAt == null) {
+                        log.trace("Try import of trendId: {} with default lastObservedAt ", metasysObjectId);
                         lastObservedAt = getDefaultLastObservedAt();
                     }
-                    Set<? extends TrendSample> trendSamples = metasysApiClient.findTrendSamplesByDate(trendId, -1, -1, lastObservedAt.minusSeconds(600));
+
+                    log.trace("Try import of trendId: {} from: {}", metasysObjectId, lastObservedAt);
+                    Set<? extends TrendSample> trendSamples = metasysApiClient.findTrendSamplesByDate(metasysObjectId, -1, -1, lastObservedAt);
                     isHealthy = true;
                     if (trendSamples != null && trendSamples.size() > 0) {
                         updateWhenLastObservationReceived();
                         auditTrail.logObservedTrend(sensorId.getId(), "Observed: " + trendSamples.size());
-                        auditLog.trace("Ingest__TrendSamplesFound__{}__{}__{}__{}", trendId, sensorId.getClass(), sensorId.getId(), trendSamples.size());
+                        auditLog.trace("Ingest__TrendSamplesFound__{}__{}__{}__{}", metasysObjectId, sensorId.getClass(), sensorId.getId(), trendSamples.size());
                     } else {
-                        auditLog.trace("Ingest__TrendSamplesFound__{}__{}__{}__{}", trendId, sensorId.getClass(), sensorId.getId(), 0);
+                        auditLog.trace("Ingest__TrendSamplesFound__{}__{}__{}__{}", metasysObjectId, sensorId.getClass(), sensorId.getId(), 0);
                     }
                     for (TrendSample trendValue : trendSamples) {
                         ObservedValue observedValue = new ObservedTrendedValue(sensorId, trendValue.getValue());
                         if (trendValue.getObservedAt() != null) {
                             observedValue.setObservedAt(trendValue.getObservedAt());
                         }
-                        auditLog.trace("Ingest__TrendObserved__{}__{}__{}__{}__{}", trendId, observedValue.getClass(), observedValue.getSensorId().getId(), observedValue.getValue(), observedValue.getObservedAt());
+                        auditLog.trace("Ingest__TrendObserved__{}__{}__{}__{}__{}", metasysObjectId, observedValue.getClass(), observedValue.getSensorId().getId(), observedValue.getValue(), observedValue.getObservedAt());
                         observationListener.observedValue(observedValue);
                         addMessagesImportedCount();
-                        trendsLastUpdatedService.setLastUpdatedAt((MetasysSensorId) sensorId, trendValue.getObservedAt());
+                        trendsLastUpdatedService.setLastUpdatedAt(sensorId, trendValue.getObservedAt());
                     }
                     updatedSensors.add((MetasysSensorId) sensorId);
                 } catch (LogonFailedException e) {
                     addMessagesFailedCount();
-                    trendsLastUpdatedService.setLastFailedAt((MetasysSensorId) sensorId, Instant.now());
+                    trendsLastUpdatedService.setLastFailedAt(sensorId, Instant.now());
                     failedSensors.add((MetasysSensorId) sensorId);
                     log.error("Failed to logon to Metasys API {} using username {}", apiUrl, config.get("sd.api.username", "admin"), e);
                     throw new MetasysCloudConnectorException("Could not ingest trends for " + getName() + " Logon failed to " + apiUrl + ", using username: " + config.get("sd.api.username", "admin"), e);
@@ -149,13 +145,13 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
                     addMessagesFailedCount();
                     trendsLastUpdatedService.setLastFailedAt((MetasysSensorId) sensorId, Instant.now());
                     failedSensors.add((MetasysSensorId) sensorId);
-                    auditLog.trace("Ingest__Failed__TrendId__{}__sensorId__{}. Reason {}", trendId, sensorId, e.getMessage());
+                    auditLog.trace("Ingest__Failed__TrendId__{}__sensorId__{}. Reason {}", metasysObjectId, sensorId, e.getMessage());
                 } catch (MetasysCloudConnectorException dce) {
                     addMessagesFailedCount();
                     trendsLastUpdatedService.setLastFailedAt((MetasysSensorId) sensorId, Instant.now());
                     failedSensors.add((MetasysSensorId) sensorId);
-                    log.debug("Failed to ingest trends for TrendId {} sensorId {}.", trendId, sensorId, dce);
-                    auditLog.trace("Ingest__TrendImportFailed__{}__{}__{}__{}", trendId, sensorId.getId(), ((MetasysSensorId) sensorId).getMetasysObjectId(), dce.getMessage());
+                    log.debug("Failed to ingest trends for TrendId {} sensorId {}.", metasysObjectId, sensorId, dce);
+                    auditLog.trace("Ingest__TrendImportFailed__{}__{}__{}__{}", metasysObjectId, sensorId.getId(), ((MetasysSensorId) sensorId).getMetasysObjectId(), dce.getMessage());
                 } catch (Exception e) {
                     addMessagesFailedCount();
                     trendsLastUpdatedService.setLastFailedAt((MetasysSensorId) sensorId, Instant.now());
@@ -273,7 +269,7 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
 """;
 
     protected Instant getDefaultLastObservedAt() {
-        return Instant.now().minus(30, ChronoUnit.DAYS);
+        return Instant.now().minus(2, ChronoUnit.HOURS);
     }
 
     @Override
