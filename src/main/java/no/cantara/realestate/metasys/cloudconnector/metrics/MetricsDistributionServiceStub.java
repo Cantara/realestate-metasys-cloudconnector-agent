@@ -9,6 +9,7 @@ import java.util.Set;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
+@Deprecated
 public class MetricsDistributionServiceStub implements MetasysMetricsDistributionClient {
     private static final Logger log = getLogger(MetricsDistributionServiceStub.class);
     TelemetryClient telemetryClient;

@@ -5,9 +5,11 @@ import com.slack.api.methods.MethodsClient;
 import com.slack.api.methods.request.chat.ChatPostMessageRequest;
 import com.slack.api.methods.response.chat.ChatPostMessageResponse;
 import no.cantara.config.ApplicationProperties;
+import no.cantara.realestate.cloudconnector.notifications.NotificationService;
+import no.cantara.realestate.cloudconnector.notifications.SlackNotificationService;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnectorApplicationFactory;
 
-import static no.cantara.realestate.metasys.cloudconnector.notifications.SlackNotificationService.*;
+import static no.cantara.realestate.cloudconnector.notifications.SlackNotificationService.*;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SlackNotificationServiceManualTest {
