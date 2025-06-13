@@ -3,14 +3,18 @@ package no.cantara.realestate.metasys.cloudconnector.automationserver.stream;
 import java.time.Instant;
 
 public class StreamEvent {
-    private final String id;
-    private final String name;
-    private final String comment;
-    private final String data;
+    private String id;
+    private String name;
+    private String comment;
+    private String data;
 
     private Instant observedAt;
 
     private Instant receivedAt;
+
+    public StreamEvent() {
+        this(null, null, null, null);
+    }
 
     public StreamEvent(String id, String name) {
         this(id, name, null, null);
@@ -24,20 +28,36 @@ public class StreamEvent {
         this.receivedAt = Instant.now();
     }
 
+    public String getComment() {
+        return comment;
+    }
+
+    public void setComment(String comment) {
+        this.comment = comment;
+    }
+
+    public String getData() {
+        return data;
+    }
+
+    public void setData(String data) {
+        this.data = data;
+    }
+
     public String getId() {
         return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
     }
 
     public String getName() {
         return name;
     }
 
-    public String getComment() {
-        return comment;
-    }
-
-    public String getData() {
-        return data;
+    public void setName(String name) {
+        this.name = name;
     }
 
     public Instant getObservedAt() {

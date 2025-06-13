@@ -5,7 +5,8 @@
 
   <groupId>no.cantara.realestate</groupId>
   <artifactId>metasys-cloudconnector-app</artifactId>
-  <version>0.7.15-SNAPSHOT</version>
+
+  <version>0.14.9-SNAPSHOT</version>
   <name>metasys-cloudconnector-agent</name>
   <url>https://github.com/Cantara/realestate-metasys-cloudconnector-agent</url>
 
@@ -23,8 +24,8 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.source>17</maven.compiler.source>
-    <maven.compiler.target>17</maven.compiler.target>
+    <maven.compiler.source>21</maven.compiler.source>
+    <maven.compiler.target>21</maven.compiler.target>
     <mainClass>no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnectorApplication</mainClass>
     <jackson.version>2.19.0</jackson.version>
     <slf4j.version>1.7.32</slf4j.version>
@@ -34,10 +35,29 @@
     <stingray.version>1.21.5</stingray.version>
     <mappingtable.version>0.4.24</mappingtable.version>
     <mockserver.version>5.15.0</mockserver.version>
+    <junit.version>5.12.2</junit.version>
+    <junit.platform.version>1.12.2</junit.platform.version>
     <slack-api-client.version>1.45.3</slack-api-client.version>
+
   </properties>
 
   <dependencies>
+    <dependency>
+      <groupId>no.cantara.realestate</groupId>
+      <artifactId>typelib-java</artifactId>
+      <version>0.7.0</version>
+    </dependency>
+    <dependency>
+      <groupId>no.cantara.realestate</groupId>
+      <artifactId>realestate-cloudconnector-agent</artifactId>
+      <version>0.14.6</version>
+    </dependency>
+    <dependency>
+      <groupId>no.cantara.realestate</groupId>
+      <artifactId>azure-client-java</artifactId>
+      <version>0.6.7</version>
+    </dependency>
+    <!--
     <dependency>
       <groupId>no.cantara.realestate</groupId>
       <artifactId>api-java</artifactId>
@@ -48,16 +68,25 @@
       <artifactId>typelib-java</artifactId>
       <version>0.7.0</version>
     </dependency>
+    -->
     <dependency>
       <groupId>no.cantara.realestate</groupId>
       <artifactId>azure-client-java</artifactId>
       <version>0.6.7</version>
+      <exclusions>
+        <exclusion>
+          <groupId>no.cantara.realestate</groupId>
+          <artifactId>typelib-java</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
+    <!--
     <dependency>
       <groupId>no.cantara.stingray</groupId>
       <artifactId>stingray-application</artifactId>
       <version>${stingray.version}</version>
     </dependency>
+    -->
 
     <dependency>
       <groupId>no.cantara.stingray</groupId>
@@ -68,11 +97,23 @@
       <groupId>no.cantara.stingray</groupId>
       <artifactId>stingray-security</artifactId>
       <version>${stingray.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>junit</groupId>
+          <artifactId>junit</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.glassfish.jersey.media</groupId>
       <artifactId>jersey-media-sse</artifactId>
       <version>3.1.10</version>
+    </dependency>
+
+    <dependency>
+      <groupId>io.github.resilience4j</groupId>
+      <artifactId>resilience4j-ratelimiter</artifactId>
+      <version>2.2.0</version>
     </dependency>
 
     <dependency>
@@ -157,6 +198,7 @@
     </dependency>
 
     <!-- Test -->
+    <!-- Test -->
     <dependency>
       <groupId>no.cantara.stingray</groupId>
       <artifactId>stingray-application-test</artifactId>
@@ -169,16 +211,16 @@
       <version>${stingray.version}</version>
       <scope>runtime</scope>
     </dependency>
-  <dependency>
+    <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-api</artifactId>
-      <version>5.13.1</version>
+      <version>${junit.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-engine</artifactId>
-        <version>5.13.1</version>
+      <version>${junit.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -212,7 +254,25 @@
       <version>5.18.0</version>
       <scope>test</scope>
     </dependency>
-
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-junit-jupiter</artifactId>
+      <version>5.17.0</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.undertow</groupId>
+      <artifactId>undertow-core</artifactId>
+      <version>2.3.18.Final</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- Needed for IntelliJ to run tests -->
+    <dependency>
+      <groupId>org.junit.platform</groupId>
+      <artifactId>junit-platform-launcher</artifactId>
+      <version>${junit.platform.version}</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>

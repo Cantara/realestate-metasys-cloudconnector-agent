@@ -7,7 +7,8 @@ public class RealEstateStreamException extends RealEstateException {
 
     public enum Action {
         RECREATE_SUBSCRIPTION_NEEDED,
-        ABORT
+        ABORT,
+        RECONNECT_NEEDED,
     }
 
     public RealEstateStreamException(String message) {

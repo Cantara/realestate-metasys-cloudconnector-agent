@@ -1,5 +1,9 @@
 package no.cantara.realestate.metasys.cloudconnector.automationserver;
 
+import com.fasterxml.jackson.annotation.JsonSetter;
+import no.cantara.realestate.observations.TrendSample;
+import no.cantara.realestate.observations.Value;
+
 import javax.json.bind.annotation.JsonbProperty;
 import java.time.Instant;
 import java.util.Objects;
@@ -14,13 +18,14 @@ import java.util.Objects;
 		"isReliable": true
 	},
  */
-public class MetasysTrendSample {
+public class MetasysTrendSample extends TrendSample {
     private String trendId = null;
 
     private Boolean isReliable;
     @JsonbProperty("timestamp")
-    private Instant sampleDate;
-    private Value value;
+    private Instant observedAt;
+    @JsonbProperty("value")
+    private MetasysValue valueObject;
     private String objectId;
 
     public MetasysTrendSample() {
@@ -47,36 +52,30 @@ public class MetasysTrendSample {
         isReliable = reliable;
     }
 
-    public Instant getSampleDate() {
-        return sampleDate;
-    }
-
-//    public void setSampleDate(Instant sampleDate) {
-//        this.sampleDate = sampleDate;
-//    }
 
     public void setTimestamp(String timestamp) {
-//        DateTimeFormatter formatter = DateTimeFormatter.ISO_LOCAL_DATE;
-//        LocalDate parsedDate = LocalDate.parse(timestamp, formatter);
-        this.sampleDate = Instant.parse(timestamp);
+       super.setObservedAt(timestamp);
     }
 
     public boolean isValid() {
         return true; //FIXME validate MetasysTrendSample
     }
 
-    public Number getValue() {
-        Number valNum = null;
-        if (value != null) {
-            valNum = value.getValue();
-        }
-        return valNum;
+    public Value getValueObject() {
+        return valueObject;
     }
-    public void setValueDeep(Integer valueDeep) {
-        if (value == null) {
-            value = new Value();
+
+    @JsonSetter("value")
+    public void setValueObject(MetasysValue valueObject) {
+        this.valueObject = valueObject;
+        if (valueObject != null && valueObject.getValue() != null) {
+            if (valueObject.getValue() instanceof Number)
+            setValue((Number) valueObject.getValue());
         }
-        value.setValue(valueDeep);
+    }
+
+    public void setValue(Number value) {
+        super.setValue(value);
     }
 
     public void setObjectId(String objectId) {
@@ -95,13 +94,13 @@ public class MetasysTrendSample {
         return Objects.equals(getTrendId(), that.getTrendId()) &&
                 Objects.equals(objectId, that.objectId) &&
                 Objects.equals(isReliable, that.isReliable) &&
-                Objects.equals(getSampleDate(), that.getSampleDate()) &&
+                Objects.equals(getObservedAt(), that.getObservedAt()) &&
                 Objects.equals(getValue(), that.getValue());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getTrendId(), isReliable, getSampleDate(), getValue());
+        return Objects.hash(getTrendId(), isReliable, getObservedAt(), getValue());
     }
 
     @Override
@@ -110,8 +109,8 @@ public class MetasysTrendSample {
                 "trendId='" + trendId + '\'' +
                 ", objectId='" + objectId + '\'' +
                 ", isReliable=" + isReliable +  '\'' +
-                ", sampleDate=" + sampleDate +
-                ", value=" + value +
+                ", observedAt=" + getObservedAt() +
+                ", value=" + getValue() +
                 '}';
     }
 }

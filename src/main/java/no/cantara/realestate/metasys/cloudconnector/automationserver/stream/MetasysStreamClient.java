@@ -1,17 +1,19 @@
 package no.cantara.realestate.metasys.cloudconnector.automationserver.stream;
 
-import jakarta.ws.rs.client.Client;
-import jakarta.ws.rs.client.ClientBuilder;
+import jakarta.ws.rs.client.*;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Response;
-import no.cantara.realestate.RealEstateException;
-import org.glassfish.jersey.media.sse.EventInput;
-import org.glassfish.jersey.media.sse.InboundEvent;
-import org.glassfish.jersey.media.sse.SseFeature;
+import jakarta.ws.rs.sse.SseEventSource;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient;
+import no.cantara.realestate.security.UserToken;
 import org.slf4j.Logger;
 
+import java.io.IOException;
 import java.time.Instant;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
-import static no.cantara.realestate.metasys.cloudconnector.utils.StringUtils.hasValue;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
@@ -20,142 +22,192 @@ import static org.slf4j.LoggerFactory.getLogger;
 public class MetasysStreamClient {
     private static final Logger log = getLogger(MetasysStreamClient.class);
     private final Client client;
+    private final MetasysClient metasysClient;
 
     private boolean isLoggedIn = false;
     private boolean isStreamOpen = false;
     private Instant lastEventReceievedAt = null;
     private Thread streamThread = null;
+    private WebTarget target;
+    private final int reconnectDelaySeconds = 5;
+    private SseEventSource eventSource;
+    // State tracking
+    private final AtomicBoolean isManualClose = new AtomicBoolean(false);
+    private final AtomicReference<Instant> lastEventTime = new AtomicReference<>(Instant.now());
+    private final AtomicReference<ConnectionCloseReason> closeReason = new AtomicReference<>(ConnectionCloseReason.NONE);
+    private final AtomicReference<Integer> lastResponseStatus = new AtomicReference<>();
+
+    public enum ConnectionCloseReason {
+        NONE,
+        MANUAL_CLOSE,
+        AUTHENTICATION_ERROR,
+        SERVER_ERROR,
+        NETWORK_ERROR,
+        TIMEOUT,
+        SERVER_CLOSED,
+        STREAM_NOT_RESUMABLE, AUTHORIZATION_ERROR, UNKNOWN
+    }
 
     public MetasysStreamClient() {
+        metasysClient = MetasysClient.getInstance();
         client = init();
     }
+
     // For testing
-    protected MetasysStreamClient(Client client) {
+    protected MetasysStreamClient(MetasysClient metasysClient) {
+        this.client = init();
+        this.metasysClient = metasysClient;
+    }
+    protected MetasysStreamClient(Client client, MetasysClient metasysClient) {
         this.client = client;
+        this.metasysClient = metasysClient;
     }
 
-    private static Client init() {
+    private Client init() {
+        // Create Jersey client
         Client client = ClientBuilder.newBuilder()
-                .register(SseFeature.class)
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(60, TimeUnit.SECONDS)
                 .build();
         return client;
     }
 
+
     public void openStream(String sseUrl, String bearerToken, String lastKnownEventId, StreamListener streamListener) {
-        //Check that the server are able to establish or re-establish the subscription
-        Response response = null;
-        if (hasValue(lastKnownEventId)) {
-            response = client.target(sseUrl).request().header("Authorization", "Bearer " + bearerToken).header("Last-Event-Id", lastKnownEventId).get();
-            if (response == null) {
-                throw new RealEstateStreamException("Failed to open stream on URL: " + sseUrl + ", lastKnownEventId: " + lastKnownEventId + ", response is null: " + response);
-            } else if (response.getStatus() == 204) {
-                throw new RealEstateStreamException("Failed to open stream on URL: " + sseUrl + ", lastKnownEventId: " + lastKnownEventId + ", response: " + response, RealEstateStreamException.Action.RECREATE_SUBSCRIPTION_NEEDED);
-            }
+        log.info("Opening stream for url {}, lastKnownEventId: {}, StreamListener class: {}, objectId: ", sseUrl, lastKnownEventId, streamListener.getClass().getName(), System.identityHashCode(streamListener));
+        // Create a custom filter for adding the bearer token
+        UserToken userToken = metasysClient.getUserToken();
+        String accessToken = userToken.getAccessToken();
+        DynamicAuthorizationFilter authFilter = new DynamicAuthorizationFilter(metasysClient); //AuthorizationFilter(accessToken);
+        // Create a response monitor filter to track response status codes
+        ResponseMonitorFilter responseMonitorFilter = new ResponseMonitorFilter();
+
+        // Configure target with bearer token filter
+        target = client.target(sseUrl).register(authFilter).register(responseMonitorFilter);
+        // Create SSE event source with auto-reconnect. This creates a new Thread named jersey-client-async-executor
+        if (eventSource != null && eventSource.isOpen()) {
+            log.debug("Reusing existing eventSource");
+//            eventSource.close();
         } else {
-            response = client.target(sseUrl).request().header("Authorization", "Bearer " + bearerToken).get();
-            if (response == null) {
-                throw new RealEstateStreamException("Failed to open stream on URL: " + sseUrl + ", lastKnownEventId: " + lastKnownEventId + ", response is null: " + response);
-            }
+            log.debug("Creating new eventSource");
+            eventSource = SseEventSource.target(target)
+                    .reconnectingEvery(reconnectDelaySeconds, TimeUnit.SECONDS)
+                    .build();
         }
-        streamThread = new Thread(() -> {
 
-        EventInput eventInput = null;
-        try {
-            if (hasValue(lastKnownEventId)) {
-                try {
-                    eventInput = client.target(sseUrl)
-                            .request()
-                            .header("Authorization", "Bearer " + bearerToken)
-                            .header("Last-Event-Id", lastKnownEventId)
-                            .get(EventInput.class);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    eventInput = null;
-                    throw new RealEstateException("Failed to open stream on URL: " + sseUrl + ", lastKnownEventId: " + lastKnownEventId, e);
-                }
-            } else {
-                try {
-                    eventInput = client.target(sseUrl)
-                            .request()
-                            .header("Authorization", "Bearer " + bearerToken)
-                            .get(EventInput.class);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    eventInput = null;
-                    throw new RealEstateException("Failed to open stream on URL: " + sseUrl, e);
-                }
-            }
-            isLoggedIn = true;
-            isStreamOpen = true;
-//            try {
-            while (eventInput != null && !eventInput.isClosed()) {
-                InboundEvent inboundEvent = eventInput.read();
-                if (inboundEvent == null) {
-                    // Reconnect logic (you can add a delay here before reconnecting)
-                    isLoggedIn = false;
-                    eventInput.close();
-                    isStreamOpen = false;
-                    Thread.sleep(100);
-
-                    eventInput = client.target(sseUrl)
-                            .request()
-                            .header("Authorization", "Bearer " + bearerToken)
-                            .get(EventInput.class);
-                    isLoggedIn = true;
-                    isStreamOpen = true;
-                } else {
+        // Register event handlers
+        eventSource.register(
+                // Process each event
+                inboundEvent -> {
+                    String name = null;
+                    String data = null;
+                    StreamEvent streamEvent = null;
                     try {
-                        String data = inboundEvent.readData(String.class);
-                        System.out.println("Received Event: " + data);
-                        log.trace("Received Event: id: {}, name: {}, comment: {}, \ndata: {}", inboundEvent.getId(), inboundEvent.getName(), inboundEvent.getComment(), data);
-                        StreamEvent streamEvent = EventInputMapper.toStreamEvent(inboundEvent);
-                        streamListener.onEvent(streamEvent);
-                        lastEventReceievedAt = Instant.ofEpochMilli(System.currentTimeMillis());
+                        data = inboundEvent.readData();
+                        name = inboundEvent.getName();
+
+                        if (name == null || name.isEmpty()) {
+                            log.trace("Received SSE event: {}, {}", name, data);
+                        } else {
+                            log.debug("Received SSE event: name: {}, data: {}", name, data);
+
+                            streamEvent = EventInputMapper.toStreamEvent(inboundEvent);
+                            streamListener.onEvent(streamEvent);
+                            lastEventReceievedAt = Instant.ofEpochMilli(System.currentTimeMillis());
+                        }
                     } catch (Exception e) {
-                        //FIXME improve error handling
-                        log.error("Failed to read data from inboundEvent: {}", inboundEvent, e);
+                        log.info("Error processing SSE inboundEvent. Name: {}. Data: {}. StreamEvent: {} ", name, data, streamEvent, e);
                     }
+                },
+                // Handle errors
+                throwable -> {
+//                    log.warn("SSE connection error {}", throwable);
+                    log.warn("SSE connection error. Message: {}", throwable.getMessage());
+                    if (userToken != null) {
+                        log.debug("SSE connection error. UserToken expires {}", userToken.getExpires());
+                        if (userToken.getExpires().isBefore(Instant.now())) {
+                            String subtractedAccessToken = accessToken.substring(0, 100) + "..." + accessToken.substring(accessToken.length() - 100);
+                            log.info("SSE connection error. accessToken {}, expired. {}", subtractedAccessToken, userToken.getExpires());
+                        }
+                    } else {
+                        log.debug("SSE connection error. UserToken is null");
+                    }
+                    isStreamOpen = false;
+                    isLoggedIn = false;
+//                    System.out.println("Error processing SSE event: " + throwable.printStackTrace(););
+//                    throw new RealEstateStreamException("Failed to open stream on URL: " + sseUrl +
+//                            ", lastKnownEventId: " + lastKnownEventId + ", reason: " + throwable.getMessage(),
+//                            RealEstateStreamException.Action.RECREATE_SUBSCRIPTION_NEEDED);
+                },
+                // Handle connection close
+                () -> {
+                    log.warn("SSE connection closed. EventSource {}", eventSource);
+                    if (eventSource != null) {
+                        log.debug("SSE connection closed. EventSource isOpen {}", eventSource.isOpen());
+                    }
+                    log.debug("SSE connection closed. Client {}", client);
+                    if (client != null) {
+                        log.info("SSE connection closed. Client {}", client.getConfiguration());
+                    }
+                    log.debug("SSE connection closed. target {}", target);
+                    if (userToken != null) {
+                        log.debug("SSE connection closed. UserToken expires {}", userToken.getExpires());
+                        if (userToken.getExpires().isBefore(Instant.now())) {
+                            String subtractedAccessToken = accessToken.substring(0, 100) + "..." + accessToken.substring(accessToken.length() - 100);
+                            log.info("SSE connection closed. accessToken {}, expired. {}", subtractedAccessToken, userToken.getExpires());
+                        }
+                    } else {
+                        log.debug("SSE connection closed. UserToken is null");
+                    }
+                    ConnectionCloseReason reason = determineCloseReason();
+                    ConnectionCloseInfo closeInfo = new ConnectionCloseInfo(
+                            reason,
+                            lastResponseStatus.get(),
+                            lastEventTime.get()
+                    );
+
+                    log.info("SSE connection closed. closeInfo {}", closeInfo);
+                    isStreamOpen = false;
+                    isLoggedIn = false;
+                    streamListener.onClose(closeInfo);
+//                    throw new RealEstateStreamException("Stream was closed: " + sseUrl +
+//                            ", closeInfo: " + closeInfo, RealEstateStreamException.Action.RECONNECT_NEEDED);
                 }
-            }
-        } catch (InterruptedException e) {
-            log.info("StreamListener thread interrupted");
-            if (eventInput != null) {
-                eventInput.close();
-            }
-            log.info("StreamListener thread closed");
-        }
-        });
-        streamThread.setName("StreamListener");
-        streamThread.start();
+        );
 
+        // Start listening for events
+        eventSource.open();
+        isLoggedIn = true;
+
+        log.info("SSE client connected to {}", sseUrl);
     }
-    public void reconnectStream(String sseUrl, String bearerToken, String lastKnownEventId, StreamListener streamListener) throws RealEstateStreamException {
-        log.info("Reconnect stream at url {} with lastKnownEventId {}", sseUrl, lastKnownEventId);
-        if (streamThread != null && streamThread.isAlive()) {
-            streamThread.interrupt();
-            try {
-                streamThread.join(200);
-            } catch (InterruptedException e) {
-                log.warn("Interrupted while waiting for stream thread to join");
-            }
-        }
-        try {
-            openStream(sseUrl, bearerToken, lastKnownEventId, streamListener);
-        } catch (RealEstateStreamException re) {
-            isStreamOpen = false;
-            isLoggedIn = false;
-            if (re.getAction() != null && re.getAction() == RealEstateStreamException.Action.RECREATE_SUBSCRIPTION_NEEDED) {
-                log.warn("Recreate subscription needed for URL: {}, lastKnownEventId: {}", sseUrl, lastKnownEventId);
 
-            } else {
-                log.warn("Failed to open stream on URL: {}, lastKnownEventId: {}", sseUrl, lastKnownEventId, re);
+
+    public void reconnectStream(String sseUrl, String bearerToken, String lastKnownEventId, StreamListener streamListener) {
+        log.info("Requesting reconnect for stream at url {} with lastKnownEventId {}. ", sseUrl, lastKnownEventId);
+        if (isStreamOpen()) {
+            eventSource.close();
+            try {
+                log.trace("Waiting for stream to close before reconnecting");
+                Thread.sleep(200);
+                if (target != null) {
+                    log.trace("Setting target to null");
+                    target = null;
+                }
+            } catch (InterruptedException e) {
+                log.trace("Interrupted while waiting for stream to close");
+                throw new RuntimeException(e);
             }
-            throw re;
         }
+        log.trace("Stream closed, proceeding to open new stream");
+        openStream(sseUrl, bearerToken, lastKnownEventId, streamListener);
     }
 
 
     public void close() {
+        if (eventSource != null) {
+            eventSource.close();
+        }
         if (client != null) {
             client.close();
         }
@@ -176,40 +228,133 @@ public class MetasysStreamClient {
     protected boolean hasReceivedMessagesRecently() {
         return lastEventReceievedAt.isAfter(Instant.now().minusSeconds(30));
     }
+
     public Instant getWhenLastMessageImported() {
         return lastEventReceievedAt;
     }
 
     public boolean isHealthy() {
-        return isStreamOpen && isLoggedIn && hasReceivedMessagesRecently();
+        return isStreamOpen() && isLoggedIn() && hasReceivedMessagesRecently();
     }
 
     public boolean isStreamOpen() {
-        return isStreamOpen;
+        return eventSource != null && eventSource.isOpen();
+//        return isStreamOpen;
     }
 
+
+    // Custom authorization filter class
+    private static class AuthorizationFilter implements ClientRequestFilter {
+        private final String bearerToken;
+
+        public AuthorizationFilter(String bearerToken) {
+            this.bearerToken = bearerToken;
+        }
+
+        @Override
+        public void filter(ClientRequestContext requestContext) throws IOException {
+            requestContext.getHeaders().add(
+                    HttpHeaders.AUTHORIZATION,
+                    "Bearer " + bearerToken);
+        }
+    }
+
+    // Dynamic authorization filter that fetches the token for each request
+    private static class DynamicAuthorizationFilter implements ClientRequestFilter {
+
+        private final MetasysClient authClient;
+
+        public DynamicAuthorizationFilter(MetasysClient metasysClient) {
+            authClient = metasysClient;
+        }
+
+        @Override
+        public void filter(ClientRequestContext requestContext) throws IOException {
+            // Get the current token from the supplier for each request
+            String currentToken = authClient.getUserToken().getAccessToken();
+            requestContext.getHeaders().add(
+                    HttpHeaders.AUTHORIZATION,
+                    "Bearer " + currentToken);
+        }
+    }
+
+    // Filter to monitor response status codes
+    private class ResponseMonitorFilter implements ClientResponseFilter {
+        @Override
+        public void filter(ClientRequestContext requestContext, ClientResponseContext responseContext) throws IOException {
+            int status = responseContext.getStatus();
+            lastResponseStatus.set(status);
+
+            // Detect specific status codes that may lead to connection close
+            if (status == 204) {
+                // From Metasys documentation:
+                // If Metasys has cleaned up your buffer or cannot find that id in the recently sent buffer,
+                // you will get a 204 response per the SSE specification. Because your existing stream is not resumable,
+                // your Last-Event-Id is no longer valid.
+                // The recovery path is to start anew by calling get a stream without the Last-Event-Id and subscribe again to data of interest.
+                closeReason.set(ConnectionCloseReason.STREAM_NOT_RESUMABLE);
+                log.warn("Stream not resumable, reconnect is needed. Received 204 response. Last-Event-Id is no longer valid.");
+            } else if (status == Response.Status.UNAUTHORIZED.getStatusCode()) {
+                closeReason.set(ConnectionCloseReason.AUTHENTICATION_ERROR);
+                log.warn("Authentication failed with status 401. Check bearer token validity.");
+            } else if (status == Response.Status.FORBIDDEN.getStatusCode()) {
+                closeReason.set(ConnectionCloseReason.AUTHORIZATION_ERROR);
+                log.warn("Forbidden access with status 403. You might need to restart stream.");
+            } else if (status >= 500) {
+                closeReason.set(ConnectionCloseReason.SERVER_ERROR);
+                log.warn("Remote server error response: {}", status);
+            } else if (status != Response.Status.OK.getStatusCode() &&
+                    status != Response.Status.ACCEPTED.getStatusCode()) {
+                closeReason.set(ConnectionCloseReason.UNKNOWN);
+                log.warn("Unexpected response status: {}", status);
+            }
+        }
+    }
+
+    private ConnectionCloseReason determineCloseReason() {
+        if (isManualClose.get()) {
+            return ConnectionCloseReason.MANUAL_CLOSE;
+        }
+
+        ConnectionCloseReason currentReason = closeReason.get();
+        if (currentReason != ConnectionCloseReason.NONE) {
+            return currentReason;
+        }
+
+        // If we have no specific reason yet, consider it server-initiated
+        return ConnectionCloseReason.SERVER_CLOSED;
+    }
+
+
     public static void main(String[] args) {
-        if (args.length != 2) {
-            System.out.println("Usage: java -cp \"target/ServerSentEvents-<version>.jar\" no.cantara.sse.SseClient <sseUrl> <bearerToken>");
+        if (args.length < 2) {
+            System.out.println("Usage: java -cp \"target/metasys-cloudconnector-app-<version>.jar\" " +
+                    "no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysStreamClient <metasysStreamUrl> <bearerToken> <lastKnownEventId>");
             System.exit(1);
         }
         String sseUrl = args[0];
         String bearerToken = args[1];
+        String lastKnownEventId = null;
+        if (args.length > 2) {
+            lastKnownEventId = args[2];
+        }
 
         MetasysStreamClient sseClient = new MetasysStreamClient();
         //Open stream first time
-        String lastKnownEventId = null;
         //Reconnect stream from lastKnownEventId, aka a previous subscription
-        lastKnownEventId = "123";
-        sseClient.openStream(sseUrl, bearerToken,lastKnownEventId, new StreamListener() {
+//        lastKnownEventId = "123";
+        sseClient.openStream(sseUrl, bearerToken, lastKnownEventId, new StreamListener() {
             @Override
             public void onEvent(StreamEvent streamEvent) {
                 log.info("Received event: {}", streamEvent);
             }
+
+            @Override
+            public void onClose(ConnectionCloseInfo closeInfo) {
+                log.info("Connection closed: {}", closeInfo);
+            }
         });
     }
-
-
 }
 
 

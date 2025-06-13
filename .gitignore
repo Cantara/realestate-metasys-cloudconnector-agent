@@ -37,4 +37,5 @@ local_override.properties
 # Runtime config to be ignored
 import-data/
 ii/
+logback_override.xml
 

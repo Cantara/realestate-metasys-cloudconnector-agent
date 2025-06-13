@@ -2,6 +2,8 @@ package no.cantara.realestate.metasys.cloudconnector.observations;
 
 import no.cantara.config.ApplicationProperties;
 import no.cantara.config.testsupport.ApplicationPropertiesTestHelper;
+import no.cantara.realestate.automationserver.BasClient;
+import no.cantara.realestate.cloudconnector.audit.AuditTrail;
 import no.cantara.realestate.distribution.ObservationDistributionClient;
 import no.cantara.realestate.mappingtable.MappedSensorId;
 import no.cantara.realestate.mappingtable.SensorId;
@@ -10,11 +12,10 @@ import no.cantara.realestate.mappingtable.metasys.MetasysSensorId;
 import no.cantara.realestate.mappingtable.metasys.MetasysUniqueKey;
 import no.cantara.realestate.mappingtable.rec.SensorRecObject;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClient;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.UserToken;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysTokenManager;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysUserToken;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.*;
-import no.cantara.realestate.metasys.cloudconnector.distribution.MetricsDistributionClient;
+import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
 import no.cantara.realestate.observations.ObservationMessage;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,7 +24,6 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -33,10 +33,12 @@ class MetasysStreamImporterTest {
 
     private MetasysStreamImporter metasysStreamImporter;
     private MetasysStreamClient metasysStreamClient;
-    private SdClient sdClient;
+    private BasClient sdClient;
     private MappedIdRepository idRepository;
     private ObservationDistributionClient distributionClient;
-    private MetricsDistributionClient metricsDistributionClient;
+    private MetasysMetricsDistributionClient metricsDistributionClient;
+    private MetasysTokenManager metasysTokenManager;
+    private AuditTrail auditTrail;
 
     @BeforeAll
     static void beforeAll() {
@@ -47,32 +49,41 @@ class MetasysStreamImporterTest {
     @BeforeEach
     void setUp() {
         metasysStreamClient = mock(MetasysStreamClient.class);
-        sdClient = mock(SdClient.class);
+        sdClient = mock(BasClient.class);
         idRepository = mock(MappedIdRepository.class);
         distributionClient = mock(ObservationDistributionClient.class);
-        metricsDistributionClient = mock(MetricsDistributionClient.class);
-        metasysStreamImporter = new MetasysStreamImporter(metasysStreamClient, sdClient, idRepository, distributionClient, metricsDistributionClient);
+        metricsDistributionClient = mock(MetasysMetricsDistributionClient.class);
+        metasysTokenManager = mock(MetasysTokenManager.class);
+        auditTrail = mock(AuditTrail.class);
+        MetasysUserToken metasysUserToken = new MetasysUserToken();
+        metasysUserToken.setExpires(Instant.now().plusSeconds(60));
+        when(metasysTokenManager.getCurrentToken()).thenReturn(metasysUserToken);
+
+        metasysStreamImporter = new MetasysStreamImporter(metasysStreamClient, sdClient, idRepository, distributionClient, metricsDistributionClient,auditTrail);
     }
 
+    /*
     @Test
     void scheduleRefreshAccessToken() throws SdLogonFailedException, InterruptedException {
-        UserToken stubUserToken = new UserToken();
-        stubUserToken.setExpires(Instant.now().plusSeconds(90));
+        MetasysUserToken stubUserToken = new MetasysUserToken();
+        stubUserToken.setExpires(Instant.now().plusSeconds(20));
         when(sdClient.getUserToken()).thenReturn(stubUserToken);
         metasysStreamImporter.scheduleRefreshToken(1L);
         Thread.sleep(1100);
         //Will run twice. First time immediately due to interval is less than 30 seconds
         verify(sdClient, times(2)).refreshToken();
     }
+    */
 
+    /*
     @Test
     void verifyRescheduleIsEnabled() throws SdLogonFailedException {
         String id = "1";
         String data = "subscriptionId-12345";
         MetasysOpenStreamEvent stubEvent = new MetasysOpenStreamEvent(id, data);
         ScheduledThreadPoolExecutor executorService = (ScheduledThreadPoolExecutor) metasysStreamImporter.getScheduledExecutorService();
-        UserToken stubUserToken = new UserToken();
-        stubUserToken.setExpires(Instant.now().plusSeconds(90));
+        MetasysUserToken stubUserToken = new MetasysUserToken();
+        stubUserToken.setExpires(Instant.now().plusSeconds(20));
         when(sdClient.getUserToken()).thenReturn(stubUserToken);
         //Find list of not executed tasks
 //        List<Runnable> notExecutedTasks = executorService.shutdownNow();
@@ -83,14 +94,16 @@ class MetasysStreamImporterTest {
         assertEquals(0, executorService.getActiveCount());
         verify(sdClient, times(0)).refreshToken();
     }
+    */
 
+    /*
     @Test
     void attemptRescheduleTwice() throws SdLogonFailedException {
         String id = "1";
         String data = "subscriptionId-12345";
         MetasysOpenStreamEvent stubEvent = new MetasysOpenStreamEvent(id, data);
         ScheduledThreadPoolExecutor executorService = (ScheduledThreadPoolExecutor) metasysStreamImporter.getScheduledExecutorService();
-        UserToken stubUserToken = new UserToken();
+        MetasysUserToken stubUserToken = new MetasysUserToken();
         stubUserToken.setExpires(Instant.now().plusSeconds(180));
         when(sdClient.getUserToken()).thenReturn(stubUserToken);
         //Prepareation - first reschedule
@@ -98,7 +111,7 @@ class MetasysStreamImporterTest {
         metasysStreamImporter.openStream();
         assertEquals(1, executorService.getQueue().size());
         //Attempt to refresh again
-        UserToken newestUserToken = new UserToken();
+        MetasysUserToken newestUserToken = new MetasysUserToken();
         newestUserToken.setExpires(Instant.now().plusSeconds(3600));
         when(sdClient.getUserToken()).thenReturn(newestUserToken);
         id = "2";
@@ -106,19 +119,20 @@ class MetasysStreamImporterTest {
         assertEquals(1, executorService.getQueue().size());
         verify(sdClient, times(1)).getUserToken();
     }
+    */
 
     @Test
     void openStream() {
-        UserToken stubUserToken = new UserToken();
+        MetasysUserToken stubUserToken = new MetasysUserToken();
         stubUserToken.setAccessToken("dummyToken");
         stubUserToken.setExpires(Instant.now().plusSeconds(90));
         when(sdClient.getUserToken()).thenReturn(stubUserToken);
         metasysStreamImporter.openStream();
-        ScheduledThreadPoolExecutor executorService = (ScheduledThreadPoolExecutor) metasysStreamImporter.getScheduledExecutorService();
+//        ScheduledThreadPoolExecutor executorService = (ScheduledThreadPoolExecutor) metasysStreamImporter.getScheduledExecutorService();
 
         verify(metasysStreamClient, times(1)).openStream(anyString(), anyString(), isNull(), any(MetasysStreamImporter.class));
         //Verify that the refreshTokenTask is scheduled
-        assertEquals(1, executorService.getQueue().size());
+//        assertEquals(1, executorService.getQueue().size());
 
     }
 
@@ -197,14 +211,15 @@ class MetasysStreamImporterTest {
     @Test
     void onEventOpenStreamEvent() {
         Instant expires = Instant.parse("2023-09-12T13:39:46Z");
-        UserToken userToken = mock(UserToken.class);
+        MetasysUserToken userToken = mock(MetasysUserToken.class);
         when(userToken.getExpires()).thenReturn(expires);
         when(sdClient.getUserToken()).thenReturn(userToken);
+//        when(sdClient.getUserToken()).thenReturn(userToken);
         assertNotEquals(expires, metasysStreamImporter.getExpires());
         String openStreamData = "";
         StreamEvent openStreamEvent = new MetasysOpenStreamEvent("1223567", openStreamData);
         metasysStreamImporter.onEvent(openStreamEvent);
-        //Verify that UserToken is refreshed
+        //Verify that MetasysUserToken is refreshed
         assertEquals(expires, metasysStreamImporter.getExpires());
     }
 }

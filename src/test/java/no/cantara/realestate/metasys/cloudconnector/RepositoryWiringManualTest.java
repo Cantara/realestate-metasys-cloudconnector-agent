@@ -1,6 +1,8 @@
 package no.cantara.realestate.metasys.cloudconnector;
 
 import no.cantara.config.ApplicationProperties;
+import no.cantara.realestate.cloudconnector.audit.AuditTrail;
+import no.cantara.realestate.cloudconnector.audit.InMemoryAuditTrail;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepositoryImpl;
 import no.cantara.realestate.metasys.cloudconnector.sensors.MetasysConfigImporter;
@@ -22,19 +24,20 @@ class RepositoryWiringManualTest {
 
     public static void main(String[] args) {
         RepositoryWiringManualTest repositoryTest = new RepositoryWiringManualTest();
-        repositoryTest.createMappedIdRepository(true);
+        AuditTrail auditTrail = new InMemoryAuditTrail();
+        repositoryTest.createMappedIdRepository(true, auditTrail);
         assertTrue(repositoryTest.mappedIdRepository.size() > 0);
 
     }
 
-    protected MappedIdRepository createMappedIdRepository(boolean doImportData) {
+    protected MappedIdRepository createMappedIdRepository(boolean doImportData, AuditTrail auditTrail) {
         mappedIdRepository = new MappedIdRepositoryImpl();
         if (doImportData) {
             String configDirectory = config.get("importdata.directory");
             if (!Paths.get(configDirectory).toFile().exists()) {
                 throw new MetasysCloudConnectorException("Import of data from " + configDirectory + " failed. Directory does not exist.");
             }
-            new MetasysConfigImporter().importMetasysConfig(configDirectory, mappedIdRepository);
+            new MetasysConfigImporter().importMetasysConfig(configDirectory, mappedIdRepository, auditTrail);
         }
         return mappedIdRepository;
     }
