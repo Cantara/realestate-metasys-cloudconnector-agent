@@ -47,10 +47,6 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
 
     public MetasysCloudconnectorApplication(ApplicationProperties config) {
         super(config, "no.cantara.realestate", "metasys-cloudconnector-agent");
-//        super("MetasysCloudconnector",
-//                readMetaInfMavenPomVersion("no.cantara.realestate", "metasys-cloudconnector-app"),
-//                config
-//        );
     }
 
 
@@ -65,10 +61,6 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
         final ObservationDistributionClient finalObservationDistributionClient = null;
         final MetasysMetricsDistributionClient metricsDistributionClient = null;
 
-//        initAuditTrail();
-//        auditTrail = init(InMemoryAuditTrail.class, InMemoryAuditTrail::new);
-//        AuditResource auditResource = initAndRegisterJaxRsWsComponent(AuditResource.class, this::createAuditResource);
-        boolean doImportData = config.asBoolean("import.data");
         enableStream = config.asBoolean("sd.stream.enabled");
         enableScheduledImport = config.asBoolean("sd.scheduledImport.enabled");
 
@@ -119,63 +111,6 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
         super.initRouter();
 
 
-//        ScheduledImportManager scheduledImportManager = init(ScheduledImportManager.class, () -> wireScheduledImportManager(sdClient, finalObservationDistributionClient, metricsDistributionClient, mappedIdRepository, auditTrail));
-         /*
-        initBuiltinDefaults();
-        StingraySecurity.initSecurity(this);
-
-        initNotificationServices();
-        initAuditTrail();
-        boolean doImportData = config.asBoolean("import.data");
-        enableStream = config.asBoolean("sd.stream.enabled");
-        enableScheduledImport = config.asBoolean("sd.scheduledImport.enabled");
-       BasClient sdClient = createSdClient(config);
-
-
-        ServiceLoader<ObservationDistributionClient> observationDistributionClients = ServiceLoader.load(ObservationDistributionClient.class);
-        ObservationDistributionClient observationDistributionClient = null;
-        for (ObservationDistributionClient distributionClient : observationDistributionClients) {
-            if (distributionClient != null && distributionClient instanceof AzureObservationDistributionClient) {
-                log.info("Found implementation of ObservationDistributionClient on classpath: {}", distributionClient.toString());
-                observationDistributionClient = distributionClient;
-            }
-            get(StingrayHealthService.class).registerHealthProbe(observationDistributionClient.getName() +"-isConnected", observationDistributionClient::isConnectionEstablished);
-            get(StingrayHealthService.class).registerHealthProbe(observationDistributionClient.getName() +"-numberofMessagesObserved", observationDistributionClient::getNumberOfMessagesObserved);
-        }
-        if (observationDistributionClient == null) {
-            log.warn("No implementation of ObservationDistributionClient was found on classpath. Creating a ObservationDistributionServiceStub explicitly.");
-            observationDistributionClient = new ObservationDistributionServiceStub();
-            get(StingrayHealthService.class).registerHealthProbe(observationDistributionClient.getName() +"-isConnected", observationDistributionClient::isConnectionEstablished);
-            get(StingrayHealthService.class).registerHealthProbe(observationDistributionClient.getName() +"-numberofMessagesDistributed", observationDistributionClient::getNumberOfMessagesObserved);
-        }
-        observationDistributionClient.openConnection();
-        log.info("Establishing and verifying connection to Azure.");
-        if (observationDistributionClient.isConnectionEstablished()) {
-            ObservationMessage stubMessage = buildStubObservation();
-            observationDistributionClient.publish(stubMessage);
-        }
-        String measurementsName = config.get("measurements.name");
-        MetasysMetricsDistributionClient metricsDistributionClient = new MetricsDistributionServiceStub(measurementsName);
-        MappedIdRepository mappedIdRepository = init(MappedIdRepository.class, () -> createMappedIdRepository(doImportData));
-        ObservationDistributionClient finalObservationDistributionClient = observationDistributionClient;
-
-        ScheduledImportManager scheduledImportManager = init(ScheduledImportManager.class, () -> wireScheduledImportManager(sdClient, finalObservationDistributionClient, metricsDistributionClient, mappedIdRepository, auditTrail));
-
-        ObservationDistributionResource observationDistributionResource = initAndRegisterJaxRsWsComponent(ObservationDistributionResource.class, () -> createObservationDistributionResource(finalObservationDistributionClient));
-
-        get(StingrayHealthService.class).registerHealthProbe("mappedIdRepository.size", mappedIdRepository::size);
-        get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-isHealthy", sdClient::isHealthy);
-        get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-isLogedIn", sdClient::isLoggedIn);
-        get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-numberofTrendsSamples", sdClient::getNumberOfTrendSamplesReceived);
-        if (sdClient instanceof MetasysClient) {
-            get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-whenLastObservationImported", ((MetasysClient) sdClient)::getWhenLastTrendSampleReceived);
-        }
-        get(StingrayHealthService.class).registerHealthProbe("observationDistribution.message.count", observationDistributionResource::getDistributedCount);
-        //Random Example
-        init(Random.class, this::createRandom);
-        RandomizerResource randomizerResource = initAndRegisterJaxRsWsComponent(RandomizerResource.class, this::createRandomizerResource);
-
-          */
 
         //Wire up the stream importer
         if (enableStream) {
