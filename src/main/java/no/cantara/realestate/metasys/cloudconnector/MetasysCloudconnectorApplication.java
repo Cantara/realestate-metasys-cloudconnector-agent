@@ -275,6 +275,7 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
             log.info("   SensorIds: {}/sensorids/status", baseUrl);
             log.info("   Recs: {}/rec/status", baseUrl);
             log.info("   Audit: {}/audit", baseUrl);
+            log.info("   Distribution: {}/distribution", baseUrl);
         } catch (Exception e) {
             log.error("Failed to start MetasysCloudconnectorApplication", e);
         }
