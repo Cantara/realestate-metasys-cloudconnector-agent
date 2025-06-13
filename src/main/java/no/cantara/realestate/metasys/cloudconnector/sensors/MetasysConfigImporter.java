@@ -1,14 +1,16 @@
 package no.cantara.realestate.metasys.cloudconnector.sensors;
 
+import no.cantara.realestate.cloudconnector.audit.AuditTrail;
 import no.cantara.realestate.mappingtable.MappedSensorId;
 import no.cantara.realestate.mappingtable.importer.CsvSensorImporter;
 import no.cantara.realestate.mappingtable.metasys.MetasysCsvSensorImporter;
 import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
-import no.cantara.realestate.metasys.cloudconnector.audit.InMemoryAuditTrail;
+import no.cantara.realestate.sensors.metasys.MetasysSensorId;
 import org.slf4j.Logger;
 
 import java.io.File;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.slf4j.LoggerFactory.getLogger;
@@ -16,8 +18,18 @@ import static org.slf4j.LoggerFactory.getLogger;
 public class MetasysConfigImporter {
     private static final Logger log = getLogger(MetasysConfigImporter.class);
 
+    public static List<MetasysSensorId> importSensorIds(String configDirectory) {
+        File importDirectory = new File(configDirectory);
+        CsvSensorImporter csvImporter = new MetasysCsvSensorImporter(importDirectory);
+        List<MetasysSensorId> sensorIds = new ArrayList<>();
 
-    public long importMetasysConfig(String configDirectory, MappedIdRepository mappedIdRepository, InMemoryAuditTrail auditTrail) {
+        log.info("Imported {} Metasys Sensor configs from directory {}", sensorIds.size(), importDirectory);
+        return sensorIds;
+    }
+
+
+
+    public long importMetasysConfig(String configDirectory, MappedIdRepository mappedIdRepository, AuditTrail auditTrail) {
         File importDirectory = new File(configDirectory);
         CsvSensorImporter csvImporter = new MetasysCsvSensorImporter(importDirectory);
         List<MappedSensorId> mappedSensorIds = csvImporter.importMappedId("Metasys");

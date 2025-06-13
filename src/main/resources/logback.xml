@@ -21,6 +21,23 @@
         </encoder>
     </appender>
 
+    <appender name="AuditLogFile" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${METASYS_CLOUDCONNECTOR_HOME}/audit.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${METASYS_CLOUDCONNECTOR_HOME}/audit-%d{dd.MM.yyyy}.%i.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+            <maxFileSize>200MB</maxFileSize>
+            <totalSizeCap>5GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{dd.MM.yyyy HH:mm:ss} %p %yellow([%thread]) %highlight(%-5level) %logger{36}.%M - %msg%n</pattern>
+        </encoder>
+    </appender>
+    <!-- additivity=false ensures analytics data only goes to the analytics log -->
+    <logger name="AuditLog" level="TRACE" additivity="false">
+        <appender-ref ref="AuditLogFile"/>
+    </logger>
+
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <!-- encoders are assigned the type
              ch.qos.logback.classic.encoder.PatternLayoutEncoder by default -->

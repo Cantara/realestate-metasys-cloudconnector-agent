@@ -1,6 +1,6 @@
 package no.cantara.realestate.metasys.cloudconnector.automationserver;
 
-import no.cantara.realestate.metasys.cloudconnector.notifications.NotificationService;
+import no.cantara.realestate.cloudconnector.notifications.NotificationService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
