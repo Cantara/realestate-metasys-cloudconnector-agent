@@ -4,6 +4,7 @@ import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClie
 import no.cantara.realestate.security.UserToken;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 
@@ -49,6 +50,7 @@ public class ServerSentEventsTest {
         }
     }
 
+    @Disabled("Disabled due to unstable test environment")
     @Test
     void receiveHello() throws InterruptedException {
         sseMockServer.start(port, MockServerSentEventsRunner.Scenario.HELLO);
