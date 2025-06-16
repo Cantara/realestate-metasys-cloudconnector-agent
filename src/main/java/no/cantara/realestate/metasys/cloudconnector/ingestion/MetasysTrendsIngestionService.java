@@ -123,7 +123,7 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
                         log.trace("Try import. Use default lastObservedAt for sensorId: {}, trendId: {}, from: {}", sensorId.getTwinId(), metasysObjectId, lastObservedAt);
                     }
 
-                    log.trace("Try import of sensorId: {}, trendId: {} from: {}", metasysObjectId, lastObservedAt);
+                    log.trace("Try import of sensorId: {}, trendId: {} from: {}", sensorId.getTwinId(), metasysObjectId, lastObservedAt);
                     Set<? extends TrendSample> trendSamples = metasysApiClient.findTrendSamplesByDate(metasysObjectId, -1, -1, lastObservedAt);
                     isHealthy = true;
                     if (trendSamples != null && trendSamples.size() > 0) {
