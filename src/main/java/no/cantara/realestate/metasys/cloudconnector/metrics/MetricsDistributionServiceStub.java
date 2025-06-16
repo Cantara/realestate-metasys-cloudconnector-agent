@@ -25,6 +25,7 @@ public class MetricsDistributionServiceStub implements MetasysMetricsDistributio
         try {
             Number value = metric.getValue();
             if (value != null) {
+                log.trace("sendMetrics called with metric: {}, value: {}", key, value);
                 telemetryClient.trackMetric(key, value.doubleValue());
             }
         } catch (Exception e) {
@@ -68,6 +69,7 @@ public class MetricsDistributionServiceStub implements MetasysMetricsDistributio
     @Override
     public void sendValue(String metricName, long value) {
         if (metricName != null && !metricName.isEmpty() ) {
+            log.trace("sendValue(String,long) called with metricName: {}, value: {}", metricName, value);
             telemetryClient.trackMetric(metricName, value);
         } else {
             log.trace("sendValue(String,long) called with null metricName value: {}", metricName, value);
@@ -77,9 +79,10 @@ public class MetricsDistributionServiceStub implements MetasysMetricsDistributio
     @Override
     public void sendDoubleValue(String metricName, double value) {
         if (metricName != null && !metricName.isEmpty() ) {
+            log.trace("sendValue(String,double) called with metricName: {}, value: {}", metricName, value);
             telemetryClient.trackMetric(metricName, value);
         } else {
-            log.trace("sendValue(String,long) called with null metricName value: {}", metricName, value);
+            log.trace("sendValue(String,double) called with null metricName value: {}", metricName, value);
         }
     }
 }
