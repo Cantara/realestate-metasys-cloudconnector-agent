@@ -3,6 +3,7 @@ package no.cantara.realestate.metasys.cloudconnector.metrics;
 import com.microsoft.applicationinsights.TelemetryClient;
 import no.cantara.realestate.mappingtable.MappedSensorId;
 import no.cantara.realestate.observations.TrendSample;
+import no.cantara.realestate.rec.RecTags;
 import org.slf4j.Logger;
 
 import java.util.Set;
@@ -47,11 +48,38 @@ public class MetricsDistributionServiceStub implements MetasysMetricsDistributio
     }
 
     @Override
-    public void populate(Set<TrendSample> trendSamples, MappedSensorId mappedSensorId) {
+    public void populate(Set<TrendSample> trendSamples, RecTags recTags) {
         int count = 0;
         if (trendSamples != null) {
             count = trendSamples.size();
         }
         telemetryClient.trackMetric("metasys_trendsamples_received", count);
+    }
+
+    @Override
+    public void populate(Set<TrendSample> trendSamples, RecTags recTags, String metricName) {
+        int count = 0;
+        if (trendSamples != null) {
+            count = trendSamples.size();
+        }
+        telemetryClient.trackMetric(metricName, count);
+    }
+
+    @Override
+    public void sendValue(String metricName, long value) {
+        if (metricName != null && !metricName.isEmpty() ) {
+            telemetryClient.trackMetric(metricName, value);
+        } else {
+            log.trace("sendValue(String,long) called with null metricName value: {}", metricName, value);
+        }
+    }
+
+    @Override
+    public void sendDoubleValue(String metricName, double value) {
+        if (metricName != null && !metricName.isEmpty() ) {
+            telemetryClient.trackMetric(metricName, value);
+        } else {
+            log.trace("sendValue(String,long) called with null metricName value: {}", metricName, value);
+        }
     }
 }

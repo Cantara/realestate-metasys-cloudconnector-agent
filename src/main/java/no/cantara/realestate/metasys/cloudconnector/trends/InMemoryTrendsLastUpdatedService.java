@@ -39,7 +39,10 @@ public class InMemoryTrendsLastUpdatedService implements TrendsLastUpdatedServic
     @Override
     public <T extends SensorId>  void setLastUpdatedAt(SensorId sensorId, Instant lastUpdatedAt) {
         if ( sensorId instanceof  MetasysSensorId && sensorId != null && lastUpdatedAt != null) {
-            lastUpdated.put((MetasysSensorId) sensorId, lastUpdatedAt);
+            Instant currentLastUpdatedAt = lastUpdated.get(sensorId);
+            if (currentLastUpdatedAt == null || currentLastUpdatedAt.isBefore(lastUpdatedAt)) {
+                lastUpdated.put((MetasysSensorId) sensorId, lastUpdatedAt);
+            }
         }
     }
 

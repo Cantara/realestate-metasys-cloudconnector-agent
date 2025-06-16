@@ -4,6 +4,7 @@ import no.cantara.config.ApplicationProperties;
 import no.cantara.realestate.automationserver.BasClient;
 import no.cantara.realestate.cloudconnector.audit.AuditTrail;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorException;
+import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
 import no.cantara.realestate.metasys.cloudconnector.trends.TrendsLastUpdatedService;
 import no.cantara.realestate.observations.ObservationListener;
 import no.cantara.realestate.observations.ObservedTrendedValue;
@@ -30,13 +31,16 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
     private static final Logger log = getLogger(MetasysTrendsIngestionService.class);
 
     public static final String BAS_URL_KEY = "sd.api.url";
-    private final AuditTrail auditTrail;
+    public final String METRIC_NAME_TRENDSAMPLES_RECEIVED;
+
+    private ApplicationProperties config;
     private ObservationListener observationListener;
     private NotificationListener notificationListener;
     private BasClient metasysApiClient;
-
     private TrendsLastUpdatedService trendsLastUpdatedService;
-    private ApplicationProperties config;
+    private final AuditTrail auditTrail;
+    private final MetasysMetricsDistributionClient metricsClient;
+
     private ArrayList<SensorId> sensorIds;
     private long numberOfMessagesImported = 0;
     private long numberOfMessagesFailed = 0;
@@ -54,7 +58,9 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
      * @param notificationListener
      * @param metasysApiClient
      */
-    public MetasysTrendsIngestionService(ApplicationProperties config, ObservationListener observationListener, NotificationListener notificationListener, BasClient metasysApiClient, TrendsLastUpdatedService trendsLastUpdatedService, AuditTrail auditTrail) {
+    public MetasysTrendsIngestionService(ApplicationProperties config, ObservationListener observationListener,
+                                         NotificationListener notificationListener, BasClient metasysApiClient,
+                                         TrendsLastUpdatedService trendsLastUpdatedService, AuditTrail auditTrail, MetasysMetricsDistributionClient metricsClient) {
         sensorIds = new ArrayList<>();
         this.config = config;
         if (config == null || observationListener == null || notificationListener == null || metasysApiClient == null || trendsLastUpdatedService == null) {
@@ -71,6 +77,8 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
         this.metasysApiClient = metasysApiClient;
         this.trendsLastUpdatedService = trendsLastUpdatedService;
         this.auditTrail = auditTrail;
+        this.metricsClient = metricsClient;
+        this.METRIC_NAME_TRENDSAMPLES_RECEIVED = config.get("metrics.name.trendsamplesReceived", "metasys_trendsamples_received");
     }
 
     //FIXME Sjekk mot MetasysClient, og hva som kjører denne ingestTrends periodisk i CloudConnector-Common. ScheduledObservationMessageRouter
@@ -103,7 +111,7 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
          */
 
         for (SensorId sensorId : sensorIds) {
-            String metasysObjectId = ((MetasysSensorId)sensorId).getMetasysObjectId();
+            String metasysObjectId = ((MetasysSensorId) sensorId).getMetasysObjectId();
             if (metasysObjectId != null && !metasysObjectId.isEmpty()) {
                 auditLog.trace("Ingest__TrendFindSamples__{}__{}", sensorId.getClass(), sensorId.getId());
                 try {
@@ -121,6 +129,8 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
                         updateWhenLastObservationReceived();
                         auditTrail.logObservedTrend(sensorId.getId(), "Observed: " + trendSamples.size());
                         auditLog.trace("Ingest__TrendSamplesFound__{}__{}__{}__{}", metasysObjectId, sensorId.getClass(), sensorId.getId(), trendSamples.size());
+                        long value = trendSamples.size();
+                        metricsClient.sendValue(METRIC_NAME_TRENDSAMPLES_RECEIVED, value);
                     } else {
                         auditLog.trace("Ingest__TrendSamplesFound__{}__{}__{}__{}", metasysObjectId, sensorId.getClass(), sensorId.getId(), 0);
                     }
@@ -169,104 +179,104 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
 
     }
 
-   String tmp = """
-    void ingestTrendsMapped() {
-        int successfulImport = 0;
-        int failedImport = 0;
-        for (MappedSensorId mappedSensorId : importableTrendIds) {
-            //TODO take and skip need logic
-            int take = 200;
-            int skip = 0;
-            if (mappedSensorId.getSensorId() != null && mappedSensorId.getSensorId() instanceof no.cantara.realestate.mappingtable.metasys.MetasysSensorId) {
-
-                no.cantara.realestate.mappingtable.metasys.MetasysSensorId metasysSensorId = (no.cantara.realestate.mappingtable.metasys.MetasysSensorId) mappedSensorId.getSensorId();
-                String trendId = metasysSensorId.getMetasysObjectId();
-                if (trendId == null) {
-                    log.warn("TrendId is null for sensorId: {}", metasysSensorId);
-                } else {
-                    Instant importFrom = lastSuccessfulImportAt.get(trendId);
-                    if (importFrom == null) {
-                        importFrom = fromDateTime;
-                    }
-
-                    log.trace("Try import of trendId: {} from: {}", trendId, importFrom);
-                    try {
-                        Set<TrendSample> trendSamples;
-                        try {
-                            //Ensure thread safety, and re-login if needed
-                            trendSamples = (Set<TrendSample>) basClient.findTrendSamplesByDate(trendId, take, skip, importFrom);
-                        } catch (InvalidTokenException e) {
-                            throw new RealestateCloudconnectorException("This Code should not be reached. InvalidTokenException", e);
-                            /*
-                            log.warn("Invalid token. Try to re-logon to Metasys.");
-                            if (userToken != null) {
-                                trendSamples = (Set<TrendSample>) basClient.findTrendSamplesByDate(trendId, take, skip, importFrom);
+    String tmp = """
+                void ingestTrendsMapped() {
+                    int successfulImport = 0;
+                    int failedImport = 0;
+                    for (MappedSensorId mappedSensorId : importableTrendIds) {
+                        //TODO take and skip need logic
+                        int take = 200;
+                        int skip = 0;
+                        if (mappedSensorId.getSensorId() != null && mappedSensorId.getSensorId() instanceof no.cantara.realestate.mappingtable.metasys.MetasysSensorId) {
+            
+                            no.cantara.realestate.mappingtable.metasys.MetasysSensorId metasysSensorId = (no.cantara.realestate.mappingtable.metasys.MetasysSensorId) mappedSensorId.getSensorId();
+                            String trendId = metasysSensorId.getMetasysObjectId();
+                            if (trendId == null) {
+                                log.warn("TrendId is null for sensorId: {}", metasysSensorId);
                             } else {
-                                log.warn("Failed to re-logon to Metasys. No userToken.");
-                                throw new MetasysCloudConnectorException("Missing userToken. Failed to re-logon to Metasys. TrendId: " + trendId, e, StatusType.RETRY_NOT_POSSIBLE);
-                            }
-
-                             */
-                        }
-                        if (trendSamples != null) {
-                            log.trace("Found {} samples for trendId: {}", trendSamples.size(), trendId);
-                            if (trendSamples.size() > 0) {
-                                lastSuccessfulImportAt.put(trendId, Instant.now());
-                                String sensorId = null;
-                                if (mappedSensorId.getRec() != null) {
-                                    sensorId = mappedSensorId.getRec().getRecId();
+                                Instant importFrom = lastSuccessfulImportAt.get(trendId);
+                                if (importFrom == null) {
+                                    importFrom = fromDateTime;
                                 }
-                                auditTrail.logObservedTrend(sensorId, "Observed: " + trendSamples.size());
+            
+                                log.trace("Try import of trendId: {} from: {}", trendId, importFrom);
+                                try {
+                                    Set<TrendSample> trendSamples;
+                                    try {
+                                        //Ensure thread safety, and re-login if needed
+                                        trendSamples = (Set<TrendSample>) basClient.findTrendSamplesByDate(trendId, take, skip, importFrom);
+                                    } catch (InvalidTokenException e) {
+                                        throw new RealestateCloudconnectorException("This Code should not be reached. InvalidTokenException", e);
+                                        /*
+                                        log.warn("Invalid token. Try to re-logon to Metasys.");
+                                        if (userToken != null) {
+                                            trendSamples = (Set<TrendSample>) basClient.findTrendSamplesByDate(trendId, take, skip, importFrom);
+                                        } else {
+                                            log.warn("Failed to re-logon to Metasys. No userToken.");
+                                            throw new MetasysCloudConnectorException("Missing userToken. Failed to re-logon to Metasys. TrendId: " + trendId, e, StatusType.RETRY_NOT_POSSIBLE);
+                                        }
+            
+                                         */
+                                    }
+                                    if (trendSamples != null) {
+                                        log.trace("Found {} samples for trendId: {}", trendSamples.size(), trendId);
+                                        if (trendSamples.size() > 0) {
+                                            lastSuccessfulImportAt.put(trendId, Instant.now());
+                                            String sensorId = null;
+                                            if (mappedSensorId.getRec() != null) {
+                                                sensorId = mappedSensorId.getRec().getRecId();
+                                            }
+                                            auditTrail.logObservedTrend(sensorId, "Observed: " + trendSamples.size());
+                                        }
+            
+                                        successfulImport++;
+                                        for (TrendSample trendSample : trendSamples) {
+                                            ObservationMessage observationMessage = new MetasysObservationMessage((MetasysTrendSample) trendSample, mappedSensorId);
+                                            distributionClient.publish(observationMessage);
+                                        }
+                                        metricsClient.populate(trendSamples, mappedSensorId);
+                                        reportSuccessfulImport(trendId);
+                                    } else {
+                                        log.trace("Missing TrendSamples for trendId: {}",trendId);
+                                    }
+                                } catch (URISyntaxException e) {
+                                    MetasysCloudConnectorException se = new MetasysCloudConnectorException("Import of trend: {} is not possible now. Reason: {}", e, StatusType.RETRY_NOT_POSSIBLE);
+                                    log.warn("Import of trend: {} is not possible now. URI to SD server is misconfigured. Reason: {} ", trendId, e.getMessage());
+                                    reportFailedImport(trendId);
+                                    throw se;
+                                } catch (InvalidTokenException e) {
+                                    MetasysCloudConnectorException ite = new MetasysCloudConnectorException("Failed to fetch observations " +
+                                            "due to invalid token. Re-logon did not help.", e, StatusType.RETRY_NOT_POSSIBLE);
+                                    log.warn("Import of trend: {} is not possible now. Reason: {} ", trendId, e.getMessage());
+                                    reportFailedImport(trendId);
+                                    throw ite;
+                                } catch (LogonFailedException e) {
+                                    MetasysCloudConnectorException se = new MetasysCloudConnectorException("Failed to logon to SD server.", e, StatusType.RETRY_NOT_POSSIBLE);
+                                    log.warn("Import of trend: {} is not possible now. Reason: {} ", trendId, e.getMessage());
+                                    reportFailedImport(trendId);
+                                    throw se;
+                                } catch (MetasysCloudConnectorException e) {
+                                    log.trace("Failed to import trendId {} for tfm2rec: {}. Reason: {}", trendId, mappedSensorId, e.getMessage());
+                                    log.trace("cause:", e);
+                                    reportFailedImport(trendId);
+                                    failedImport++;
+                                } catch (Exception e) {
+                                    MetasysCloudConnectorException se = new MetasysCloudConnectorException("Failed to import trendId " + trendId, e, StatusType.RETRY_MAY_FIX_ISSUE);
+                                    log.trace("Failed to import trendId {} for tfm2rec: {}. Reason: {}", trendId, mappedSensorId, se.getMessage());
+                                    log.trace("cause:", e);
+                                    reportFailedImport(trendId);
+                                    failedImport++;
+                                }
                             }
-
-                            successfulImport++;
-                            for (TrendSample trendSample : trendSamples) {
-                                ObservationMessage observationMessage = new MetasysObservationMessage((MetasysTrendSample) trendSample, mappedSensorId);
-                                distributionClient.publish(observationMessage);
-                            }
-                            metricsClient.populate(trendSamples, mappedSensorId);
-                            reportSuccessfulImport(trendId);
                         } else {
-                            log.trace("Missing TrendSamples for trendId: {}",trendId);
+                            log.warn("SensorId is not a MetasysSensorId. Skipping import of sensorId: {}", mappedSensorId.getSensorId());
+                            continue;
                         }
-                    } catch (URISyntaxException e) {
-                        MetasysCloudConnectorException se = new MetasysCloudConnectorException("Import of trend: {} is not possible now. Reason: {}", e, StatusType.RETRY_NOT_POSSIBLE);
-                        log.warn("Import of trend: {} is not possible now. URI to SD server is misconfigured. Reason: {} ", trendId, e.getMessage());
-                        reportFailedImport(trendId);
-                        throw se;
-                    } catch (InvalidTokenException e) {
-                        MetasysCloudConnectorException ite = new MetasysCloudConnectorException("Failed to fetch observations " +
-                                "due to invalid token. Re-logon did not help.", e, StatusType.RETRY_NOT_POSSIBLE);
-                        log.warn("Import of trend: {} is not possible now. Reason: {} ", trendId, e.getMessage());
-                        reportFailedImport(trendId);
-                        throw ite;
-                    } catch (LogonFailedException e) {
-                        MetasysCloudConnectorException se = new MetasysCloudConnectorException("Failed to logon to SD server.", e, StatusType.RETRY_NOT_POSSIBLE);
-                        log.warn("Import of trend: {} is not possible now. Reason: {} ", trendId, e.getMessage());
-                        reportFailedImport(trendId);
-                        throw se;
-                    } catch (MetasysCloudConnectorException e) {
-                        log.trace("Failed to import trendId {} for tfm2rec: {}. Reason: {}", trendId, mappedSensorId, e.getMessage());
-                        log.trace("cause:", e);
-                        reportFailedImport(trendId);
-                        failedImport++;
-                    } catch (Exception e) {
-                        MetasysCloudConnectorException se = new MetasysCloudConnectorException("Failed to import trendId " + trendId, e, StatusType.RETRY_MAY_FIX_ISSUE);
-                        log.trace("Failed to import trendId {} for tfm2rec: {}. Reason: {}", trendId, mappedSensorId, se.getMessage());
-                        log.trace("cause:", e);
-                        reportFailedImport(trendId);
-                        failedImport++;
                     }
+                    log.trace("Tried to import {}. Successful {}. Failed {}", importableTrendIds.size(), successfulImport, failedImport);
                 }
-            } else {
-                log.warn("SensorId is not a MetasysSensorId. Skipping import of sensorId: {}", mappedSensorId.getSensorId());
-                continue;
-            }
-        }
-        log.trace("Tried to import {}. Successful {}. Failed {}", importableTrendIds.size(), successfulImport, failedImport);
-    }
-    
-""";
+            
+            """;
 
     protected Instant getDefaultLastObservedAt() {
         return Instant.now().minus(2, ChronoUnit.HOURS);
@@ -333,7 +343,7 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
 
     @Override
     public void closeConnection() {
-       //Do nothing for now. metasysApiClient = null;
+        //Do nothing for now. metasysApiClient = null;
     }
 
     @Override
@@ -387,6 +397,7 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
     public long getNumberOfMessagesFailed() {
         return numberOfMessagesFailed;
     }
+
     synchronized void addMessagesImportedCount() {
         numberOfMessagesImported++;
     }

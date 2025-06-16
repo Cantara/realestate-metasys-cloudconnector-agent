@@ -13,6 +13,7 @@ import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClientSim
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysStreamClient;
 import no.cantara.realestate.metasys.cloudconnector.ingestion.MetasysTrendsIngestionService;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
+import no.cantara.realestate.metasys.cloudconnector.metrics.MetricsDistributionServiceStub;
 import no.cantara.realestate.metasys.cloudconnector.observations.MetasysStreamImporter;
 import no.cantara.realestate.metasys.cloudconnector.sensors.MetasysCsvSensorImporter;
 import no.cantara.realestate.metasys.cloudconnector.trends.InMemoryTrendsLastUpdatedService;
@@ -59,7 +60,9 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
     protected void doInit() {
         final MappedIdRepository mappedIdRepository = null;
         final ObservationDistributionClient finalObservationDistributionClient = null;
-        final MetasysMetricsDistributionClient metricsDistributionClient = null;
+        String measurementsName = config.get("measurements.name", "metasys_cloudconnector_cantara");
+        final MetasysMetricsDistributionClient metricsDistributionClient = new MetricsDistributionServiceStub(measurementsName);
+        put(MetasysMetricsDistributionClient.class, metricsDistributionClient);
 
         enableStream = config.asBoolean("sd.stream.enabled");
         enableScheduledImport = config.asBoolean("sd.scheduledImport.enabled");
@@ -69,6 +72,7 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
         ObservationListener observationListener = get(ObservationsRepository.class);
         NotificationListener notificationListener = get(NotificationListener.class);
         notificationService = get(no.cantara.realestate.cloudconnector.notifications.NotificationService.class);
+
         //MetasysClient
         BasClient sdClient = createSdClient(config);
         if (sdClient instanceof MetasysClient) {
@@ -77,7 +81,7 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
 
         //SensorIdRepository
         TrendsLastUpdatedService trendsLastUpdatedService = init(TrendsLastUpdatedService.class, () -> new InMemoryTrendsLastUpdatedService());
-        TrendsIngestionService trendsIngestionService = new MetasysTrendsIngestionService(config,  observationListener, notificationListener, sdClient, trendsLastUpdatedService,auditTrail);
+        TrendsIngestionService trendsIngestionService = new MetasysTrendsIngestionService(config,  observationListener, notificationListener, sdClient, trendsLastUpdatedService,auditTrail, metricsDistributionClient);
         SensorIdRepository sensorIdRepository = get(SensorIdRepository.class);
         String importDirectory = config.get("importdata.directory");
         List<MetasysSensorId> metasysSensorIds = MetasysCsvSensorImporter.importSensorIdsFromDirectory(importDirectory,"Metasys");

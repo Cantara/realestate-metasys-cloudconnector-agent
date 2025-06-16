@@ -39,3 +39,5 @@ import-data/
 ii/
 logback_override.xml
 
+/applicationinsights.json
+/dependencies.txt
