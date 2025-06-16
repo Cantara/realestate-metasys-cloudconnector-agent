@@ -3,20 +3,21 @@ package no.cantara.realestate.metasys.cloudconnector.observations;
 import no.cantara.config.ApplicationProperties;
 import no.cantara.realestate.automationserver.BasClient;
 import no.cantara.realestate.cloudconnector.audit.AuditTrail;
-import no.cantara.realestate.distribution.ObservationDistributionClient;
+import no.cantara.realestate.cloudconnector.sensorid.SensorIdRepository;
 import no.cantara.realestate.mappingtable.MappedSensorId;
 import no.cantara.realestate.mappingtable.UniqueKey;
 import no.cantara.realestate.mappingtable.metasys.MetasysSensorId;
 import no.cantara.realestate.mappingtable.metasys.MetasysUniqueKey;
 import no.cantara.realestate.mappingtable.repository.MappedIdQuery;
-import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdLogonFailedException;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.*;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
 import no.cantara.realestate.metasys.cloudconnector.metrics.Metric;
+import no.cantara.realestate.observations.ObservationListener;
 import no.cantara.realestate.observations.ObservationMessage;
 import no.cantara.realestate.security.LogonFailedException;
 import no.cantara.realestate.security.UserToken;
+import no.cantara.realestate.sensors.SensorIdQuery;
 import org.slf4j.Logger;
 
 import java.net.URISyntaxException;
@@ -39,8 +40,8 @@ public class MetasysStreamImporter implements StreamListener {
     private static final long REAUTHENTICATE_WITHIN_MILLIS = 30000;
     private final MetasysStreamClient streamClient;
     private final BasClient sdClient;
-    private final MappedIdRepository idRepository;
-    private final ObservationDistributionClient distributionClient;
+    private final SensorIdRepository sensorIdRepository;
+    private final ObservationListener observationListener;
     private final MetasysMetricsDistributionClient metricsDistributionClient;
     private final AuditTrail auditTrail;
     private String subscriptionId = null;
@@ -61,15 +62,15 @@ public class MetasysStreamImporter implements StreamListener {
     private List<MappedIdQuery> idQueries;
 
 
-    public MetasysStreamImporter(MetasysStreamClient streamClient, BasClient sdClient, MappedIdRepository idRepository, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsDistributionClient, AuditTrail auditTrail) {
+    public MetasysStreamImporter(MetasysStreamClient streamClient, BasClient sdClient, SensorIdRepository sensorIdRepository,
+                                 ObservationListener observationListener, MetasysMetricsDistributionClient metricsDistributionClient,
+                                 AuditTrail auditTrail) {
         this.streamClient = streamClient;
         this.sdClient = sdClient;
-        this.idRepository = idRepository;
-        this.distributionClient = distributionClient;
+        this.sensorIdRepository = sensorIdRepository;
+        this.observationListener = observationListener;
         this.metricsDistributionClient = metricsDistributionClient;
         this.auditTrail = auditTrail;
-//        scheduledExecutorService = new ScheduledThreadPoolExecutor(1);
-//        scheduledExecutorService.setRemoveOnCancelPolicy(true);
     }
 
 
@@ -84,7 +85,8 @@ public class MetasysStreamImporter implements StreamListener {
             setLastKnownEventId(observedValueEvent.getId());
             String metasysObjectId = observedValueEvent.getObservedValue().getId();
             UniqueKey key = new MetasysUniqueKey(metasysObjectId);
-            List<MappedSensorId> mappedIds = idRepository.find(key);
+            SensorIdQuery sensorIdQuery = 
+            List<MappedSensorId> mappedIds = sensorIdRepository.find(metasysObjectId);
             if (mappedIds != null && mappedIds.size() > 0) {
                 log.trace("MappedId found for metasysObjectId: {} mappedIds: {}", metasysObjectId, mappedIds.toString());
                 for (MappedSensorId mappedId : mappedIds) {
@@ -94,7 +96,7 @@ public class MetasysStreamImporter implements StreamListener {
                     Metric observedMetric = new Metric(metricKey, 1);
                     if (observedValue instanceof ObservedValueNumber) {
                         ObservationMessage observationMessage = new MetasysObservationMessage((ObservedValueNumber) observedValue, mappedId);
-                        distributionClient.publish(observationMessage);
+                        observationListener.publish(observationMessage);
                         metricsDistributionClient.sendMetrics(observedMetric);
                         String sensorTwinId = observationMessage.getSensorId();
                         if (sensorTwinId != null) {
@@ -103,7 +105,7 @@ public class MetasysStreamImporter implements StreamListener {
                     } else if (observedValue instanceof ObservedValueBoolean) {
                         ObservedValueNumber observedValueNumber = new ObservedValueNumber(observedValue.getId(), ((ObservedValueBoolean) observedValue).getValue() ? 1 : 0, observedValue.getItemReference());
                         ObservationMessage observationMessage = new MetasysObservationMessage(observedValueNumber, mappedId);
-                        distributionClient.publish(observationMessage);
+                        observationListener.publish(observationMessage);
                         metricsDistributionClient.sendMetrics(observedMetric);
                         String sensorTwinId = observationMessage.getSensorId();
                         if (sensorTwinId != null) {
@@ -162,7 +164,7 @@ public class MetasysStreamImporter implements StreamListener {
             log.debug("Resubscribing. {} idQueries: {}", idQueries.size());
 
             for (MappedIdQuery idQuery : idQueries) {
-                List<MappedSensorId> mappedSensorIds = idRepository.find(idQuery);
+                List<MappedSensorId> mappedSensorIds = sensorIdRepository.find(idQuery);
                 log.trace("Subscribing to {} mappedSensorIds for idQuery: {}", mappedSensorIds.size(), idQuery);
                 for (MappedSensorId mappedSensorId : mappedSensorIds) {
                     MetasysSensorId sensorId = (MetasysSensorId) mappedSensorId.getSensorId();
@@ -193,7 +195,7 @@ public class MetasysStreamImporter implements StreamListener {
             return;
         }
         for (MappedIdQuery idQuery : idQueries) {
-            List<MappedSensorId> mappedSensorIds = idRepository.find(idQuery);
+            List<MappedSensorId> mappedSensorIds = sensorIdRepository.find(idQuery);
             log.trace("Subscribing to {} mappedSensorIds for idQuery: {}", mappedSensorIds.size(), idQuery);
             for (MappedSensorId mappedSensorId : mappedSensorIds) {
                 MetasysSensorId metasysSensorId = (MetasysSensorId) mappedSensorId.getSensorId();

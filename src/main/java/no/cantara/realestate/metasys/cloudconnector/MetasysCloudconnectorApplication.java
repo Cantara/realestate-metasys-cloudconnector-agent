@@ -3,6 +3,7 @@ package no.cantara.realestate.metasys.cloudconnector;
 import no.cantara.config.ApplicationProperties;
 import no.cantara.realestate.automationserver.BasClient;
 import no.cantara.realestate.cloudconnector.RealestateCloudconnectorApplication;
+import no.cantara.realestate.cloudconnector.audit.AuditTrail;
 import no.cantara.realestate.cloudconnector.notifications.NotificationService;
 import no.cantara.realestate.cloudconnector.routing.ObservationsRepository;
 import no.cantara.realestate.cloudconnector.sensorid.SensorIdRepository;
@@ -77,10 +78,10 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
 
         //SensorIdRepository
         TrendsLastUpdatedService trendsLastUpdatedService = init(TrendsLastUpdatedService.class, () -> new InMemoryTrendsLastUpdatedService());
-        TrendsIngestionService trendsIngestionService = new MetasysTrendsIngestionService(config,  observationListener, notificationListener, sdClient, trendsLastUpdatedService,auditTrail);
+        TrendsIngestionService trendsIngestionService = new MetasysTrendsIngestionService(config, observationListener, notificationListener, sdClient, trendsLastUpdatedService, auditTrail);
         SensorIdRepository sensorIdRepository = get(SensorIdRepository.class);
         String importDirectory = config.get("importdata.directory");
-        List<MetasysSensorId> metasysSensorIds = MetasysCsvSensorImporter.importSensorIdsFromDirectory(importDirectory,"Metasys");
+        List<MetasysSensorId> metasysSensorIds = MetasysCsvSensorImporter.importSensorIdsFromDirectory(importDirectory, "Metasys");
         for (MetasysSensorId metasysSensorId : metasysSensorIds) {
             auditTrail.logCreated(metasysSensorId.getId(), "Added to SensorIdRepository");
             sensorIdRepository.add(metasysSensorId);
@@ -96,10 +97,10 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
 
         //RecRepository
         RecRepository recRepository = get(RecRepository.class);
-        List<RecTags> recTagsList = MetasysCsvSensorImporter.importRecTagsFromDirectory(importDirectory,"Metasys");
+        List<RecTags> recTagsList = MetasysCsvSensorImporter.importRecTagsFromDirectory(importDirectory, "Metasys");
         for (RecTags recTags : recTagsList) {
             String twinId = recTags.getTwinId();
-            SensorId sensorId = sensorIds.stream().filter(sensorId1 ->  sensorId1.getId().equals(twinId)).findFirst().orElse(null);
+            SensorId sensorId = sensorIds.stream().filter(sensorId1 -> sensorId1.getId().equals(twinId)).findFirst().orElse(null);
             if (sensorId != null) {
                 recRepository.addRecTags(sensorId, recTags);
                 log.info("Added RecTags: {}", recTags);
@@ -111,11 +112,10 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
         super.initRouter();
 
 
-
         //Wire up the stream importer
         if (enableStream) {
-            MetasysStreamClient streamClient =  new MetasysStreamClient();
-            MetasysStreamImporter streamImporter = init(MetasysStreamImporter.class, () -> wireMetasysStreamImporter(streamClient, sdClient, mappedIdRepository, finalObservationDistributionClient, metricsDistributionClient));
+            MetasysStreamClient streamClient = new MetasysStreamClient();
+            MetasysStreamImporter streamImporter = init(MetasysStreamImporter.class, () -> wireMetasysStreamImporter(streamClient, sdClient, sensorIdRepository, observationListener, metricsDistributionClient));
             get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isHealthy", streamClient::isHealthy);
             get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isLoggedIn", streamClient::isLoggedIn);
             get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isStreamOpen", streamClient::isStreamOpen);
@@ -158,8 +158,13 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
         }
     }
 
-    protected MetasysStreamImporter wireMetasysStreamImporter(MetasysStreamClient streamClient, BasClient sdClient, MappedIdRepository mappedIdRepository, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsClient) {
-        MetasysStreamImporter streamImporter = new MetasysStreamImporter(streamClient, sdClient, mappedIdRepository, distributionClient, metricsClient, auditTrail);
+    protected MetasysStreamImporter wireMetasysStreamImporter(MetasysStreamClient streamClient, BasClient sdClient,
+                                                              SensorId sensorIdRepository,
+                                                              ObservationListener observationListener,
+                                                              MetasysMetricsDistributionClient metricsClient,
+                                                              AuditTrail auditTrail) {
+        MetasysStreamImporter streamImporter = new MetasysStreamImporter(streamClient, sdClient, sensorIdRepository,
+                observationListener, metricsClient, auditTrail);
 
         return streamImporter;
     }
@@ -191,7 +196,6 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
     }
 
 
-
     public static void main(String[] args) {
         String externalConfigPath = "./logback_override.xml";
         LogbackConfigLoader.loadExternalConfig(externalConfigPath);
@@ -205,7 +209,7 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
         try {
             application = new MetasysCloudconnectorApplication(config);
             application.init().start();
-            String baseUrl = "http://localhost:"+config.get("server.port")+config.get("server.context-path");
+            String baseUrl = "http://localhost:" + config.get("server.port") + config.get("server.context-path");
             log.info("Server started. See status on {}/health", baseUrl);
             log.info("   SensorIds: {}/sensorids/status", baseUrl);
             log.info("   Recs: {}/rec/status", baseUrl);

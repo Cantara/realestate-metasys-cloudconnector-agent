@@ -74,7 +74,8 @@ public class MetasysStreamClient {
 
 
     public void openStream(String sseUrl, String bearerToken, String lastKnownEventId, StreamListener streamListener) {
-        log.info("Opening stream for url {}, lastKnownEventId: {}, StreamListener class: {}, objectId: ", sseUrl, lastKnownEventId, streamListener.getClass().getName(), System.identityHashCode(streamListener));
+        log.info("Opening stream for url {}, lastKnownEventId: {}, StreamListener class: {}, objectId: ", sseUrl,
+                lastKnownEventId, streamListener.getClass().getName(), System.identityHashCode(streamListener));
         // Create a custom filter for adding the bearer token
         UserToken userToken = metasysClient.getUserToken();
         String accessToken = userToken.getAccessToken();
