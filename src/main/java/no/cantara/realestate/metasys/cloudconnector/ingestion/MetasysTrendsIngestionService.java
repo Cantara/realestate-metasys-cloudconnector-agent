@@ -120,7 +120,7 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
                     auditLog.trace("Ingest__TrendLastUpdatedAt__{}__{}__{}", sensorId.getClass(), sensorId.getId(), lastObservedAt);
                     if (lastObservedAt == null) {
                         lastObservedAt = getDefaultLastObservedAt();
-                        log.trace("Try import. Use default lastObservedAt for sensorId: {}, trendId: {}, from: {}", sensorId.getTwinId(), metasysObjectId);
+                        log.trace("Try import. Use default lastObservedAt for sensorId: {}, trendId: {}, from: {}", sensorId.getTwinId(), metasysObjectId, lastObservedAt);
                     }
 
                     log.trace("Try import of sensorId: {}, trendId: {} from: {}", metasysObjectId, lastObservedAt);
