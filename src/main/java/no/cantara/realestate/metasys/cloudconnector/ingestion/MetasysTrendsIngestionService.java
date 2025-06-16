@@ -16,6 +16,7 @@ import no.cantara.realestate.plugins.notifications.NotificationListener;
 import no.cantara.realestate.security.LogonFailedException;
 import no.cantara.realestate.sensors.SensorId;
 import no.cantara.realestate.sensors.metasys.MetasysSensorId;
+import org.apache.commons.logging.Log;
 import org.slf4j.Logger;
 
 import java.net.URISyntaxException;
@@ -118,11 +119,11 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
                     Instant lastObservedAt = trendsLastUpdatedService.getLastUpdatedAt((MetasysSensorId) sensorId);
                     auditLog.trace("Ingest__TrendLastUpdatedAt__{}__{}__{}", sensorId.getClass(), sensorId.getId(), lastObservedAt);
                     if (lastObservedAt == null) {
-                        log.trace("Try import of trendId: {} with default lastObservedAt ", metasysObjectId);
                         lastObservedAt = getDefaultLastObservedAt();
+                        log.trace("Try import. Use default lastObservedAt for sensorId: {}, trendId: {}, from: {}", sensorId.getTwinId(), metasysObjectId);
                     }
 
-                    log.trace("Try import of trendId: {} from: {}", metasysObjectId, lastObservedAt);
+                    log.trace("Try import of sensorId: {}, trendId: {} from: {}", metasysObjectId, lastObservedAt);
                     Set<? extends TrendSample> trendSamples = metasysApiClient.findTrendSamplesByDate(metasysObjectId, -1, -1, lastObservedAt);
                     isHealthy = true;
                     if (trendSamples != null && trendSamples.size() > 0) {
