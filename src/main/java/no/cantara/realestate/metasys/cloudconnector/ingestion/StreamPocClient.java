@@ -1,29 +1,24 @@
-package no.cantara.realestate.metasys.cloudconnector.automationserver.streampoc;
+package no.cantara.realestate.metasys.cloudconnector.ingestion;
 
-import io.swagger.v3.oas.models.security.SecurityScheme;
 import no.cantara.config.ApplicationProperties;
 import no.cantara.realestate.cloudconnector.audit.AuditTrail;
 import no.cantara.realestate.cloudconnector.notifications.NotificationService;
 import no.cantara.realestate.cloudconnector.sensorid.InMemorySensorIdRepository;
 import no.cantara.realestate.cloudconnector.sensorid.SensorIdRepository;
-import no.cantara.realestate.distribution.ObservationDistributionClient;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorException;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnectorApplicationFactory;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.*;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.streampoc.ServerSentEvent;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
-import no.cantara.realestate.metasys.cloudconnector.observations.MetasysObservationMessage;
 import no.cantara.realestate.observations.ConfigMessage;
 import no.cantara.realestate.observations.ConfigValue;
 import no.cantara.realestate.observations.ObservationListener;
-import no.cantara.realestate.observations.ObservationMessage;
 import no.cantara.realestate.rec.RecRepository;
-import no.cantara.realestate.rec.RecTags;
 import no.cantara.realestate.security.LogonFailedException;
 import no.cantara.realestate.security.UserToken;
 import no.cantara.realestate.sensors.SensorId;
 import no.cantara.realestate.sensors.metasys.MetasysSensorId;
-import no.cantara.realestate.sensors.metasys.MetasysSensorSystemId;
 import org.slf4j.Logger;
 
 import java.io.BufferedReader;

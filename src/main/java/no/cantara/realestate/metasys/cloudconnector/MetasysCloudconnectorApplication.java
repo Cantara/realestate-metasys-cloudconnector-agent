@@ -14,8 +14,8 @@ import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClientSim
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysStreamClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.StreamListener;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.streampoc.ServerSentEvent;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.streampoc.StreamPocClient;
 import no.cantara.realestate.metasys.cloudconnector.ingestion.MetasysTrendsIngestionService;
+import no.cantara.realestate.metasys.cloudconnector.ingestion.StreamPocClient;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetricsDistributionServiceStub;
 import no.cantara.realestate.metasys.cloudconnector.sensors.MetasysCsvSensorImporter;
@@ -38,7 +38,7 @@ import java.net.URISyntaxException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static no.cantara.realestate.metasys.cloudconnector.automationserver.streampoc.StreamPocClient.shortenedAccessToken;
+import static no.cantara.realestate.metasys.cloudconnector.ingestion.StreamPocClient.shortenedAccessToken;
 import static org.slf4j.LoggerFactory.getLogger;
 
 public class MetasysCloudconnectorApplication extends RealestateCloudconnectorApplication {

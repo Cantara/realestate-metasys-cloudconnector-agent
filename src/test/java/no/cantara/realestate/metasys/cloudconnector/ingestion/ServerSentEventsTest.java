@@ -1,7 +1,7 @@
-package no.cantara.realestate.metasys.cloudconnector.automationserver.streampoc;
+package no.cantara.realestate.metasys.cloudconnector.ingestion;
 
-import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysStreamClient;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.streampoc.MockServerSentEventsRunner;
 import no.cantara.realestate.security.UserToken;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -14,7 +14,7 @@ import java.net.ServerSocket;
 import java.net.URI;
 import java.time.Instant;
 
-import static no.cantara.realestate.metasys.cloudconnector.automationserver.streampoc.StreamPocClient.*;
+import static no.cantara.realestate.metasys.cloudconnector.ingestion.StreamPocClient.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
