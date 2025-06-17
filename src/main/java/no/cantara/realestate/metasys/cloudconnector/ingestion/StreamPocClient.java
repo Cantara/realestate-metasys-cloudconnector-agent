@@ -461,7 +461,7 @@ public class StreamPocClient implements StreamListener {
                 currentEvent.setData(String.join("\n", dataLines));
             }
 
-            log.info("Mapped final SSE event: {}", currentEvent);
+            log.trace("Mapped final SSE event: {}", currentEvent);
 
             // If we have a StreamListener, call onEvent
             if (streamListener != null) {
@@ -496,10 +496,10 @@ public class StreamPocClient implements StreamListener {
 
     @Override
     public void onEvent(StreamEvent event) {
-        log.info("StreamListener received event: {}", event);
+        log.trace("StreamListener received event: {}", event);
         if (event instanceof MetasysObservedValueEvent) {
             MetasysObservedValueEvent observedValueEvent = (MetasysObservedValueEvent) event;
-            log.info("StreamListener received observed value event: {}", observedValueEvent);
+            log.trace("StreamListener received observed value event: {}", observedValueEvent);
             ObservedValue metasysObservedValue = observedValueEvent.getObservedValue();
             final String metricKey = "metasys_stream_observation_received";
             String metasysObjectId = observedValueEvent.getObservedValue().getId();
@@ -569,19 +569,19 @@ public class StreamPocClient implements StreamListener {
         NotificationService notificationService = new NotificationService() {
             @Override
             public boolean sendWarning(String service, String warningMessage) {
-                log.info("Sending warning message: {}", warningMessage);
+                log.trace("Sending warning message: {}", warningMessage);
                 return true;
             }
 
             @Override
             public boolean sendAlarm(String service, String alarmMessage) {
-                log.info("Sending alarm message: {}", alarmMessage);
+                log.trace("Sending alarm message: {}", alarmMessage);
                 return true;
             }
 
             @Override
             public boolean clearService(String service) {
-                log.info("Clearing service: {}", service);
+                log.trace("Clearing service: {}", service);
                 return true;
             }
         };
@@ -592,7 +592,7 @@ public class StreamPocClient implements StreamListener {
         //Verify that token refresh is working
         String accessToken = streamPocClient.getUserToken().getAccessToken();
         String shortAccessToken = shortenedAccessToken(accessToken);
-        log.info("AccessToken: {}, expires at: {}", shortAccessToken, streamPocClient.getUserToken().getExpires());
+        log.debug("AccessToken: {}, expires at: {}", shortAccessToken, streamPocClient.getUserToken().getExpires());
         try {
             // Use the StreamListener based approach
             streamPocClient.createStream(streamPocClient);
