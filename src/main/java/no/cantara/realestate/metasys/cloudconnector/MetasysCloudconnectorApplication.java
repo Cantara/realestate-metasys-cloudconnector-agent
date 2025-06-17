@@ -135,7 +135,7 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
 
         //Open Stream, start subscribing to events
         if (enableStream && streamClient != null) {
-            streamPocClient = new StreamPocClient(streamClient, sensorIdRepository, recRepository, finalObservationDistributionClient, metricsDistributionClient, auditTrail);
+            streamPocClient = new StreamPocClient(streamClient, sensorIdRepository, recRepository, observationListener, metricsDistributionClient, auditTrail);
 
 
             //Verify that token refresh is working
@@ -253,8 +253,8 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
         }
     }
 
-    protected StreamPocClient wireMetasysStreamImporter(MetasysStreamClient streamClient, SensorIdRepository sensorIdRepository, RecRepository recRepository, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsClient, AuditTrail auditTrail) {
-        StreamPocClient streamPocClient = new StreamPocClient(streamClient, sensorIdRepository, recRepository, distributionClient, metricsClient, auditTrail);
+    protected StreamPocClient wireMetasysStreamImporter(MetasysStreamClient streamClient, SensorIdRepository sensorIdRepository, RecRepository recRepository, ObservationListener observationListener, MetasysMetricsDistributionClient metricsClient, AuditTrail auditTrail) {
+        StreamPocClient streamPocClient = new StreamPocClient(streamClient, sensorIdRepository, recRepository, observationListener, metricsClient, auditTrail);
         try {
             StreamListener streamListener = streamPocClient;
             streamPocClient.createStream(streamListener);

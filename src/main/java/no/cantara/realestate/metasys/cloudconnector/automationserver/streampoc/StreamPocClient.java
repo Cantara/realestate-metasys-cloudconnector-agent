@@ -1,5 +1,6 @@
 package no.cantara.realestate.metasys.cloudconnector.automationserver.streampoc;
 
+import io.swagger.v3.oas.models.security.SecurityScheme;
 import no.cantara.config.ApplicationProperties;
 import no.cantara.realestate.cloudconnector.audit.AuditTrail;
 import no.cantara.realestate.cloudconnector.notifications.NotificationService;
@@ -12,6 +13,9 @@ import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClie
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.*;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
 import no.cantara.realestate.metasys.cloudconnector.observations.MetasysObservationMessage;
+import no.cantara.realestate.observations.ConfigMessage;
+import no.cantara.realestate.observations.ConfigValue;
+import no.cantara.realestate.observations.ObservationListener;
 import no.cantara.realestate.observations.ObservationMessage;
 import no.cantara.realestate.rec.RecRepository;
 import no.cantara.realestate.rec.RecTags;
@@ -74,7 +78,7 @@ public class StreamPocClient implements StreamListener {
     public AtomicReference<String> closingStreamReason = new AtomicReference<>(null);
     private boolean reconnectOnError = true;
     private StreamListener streamListener = null;
-    private final ObservationDistributionClient distributionClient;
+    private final ObservationListener observationListener;
 
 
     public StreamPocClient() {
@@ -90,14 +94,14 @@ public class StreamPocClient implements StreamListener {
                 .connectTimeout(REQUEST_TIMEOUT)
                 .build();
         sdUri = metasysStreamClient.getApiUri();
-        distributionClient = initializeStubDistributionClient();
+        observationListener = initializeStubObservationListener();
         this.metricsClient = null;
         this.auditTrail = null;
         this.sensorIdRepository = null;
         this.recRepository = null;
     }
 
-    public StreamPocClient(MetasysStreamClient streamClient, SensorIdRepository sensorIdRepository, RecRepository recRepository, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsClient, AuditTrail auditTrail) {
+    public StreamPocClient(MetasysStreamClient streamClient, SensorIdRepository sensorIdRepository, RecRepository recRepository, ObservationListener observationListener, MetasysMetricsDistributionClient metricsClient, AuditTrail auditTrail) {
         this.metasysStreamClient = streamClient;
         this.scheduler = Executors.newScheduledThreadPool(1);
         findLatestUserToken();
@@ -106,53 +110,36 @@ public class StreamPocClient implements StreamListener {
                 .connectTimeout(REQUEST_TIMEOUT)
                 .build();
         this.sdUri = metasysStreamClient.getApiUri();
-        this.distributionClient = distributionClient;
+        this.observationListener = observationListener;
         this.metricsClient = metricsClient;
         this.auditTrail = auditTrail;
         this.sensorIdRepository = (InMemorySensorIdRepository)sensorIdRepository;
         this.recRepository = recRepository;
     }
 
-    ObservationDistributionClient initializeStubDistributionClient() {
-        return new ObservationDistributionClient() {
-            int messageCount = 0;
-            List<ObservationMessage> observedMessages = new ArrayList<>();
+    ObservationListener initializeStubObservationListener() {
+        return new ObservationListener() {
+            private Instant lastMessageObserved = null;
             @Override
-            public String getName() {
-                return "StubDistributionClient";
+            public void observedValue(no.cantara.realestate.observations.ObservedValue observedValue) {
+                lastMessageObserved = Instant.now();
             }
 
             @Override
-            public void openConnection() {
-                log.debug("Opening connection to StubDistributionClient");
+            public void observedConfigValue(ConfigValue configValue) {
+                lastMessageObserved = Instant.now();
             }
 
             @Override
-            public void closeConnection() {
-                log.debug("Closing connection to StubDistributionClient");
+            public void observedConfigMessage(ConfigMessage configMessage) {
+                lastMessageObserved = Instant.now();
             }
 
             @Override
-            public boolean isConnectionEstablished() {
-                return true;
+            public Instant getWhenLastMessageObserved() {
+                return lastMessageObserved;
             }
 
-            @Override
-            public void publish(ObservationMessage observationMessage) {
-                log.info("Publishing ObservationMessage: {}", observationMessage);
-                messageCount++;
-                observedMessages.add(observationMessage);
-            }
-
-            @Override
-            public long getNumberOfMessagesObserved() {
-                return messageCount;
-            }
-
-            @Override
-            public List<ObservationMessage> getObservedMessages() {
-                return observedMessages;
-            }
         };
     }
 
@@ -518,7 +505,7 @@ public class StreamPocClient implements StreamListener {
         if (event instanceof MetasysObservedValueEvent) {
             MetasysObservedValueEvent observedValueEvent = (MetasysObservedValueEvent) event;
             log.info("StreamListener received observed value event: {}", observedValueEvent);
-            ObservedValue observedValue = observedValueEvent.getObservedValue();
+            ObservedValue metasysObservedValue = observedValueEvent.getObservedValue();
             final String metricKey = "metasys_stream_observation_received";
             String metasysObjectId = observedValueEvent.getObservedValue().getId();
             List<SensorId> sensorIds = sensorIdRepository.find(MetasysSensorId.METASYS_OBJECT_ID, metasysObjectId);
@@ -528,32 +515,22 @@ public class StreamPocClient implements StreamListener {
             }else {
                 String twinId = sensorIds.get(0).getTwinId();
                 auditTrail.logObservedStream(twinId, "StreamListener received event for MetasysObjectId: " + metasysObjectId);
-            }
-
-            MetasysSensorSystemId sensorSystemId = new MetasysSensorSystemId(metasysObjectId);
-            List<RecTags> recTagsList = recRepository.findBySensorSystemId(sensorSystemId);
-            if (recTagsList.isEmpty()) {
-                log.trace("No RecTags found for sensorSystemId: {} from stream event {}", sensorSystemId, observedValueEvent);
-            } else {
-                for (RecTags recTags : recTagsList) {
-                    log.trace("Found RecTags for sensorSystemId: {}: {}", sensorSystemId, recTagsList.size());
-                    if (observedValue instanceof ObservedValueNumber) {
-                        ObservationMessage observationMessage = new MetasysObservationMessage((ObservedValueNumber) observedValue, recTags);
+                no.cantara.realestate.observations.ObservedValue realestateObservedValue = null;
+                for (SensorId sensorId : sensorIds) {
+                    if (metasysObservedValue instanceof ObservedValueNumber) {
+                        realestateObservedValue = new no.cantara.realestate.observations.ObservedValue(sensorId, (Number) metasysObservedValue.getValue(), Instant.now());
+                    } else if (metasysObservedValue instanceof ObservedValueBoolean) {
+                        Number value = (Boolean) metasysObservedValue.getValue() ? 1 : 0;
+                        realestateObservedValue = new no.cantara.realestate.observations.ObservedValue(sensorId, value, Instant.now());
+                    }
+                    if (realestateObservedValue != null) {
                         metricsClient.sendValue(METRIC_NAME_STREAMVALUE_RECEIVED, 1);
-                        distributionClient.publish(observationMessage);
-                    } else if (observedValue instanceof ObservedValueBoolean) {
-                        ObservedValueNumber observedValueNumber = new ObservedValueNumber(observedValue.getId(), ((ObservedValueBoolean) observedValue).getValue() ? 1 : 0, observedValue.getItemReference());
-                        ObservationMessage observationMessage = new MetasysObservationMessage(observedValueNumber, recTags);
-                        metricsClient.sendValue(METRIC_NAME_STREAMVALUE_RECEIVED, 1);
-                        distributionClient.publish(observationMessage);
-                    } else {
-                        log.trace("ObservedValue is not a number. Not publishing to distributionClient. ObservedValue: {}", observedValue);
+                        observationListener.observedValue(realestateObservedValue);
                     }
                 }
             }
-        } else {
-            log.warn("StreamListener received unknown event type: {}", event.getClass().getName());
         }
+
     }
 
     @Override
