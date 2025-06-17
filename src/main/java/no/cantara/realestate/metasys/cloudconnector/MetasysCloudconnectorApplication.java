@@ -201,10 +201,11 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
                  */
             } catch (InterruptedException e) {
                 log.error("Error in main thread", e);
-            } finally {
-                log.info("Closing StreamPocClient");
-                streamPocClient.close();
             }
+//            finally {
+//                log.info("Closing StreamPocClient");
+//                streamPocClient.close();
+//            }
 
 
 
