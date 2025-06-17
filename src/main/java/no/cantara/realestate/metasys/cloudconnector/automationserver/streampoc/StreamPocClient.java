@@ -1,24 +1,25 @@
 package no.cantara.realestate.metasys.cloudconnector.automationserver.streampoc;
 
 import no.cantara.config.ApplicationProperties;
-import no.cantara.realestate.automationserver.BasClient;
 import no.cantara.realestate.cloudconnector.audit.AuditTrail;
 import no.cantara.realestate.cloudconnector.notifications.NotificationService;
+import no.cantara.realestate.cloudconnector.sensorid.InMemorySensorIdRepository;
 import no.cantara.realestate.cloudconnector.sensorid.SensorIdRepository;
 import no.cantara.realestate.distribution.ObservationDistributionClient;
-import no.cantara.realestate.mappingtable.MappedSensorId;
-import no.cantara.realestate.mappingtable.rec.SensorRecObject;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorException;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnectorApplicationFactory;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.*;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
 import no.cantara.realestate.metasys.cloudconnector.observations.MetasysObservationMessage;
-import no.cantara.realestate.metasys.cloudconnector.observations.MetasysStreamImporter;
 import no.cantara.realestate.observations.ObservationMessage;
+import no.cantara.realestate.rec.RecRepository;
+import no.cantara.realestate.rec.RecTags;
 import no.cantara.realestate.security.LogonFailedException;
 import no.cantara.realestate.security.UserToken;
+import no.cantara.realestate.sensors.SensorId;
 import no.cantara.realestate.sensors.metasys.MetasysSensorId;
+import no.cantara.realestate.sensors.metasys.MetasysSensorSystemId;
 import org.slf4j.Logger;
 
 import java.io.BufferedReader;
@@ -56,12 +57,14 @@ public class StreamPocClient implements StreamListener {
     public static final String STREAM_CLOSED_UNEXPECTEDLY = "Stream closed unexpectedly";
     public static final String STREAM_ENDED_WITHOUT_EMPTY_LINE = "Stream ended without empty line.";
     public static final String STREAM_ENDED_WITH_NULL = "Stream ended because readLine returned null.";
+    private static final String METRIC_NAME_STREAMVALUE_RECEIVED = "metasys_streamvalues_received";
     private final MetasysStreamClient metasysStreamClient;
     private final ScheduledExecutorService scheduler;
     private final URI sdUri;
     private final MetasysMetricsDistributionClient metricsClient;
     private final AuditTrail auditTrail;
-    private final SensorIdRepository sensorIdRepository;
+    private final InMemorySensorIdRepository sensorIdRepository;
+    private final RecRepository recRepository;
     private UserToken userToken;
     private String subscriptionId = null;
     private HttpClient httpClient;
@@ -91,9 +94,10 @@ public class StreamPocClient implements StreamListener {
         this.metricsClient = null;
         this.auditTrail = null;
         this.sensorIdRepository = null;
+        this.recRepository = null;
     }
 
-    public StreamPocClient(MetasysStreamClient streamClient, SensorIdRepository sensorIdRepository, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsClient, AuditTrail auditTrail) {
+    public StreamPocClient(MetasysStreamClient streamClient, SensorIdRepository sensorIdRepository, RecRepository recRepository, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsClient, AuditTrail auditTrail) {
         this.metasysStreamClient = streamClient;
         this.scheduler = Executors.newScheduledThreadPool(1);
         findLatestUserToken();
@@ -105,7 +109,8 @@ public class StreamPocClient implements StreamListener {
         this.distributionClient = distributionClient;
         this.metricsClient = metricsClient;
         this.auditTrail = auditTrail;
-        this.sensorIdRepository = sensorIdRepository;
+        this.sensorIdRepository = (InMemorySensorIdRepository)sensorIdRepository;
+        this.recRepository = recRepository;
     }
 
     ObservationDistributionClient initializeStubDistributionClient() {
@@ -119,7 +124,7 @@ public class StreamPocClient implements StreamListener {
 
             @Override
             public void openConnection() {
-            log.debug("Opening connection to StubDistributionClient");
+                log.debug("Opening connection to StubDistributionClient");
             }
 
             @Override
@@ -516,19 +521,35 @@ public class StreamPocClient implements StreamListener {
             ObservedValue observedValue = observedValueEvent.getObservedValue();
             final String metricKey = "metasys_stream_observation_received";
             String metasysObjectId = observedValueEvent.getObservedValue().getId();
-            no.cantara.realestate.mappingtable.SensorId sensorId = new no.cantara.realestate.mappingtable.metasys.MetasysSensorId(metasysObjectId, null);
-            String adtSensorId = "stubSensorId"; // TODO: Replace with actual sensor ID
-            SensorRecObject rec = new SensorRecObject(adtSensorId);
-            MappedSensorId mappedId = new no.cantara.realestate.mappingtable.MappedSensorId(sensorId, rec);
-            if (observedValue instanceof ObservedValueNumber) {
-                ObservationMessage observationMessage = new MetasysObservationMessage((ObservedValueNumber) observedValue, mappedId);
-                distributionClient.publish(observationMessage);
-            } else if (observedValue instanceof ObservedValueBoolean) {
-                ObservedValueNumber observedValueNumber = new ObservedValueNumber(observedValue.getId(), ((ObservedValueBoolean) observedValue).getValue() ? 1 : 0, observedValue.getItemReference());
-                ObservationMessage observationMessage = new MetasysObservationMessage(observedValueNumber, mappedId);
-                distributionClient.publish(observationMessage);
+            List<SensorId> sensorIds = sensorIdRepository.find(MetasysSensorId.METASYS_OBJECT_ID, metasysObjectId);
+            if (sensorIds == null || sensorIds.isEmpty()) {
+                log.trace("No SensorId found for MetasysObjectId: {} from stream event {}", metasysObjectId, observedValueEvent);
+                return;
+            }else {
+                String twinId = sensorIds.get(0).getTwinId();
+                auditTrail.logObservedStream(twinId, "StreamListener received event for MetasysObjectId: " + metasysObjectId);
+            }
+
+            MetasysSensorSystemId sensorSystemId = new MetasysSensorSystemId(metasysObjectId);
+            List<RecTags> recTagsList = recRepository.findBySensorSystemId(sensorSystemId);
+            if (recTagsList.isEmpty()) {
+                log.trace("No RecTags found for sensorSystemId: {} from stream event {}", sensorSystemId, observedValueEvent);
             } else {
-                log.trace("ObservedValue is not a number. Not publishing to distributionClient. ObservedValue: {}", observedValue);
+                for (RecTags recTags : recTagsList) {
+                    log.trace("Found RecTags for sensorSystemId: {}: {}", sensorSystemId, recTagsList.size());
+                    if (observedValue instanceof ObservedValueNumber) {
+                        ObservationMessage observationMessage = new MetasysObservationMessage((ObservedValueNumber) observedValue, recTags);
+                        metricsClient.sendValue(METRIC_NAME_STREAMVALUE_RECEIVED, 1);
+                        distributionClient.publish(observationMessage);
+                    } else if (observedValue instanceof ObservedValueBoolean) {
+                        ObservedValueNumber observedValueNumber = new ObservedValueNumber(observedValue.getId(), ((ObservedValueBoolean) observedValue).getValue() ? 1 : 0, observedValue.getItemReference());
+                        ObservationMessage observationMessage = new MetasysObservationMessage(observedValueNumber, recTags);
+                        metricsClient.sendValue(METRIC_NAME_STREAMVALUE_RECEIVED, 1);
+                        distributionClient.publish(observationMessage);
+                    } else {
+                        log.trace("ObservedValue is not a number. Not publishing to distributionClient. ObservedValue: {}", observedValue);
+                    }
+                }
             }
         } else {
             log.warn("StreamListener received unknown event type: {}", event.getClass().getName());

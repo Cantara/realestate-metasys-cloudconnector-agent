@@ -50,7 +50,7 @@
     <dependency>
       <groupId>no.cantara.realestate</groupId>
       <artifactId>realestate-cloudconnector-agent</artifactId>
-      <version>0.14.6</version>
+      <version>0.14.7-SNAPSHOT</version>
     </dependency>
     <dependency>
       <groupId>no.cantara.realestate</groupId>
