@@ -17,6 +17,7 @@ import no.cantara.realestate.metasys.cloudconnector.metrics.Metric;
 import no.cantara.realestate.observations.ObservationMessage;
 import no.cantara.realestate.security.LogonFailedException;
 import no.cantara.realestate.security.UserToken;
+import org.apache.commons.lang.NotImplementedException;
 import org.slf4j.Logger;
 
 import java.net.URISyntaxException;
@@ -61,6 +62,7 @@ public class MetasysStreamImporter implements StreamListener {
     private List<MappedIdQuery> idQueries;
 
 
+
     public MetasysStreamImporter(MetasysStreamClient streamClient, BasClient sdClient, MappedIdRepository idRepository, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsDistributionClient, AuditTrail auditTrail) {
         this.streamClient = streamClient;
         this.sdClient = sdClient;
@@ -71,6 +73,7 @@ public class MetasysStreamImporter implements StreamListener {
 //        scheduledExecutorService = new ScheduledThreadPoolExecutor(1);
 //        scheduledExecutorService.setRemoveOnCancelPolicy(true);
     }
+    /*
 
 
     @Override
@@ -141,15 +144,15 @@ public class MetasysStreamImporter implements StreamListener {
         log.warn("Stream closed. CloseInfo: {}", closeInfo);
         if (closeInfo.getReason() == MetasysStreamClient.ConnectionCloseReason.AUTHORIZATION_ERROR) {
             log.info("MetasysStreamClient no longer authorized. Will try to reconnect.");
-            streamClient.reconnectStream(streamUrl, null, null, this);
+//            streamClient.reconnectStream(streamUrl, null, null, this);
             resubscribe();
         } else if (closeInfo.getReason() == MetasysStreamClient.ConnectionCloseReason.STREAM_NOT_RESUMABLE) {
             log.info("MetasysStreamClient stream not resumable. Will try to reconnect.");
-            streamClient.reconnectStream(streamUrl, null, null, this);
+//            streamClient.reconnectStream(streamUrl, null, null, this);
             resubscribe();
         } else if (closeInfo.getLastStatusCode() == 200) {
             log.warn("Not sure why stream closed. Will try to reconnect.");
-            streamClient.reconnectStream(streamUrl, null, null, this);
+//            streamClient.reconnectStream(streamUrl, null, null, this);
             resubscribe();
         } else {
             log.warn("Stream closed. And will not be reconnected. CloseInfo: {}", closeInfo);
@@ -226,12 +229,12 @@ public class MetasysStreamImporter implements StreamListener {
     public void openStream() {
         log.trace("Open stream to Metasys");
         streamUrl = ApplicationProperties.getInstance().get("sd.api.url") + "stream";
-        if (streamClient != null && !streamClient.isStreamOpen()) {
+//        if (streamClient != null && !streamClient.isStreamOpen()) {
             UserToken userToken = sdClient.getUserToken();
             if (userToken != null) {
                 String accessToken = userToken.getAccessToken();
                 try {
-                    streamClient.openStream(streamUrl, accessToken, null, this);
+//                    streamClient.openStream(streamUrl, accessToken, null, this);
                     log.trace("Metasys stream opened.");
                     isHealthy = true;
                     expires = userToken.getExpires();
@@ -304,6 +307,8 @@ public class MetasysStreamImporter implements StreamListener {
             log.debug("Stream already open. Skipping openStream");
         }
     }
+
+     */
 
     /*
     protected void scheduleRefreshToken(long reSubscribeIntervalInSeconds) {
@@ -425,5 +430,15 @@ FIXME reschedule subscription when user token has expired.
 
     public synchronized void setLastKnownEventId(String lastKnownEventId) {
         this.lastKnownEventId = lastKnownEventId;
+    }
+
+    @Override
+    public void onEvent(StreamEvent event) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public void onClose(ConnectionCloseInfo closeInfo) {
+        throw new NotImplementedException();
     }
 }

@@ -2,7 +2,9 @@ package no.cantara.realestate.metasys.cloudconnector.automationserver.streampoc;
 
 import no.cantara.config.ApplicationProperties;
 import no.cantara.realestate.automationserver.BasClient;
+import no.cantara.realestate.cloudconnector.audit.AuditTrail;
 import no.cantara.realestate.cloudconnector.notifications.NotificationService;
+import no.cantara.realestate.cloudconnector.sensorid.SensorIdRepository;
 import no.cantara.realestate.distribution.ObservationDistributionClient;
 import no.cantara.realestate.mappingtable.MappedSensorId;
 import no.cantara.realestate.mappingtable.rec.SensorRecObject;
@@ -10,10 +12,13 @@ import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorExcepti
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnectorApplicationFactory;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.*;
+import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
 import no.cantara.realestate.metasys.cloudconnector.observations.MetasysObservationMessage;
+import no.cantara.realestate.metasys.cloudconnector.observations.MetasysStreamImporter;
 import no.cantara.realestate.observations.ObservationMessage;
 import no.cantara.realestate.security.LogonFailedException;
 import no.cantara.realestate.security.UserToken;
+import no.cantara.realestate.sensors.metasys.MetasysSensorId;
 import org.slf4j.Logger;
 
 import java.io.BufferedReader;
@@ -51,35 +56,56 @@ public class StreamPocClient implements StreamListener {
     public static final String STREAM_CLOSED_UNEXPECTEDLY = "Stream closed unexpectedly";
     public static final String STREAM_ENDED_WITHOUT_EMPTY_LINE = "Stream ended without empty line.";
     public static final String STREAM_ENDED_WITH_NULL = "Stream ended because readLine returned null.";
-    private final MetasysClient metasysClient;
+    private final MetasysStreamClient metasysStreamClient;
     private final ScheduledExecutorService scheduler;
     private final URI sdUri;
+    private final MetasysMetricsDistributionClient metricsClient;
+    private final AuditTrail auditTrail;
+    private final SensorIdRepository sensorIdRepository;
     private UserToken userToken;
     private String subscriptionId = null;
     private HttpClient httpClient;
-    private Thread streamListenerThread;
-    private final BlockingQueue<ServerSentEvent> eventQueue = new LinkedBlockingQueue<>();
+    public Thread streamListenerThread;
+    public final BlockingQueue<ServerSentEvent> eventQueue = new LinkedBlockingQueue<>();
     private volatile String lastKnownEventId = null;
-    private AtomicReference<String> closingStreamReason = new AtomicReference<>(null);
+    public AtomicReference<String> closingStreamReason = new AtomicReference<>(null);
     private boolean reconnectOnError = true;
     private StreamListener streamListener = null;
     private final ObservationDistributionClient distributionClient;
 
 
     public StreamPocClient() {
-        this(MetasysClient.getInstance());
+        this(MetasysStreamClient.getInstance());
     }
 
-    protected StreamPocClient(MetasysClient metasysClient) {
-        this.metasysClient = metasysClient;
+    protected StreamPocClient(MetasysStreamClient metasysStreamClient) {
+        this.metasysStreamClient = metasysStreamClient;
         scheduler = Executors.newScheduledThreadPool(1);
         findLatestUserToken();
         scheduleTokenRefresh();
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(REQUEST_TIMEOUT)
                 .build();
-        sdUri = metasysClient.getApiUri();
+        sdUri = metasysStreamClient.getApiUri();
         distributionClient = initializeStubDistributionClient();
+        this.metricsClient = null;
+        this.auditTrail = null;
+        this.sensorIdRepository = null;
+    }
+
+    public StreamPocClient(MetasysStreamClient streamClient, SensorIdRepository sensorIdRepository, ObservationDistributionClient distributionClient, MetasysMetricsDistributionClient metricsClient, AuditTrail auditTrail) {
+        this.metasysStreamClient = streamClient;
+        this.scheduler = Executors.newScheduledThreadPool(1);
+        findLatestUserToken();
+        scheduleTokenRefresh();
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(REQUEST_TIMEOUT)
+                .build();
+        this.sdUri = metasysStreamClient.getApiUri();
+        this.distributionClient = distributionClient;
+        this.metricsClient = metricsClient;
+        this.auditTrail = auditTrail;
+        this.sensorIdRepository = sensorIdRepository;
     }
 
     ObservationDistributionClient initializeStubDistributionClient() {
@@ -126,7 +152,7 @@ public class StreamPocClient implements StreamListener {
     }
 
     protected void findLatestUserToken() {
-        userToken = metasysClient.getUserToken();
+        userToken = metasysStreamClient.getUserToken();
         String accessToken = userToken.getAccessToken();
         String shortAccessToken = shortenedAccessToken(accessToken);
         log.debug("Latest user token: {}. Expires: {}", shortAccessToken, userToken.getExpires());
@@ -154,8 +180,8 @@ public class StreamPocClient implements StreamListener {
     private static MetasysClient initializeMetasysClient(ApplicationProperties config) {
         MetasysClient basClient = null;
         String apiUrl = config.get("sd.api.url");
-        String username = config.get("sd.api.username");
-        String password = config.get("sd.api.password");
+        String username = config.get("sd.stream.username");
+        String password = config.get("sd.stream.password");
         try {
             URI apiUri = new URI(apiUrl);
             log.info("Connect to Metasys API: {} with username: {}", apiUri, username);
@@ -179,11 +205,11 @@ public class StreamPocClient implements StreamListener {
                 }
             };
             basClient = MetasysClient.getInstance(username, password, apiUri, notificationService); //new MetasysApiClientRest(apiUri, notificationService);
-            log.info("Running with a live REST SD.");
+            log.info("Running with a live Stream.");
         } catch (URISyntaxException e) {
-            throw new MetasysCloudConnectorException("Failed to connect SD Client to URL" + apiUrl, e);
+            throw new MetasysCloudConnectorException("Failed to connect Stream Client to URL" + apiUrl, e);
         } catch (LogonFailedException e) {
-            throw new MetasysCloudConnectorException("Failed to logon SD Client. URL used" + apiUrl, e);
+            throw new MetasysCloudConnectorException("Failed to logon Stream Client. URL used" + apiUrl, e);
         }
         return basClient;
     }
@@ -192,7 +218,7 @@ public class StreamPocClient implements StreamListener {
         return accessToken.length() > 200 ? accessToken.substring(0, 50) + "..." + accessToken.substring(accessToken.length() - 50) : accessToken;
     }
 
-    void close() {
+    public void close() {
         log.info("Closing Metasys stream client");
         if (streamListenerThread != null) {
             streamListenerThread.interrupt();
@@ -204,11 +230,15 @@ public class StreamPocClient implements StreamListener {
         }
     }
 
-    protected void subscribeToStream(String subscriptionId, List<String> metasysObjectIds) {
-        for (String metasysObjectId : metasysObjectIds) {
+    public void subscribeToStream(String subscriptionId, List<MetasysSensorId> sensorIds) {
+        for (MetasysSensorId metasysSensorId : sensorIds) {
+            String metasysObjectId = metasysSensorId.getMetasysObjectId();
             log.trace("Subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId);
+            String sensorId = metasysSensorId.getTwinId();
+            auditTrail.logSubscribed(sensorId, "Subscribe to Stream for MetasysObjectId: " + metasysObjectId);
+
             try {
-                Integer httpStatus = metasysClient.subscribePresentValueChange(subscriptionId, metasysObjectId);
+                Integer httpStatus = metasysStreamClient.subscribePresentValueChange(subscriptionId, metasysObjectId);
                 log.debug("Subscription to metasysObjectId: {} subscriptionId: {}, returned httpStatus: {}", metasysObjectId, subscriptionId, httpStatus);
             } catch (LogonFailedException e) {
                 log.warn("Failed to logon to SD system. Could not subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
@@ -230,7 +260,7 @@ public class StreamPocClient implements StreamListener {
      *
      * @param listener the StreamListener to handle incoming events
      */
-    protected void createStream(StreamListener listener) {
+    public void createStream(StreamListener listener) {
         this.streamListener = listener;
 
         Runnable streamTask = () -> {
@@ -540,7 +570,29 @@ public class StreamPocClient implements StreamListener {
         ApplicationProperties config = new MetasysCloudconnectorApplicationFactory()
                 .conventions(ApplicationProperties.builder())
                 .buildAndSetStaticSingleton();
-        BasClient basClient = initializeMetasysClient(config);
+        URI apiUrl = URI.create(config.get("sd.api.url"));
+        String username = config.get("sd.stream.username");
+        String password = config.get("sd.stream.password");
+        NotificationService notificationService = new NotificationService() {
+            @Override
+            public boolean sendWarning(String service, String warningMessage) {
+                log.info("Sending warning message: {}", warningMessage);
+                return true;
+            }
+
+            @Override
+            public boolean sendAlarm(String service, String alarmMessage) {
+                log.info("Sending alarm message: {}", alarmMessage);
+                return true;
+            }
+
+            @Override
+            public boolean clearService(String service) {
+                log.info("Clearing service: {}", service);
+                return true;
+            }
+        };
+        MetasysStreamClient streamClient = MetasysStreamClient.getInstance(username, password, apiUrl, notificationService);
         StreamPocClient streamPocClient = new StreamPocClient();
 
 
@@ -561,7 +613,7 @@ public class StreamPocClient implements StreamListener {
             log.info("First event from queue: {}", event);
             String subscriptionId = streamPocClient.getSubscriptionId();
             log.info("Stream created. SubscriptionId: {}", subscriptionId);
-            List<String> metasysObjectIds = List.of("408eb7e4-f63b-5db0-b665-999bfa6ad588");
+            List<MetasysSensorId> metasysObjectIds = List.of(new MetasysSensorId("Sensor-twin-poc1","408eb7e4-f63b-5db0-b665-999bfa6ad588"));
             if (subscriptionId == null && event.getEvent().equals("hello")) {
                 subscriptionId = event.getData();
 

@@ -1,10 +1,10 @@
 package no.cantara.realestate.metasys.cloudconnector.automationserver.streampoc;
 
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysStreamClient;
 import no.cantara.realestate.security.UserToken;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledIfEnvironmentVariable;
 import org.slf4j.Logger;
@@ -25,7 +25,7 @@ public class ServerSentEventsTest {
     private static final Logger log = getLogger(ServerSentEventsTest.class);
 
     private static MockServerSentEventsRunner sseMockServer;
-    private static MetasysClient metasysClient;
+    private static MetasysStreamClient metasysStreamClient;
     private static int port;
     private static URI sdApiUri;
     private static UserToken stubUserToken;
@@ -36,13 +36,13 @@ public class ServerSentEventsTest {
     static void beforeAll() throws IOException {
         port = findFreePort();
         sseMockServer = new MockServerSentEventsRunner();
-        metasysClient = mock(MetasysClient.class);
+        metasysStreamClient = mock(MetasysStreamClient.class);
         sdApiUri = URI.create(String.format("http://localhost:%d/", port));
-        when(metasysClient.getApiUri()).thenReturn(sdApiUri);
+        when(metasysStreamClient.getApiUri()).thenReturn(sdApiUri);
         tokenExpires = Instant.now().plusSeconds(600);
         stubUserToken = new UserToken("accessToken12345", tokenExpires, "refreshToken67890");
-        when(metasysClient.getUserToken()).thenReturn(stubUserToken);
-        streamPocClient = new StreamPocClient(metasysClient);
+        when(metasysStreamClient.getUserToken()).thenReturn(stubUserToken);
+        streamPocClient = new StreamPocClient(metasysStreamClient);
     }
 
     @AfterEach
