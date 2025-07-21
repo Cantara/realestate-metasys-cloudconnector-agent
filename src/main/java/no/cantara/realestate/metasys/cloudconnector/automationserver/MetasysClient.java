@@ -932,6 +932,11 @@ public class MetasysClient implements BasClient {
         return lastFailedApiCall;
     }
 
+    //Used for testing only
+    protected void setUserToken(UserToken userToken) {
+        this.userToken = userToken;
+    }
+
     public static void main(String[] args) throws URISyntaxException, LogonFailedException {
 
         String trendId = getConfigValue("trend.id");
