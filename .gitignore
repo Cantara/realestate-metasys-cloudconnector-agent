@@ -42,3 +42,6 @@ logback_override.xml
 /applicationinsights.json
 /dependencies.txt
 /backup/
+
+# Troubleshoot and bugfix
+/troubleshoot/

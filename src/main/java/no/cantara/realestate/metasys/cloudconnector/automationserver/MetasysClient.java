@@ -45,6 +45,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 
@@ -69,6 +73,7 @@ public class MetasysClient implements BasClient {
 
     public static final String METASYS_API = "Metasys";
     public static final String HOST_UNREACHABLE = "HOST_UNREACHABLE";
+    public static final String METASYS_API_UNAVAILABLE = "Metasys API is unavailable";
     public static final String LOGON_FAILED = "Logon to Metasys Api Failed";
 
     private static MetasysClient instance;
@@ -90,6 +95,12 @@ public class MetasysClient implements BasClient {
     private String accessToken;
     private Instant tokenExpiryTime;
     private final ReentrantLock authLock = new ReentrantLock();
+
+    private final ScheduledExecutorService apiHealthChecker;
+    private volatile boolean apiAvailable = true;
+    private volatile Instant lastSuccessfulApiCall;
+    private volatile Instant lastFailedApiCall;
+    private final AtomicInteger consecutiveFailures = new AtomicInteger(0);
 
     /**
      * Privat konstruktør for singleton-mønsteret.
@@ -121,6 +132,9 @@ public class MetasysClient implements BasClient {
         RateLimiterRegistry logonRegistry = RateLimiterRegistry.of(logonConfig);
         this.logonRateLimiter = logonRegistry.rateLimiter("logonLimiter");
 
+        this.apiHealthChecker = Executors.newScheduledThreadPool(1);
+        startPeriodicApiHealthCheck();
+
     }
 
     /**
@@ -151,6 +165,17 @@ public class MetasysClient implements BasClient {
      */
     static void stopInstance4Testing() {
         log.warn("MetasysClient is reset. Must only be used for testing.");
+        if (instance != null && instance.apiHealthChecker != null) {
+            instance.apiHealthChecker.shutdown();
+            try {
+                if (!instance.apiHealthChecker.awaitTermination(5, TimeUnit.SECONDS)) {
+                    instance.apiHealthChecker.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                instance.apiHealthChecker.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+        }
         instance = null;
     }
 
@@ -187,6 +212,7 @@ public class MetasysClient implements BasClient {
                     tokenExpiryTime = userToken.getExpires();
                     notificationService.clearService("Metasys");
                     log.debug("Metasys login successful, token expires: " + tokenExpiryTime);
+                    markApiHealthy();
                     setHealthy();
                     break;
                 default:
@@ -196,6 +222,7 @@ public class MetasysClient implements BasClient {
                             ". ResponseCode: " + statusCode;
                     LogonFailedException logonFailedException = new LogonFailedException(msg);
                     log.warn("Failed to logon to Metasys. Reason {}", logonFailedException.getMessage());
+                    markApiUnhealthy();
                     setUnhealthy();
                     notificationService.sendWarning(METASYS_API,LOGON_FAILED);
                     TemporaryHealthResource.addRegisteredError("Failed to logon to Metasys. Reason: " + logonFailedException.getMessage());
@@ -245,49 +272,60 @@ public class MetasysClient implements BasClient {
                     .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            int statusCode = response.statusCode();
 
-            if (response.statusCode() == 200) {
-                String body = response.body();
-                log.trace("RefreshToken Received body: {}", body);
-                MetasysUserToken userToken = RealEstateObjectMapper.getInstance().getObjectMapper().readValue(body, MetasysUserToken.class);
-                log.trace("RefreshToken userToken: {}", userToken);
-                this.userToken = userToken;
-                accessToken = userToken.getAccessToken(); //jsonResponse.get("accessToken").asText();
-                shortenedAccessToken = truncateUserToken(userToken);
-                tokenExpiryTime = userToken.getExpires(); // Instant.now().plusSeconds(expiresIn);
+            switch (statusCode) {
+                case 200:
+                    String body = response.body();
+                    log.trace("RefreshToken Received body: {}", body);
+                    MetasysUserToken userToken = RealEstateObjectMapper.getInstance().getObjectMapper().readValue(body, MetasysUserToken.class);
+                    this.userToken = userToken;
+                    accessToken = userToken.getAccessToken();
+                    tokenExpiryTime = userToken.getExpires();
+                    log.debug("Metasys token refreshed, new expiry: " + tokenExpiryTime);
+                    markApiHealthy(); // LEGG TIL
+                    break;
 
-                log.debug("Metasys token refreshed, new expiry: " + tokenExpiryTime);
-                setHealthy();
-            } else if (response.statusCode() == 401 || response.statusCode() == 403) {
-                // Token refresh failed, try login again
-                log.info("Metasys token refresh failed, performing full login");
-                login();
-            } else {
-                String errorMessage = "Metsys token refresh failed with status code: " + response.statusCode();
-                log.warn(errorMessage);
-                setUnhealthy();
-                throw new MetasysApiException(errorMessage, response.statusCode());
+                case 401:
+                case 403:
+                    log.info("Metasys token refresh failed with {}, performing full login", statusCode);
+                    login();
+                    break;
+
+                case 502:
+                case 503:
+                case 504:
+                    // Server/gateway errors - API might be temporarily unavailable
+                    String serverErrorMsg = "Metasys API server error: " + statusCode + ". API may be temporarily unavailable.";
+                    log.warn(serverErrorMsg);
+                    markApiUnhealthy();
+                    setUnhealthy();
+                    this.userToken = null;
+                    notificationService.sendAlarm(METASYS_API, METASYS_API_UNAVAILABLE);
+                    throw new MetasysApiException(serverErrorMsg, statusCode);
+
+                default:
+                    String errorMessage = "Metasys token refresh failed with status code: " + statusCode;
+                    log.warn(errorMessage);
+                    if (statusCode >= 500) {
+                        markApiUnhealthy();
+                        setUnhealthy();
+                        this.userToken = null; // Reset user token on server errors
+                        notificationService.sendAlarm(METASYS_API, METASYS_API_UNAVAILABLE);
+                    }
+                    throw new MetasysApiException(errorMessage, statusCode);
             }
-        } catch (JsonProcessingException e) {
-            notificationService.sendWarning(METASYS_API, "Metasys token refresh. Parsing of AccessToken information failed.");
-            String msg = "Metasys token refresh failed on Metasys at uri: " + refreshTokenUri + ", with accessToken: " + shortenedAccessToken +
-                    ". Failure parsing the response.";
-            LogonFailedException logonFailedException = new LogonFailedException(msg, e);
-            log.warn(msg);
-            setUnhealthy();
-            TemporaryHealthResource.addRegisteredError(msg + " Reason: " + logonFailedException.getMessage());
-            throw logonFailedException;
         } catch (IOException e) {
-            notificationService.sendAlarm(METASYS_API,HOST_UNREACHABLE);
-            String msg = "Metasys token refresh failed on Metasys. Host unreachable at uri: " + refreshTokenUri + ", with accessToken: " + shortenedAccessToken;
-            LogonFailedException logonFailedException = new LogonFailedException(msg, e);
+            // Network errors - API likely unavailable
+            markApiUnhealthy();
+            String msg = "Metasys API unreachable during token refresh: " + e.getMessage();
             log.warn(msg);
-            setUnhealthy();
-            TemporaryHealthResource.addRegisteredError(msg + " Reason: " + logonFailedException.getMessage());
-            throw logonFailedException;
+            notificationService.sendAlarm(METASYS_API, HOST_UNREACHABLE);
+            throw new MetasysApiException(msg, e);
         } catch (Exception e) {
             if (!(e instanceof MetasysApiException)) {
-                throw new MetasysApiException("Metasys token refresh failed. Generic error: " + e.getMessage(), e);
+                markApiUnhealthy();
+                throw new MetasysApiException("Metasys token refresh failed: " + e.getMessage(), e);
             } else {
                 throw (MetasysApiException) e;
             }
@@ -809,6 +847,89 @@ public class MetasysClient implements BasClient {
             }
         }
         return shortenedAccessToken;
+    }
+
+    /**
+     * Starter periodisk health check av Metasys API
+     */
+    private void startPeriodicApiHealthCheck() {
+        apiHealthChecker.scheduleWithFixedDelay(() -> {
+            try {
+                performApiHealthCheck();
+            } catch (Exception e) {
+                log.error("Error during periodic API health check", e);
+            }
+        }, 30, 60, TimeUnit.SECONDS); // Hver 60. sekund etter første 30 sek
+    }
+
+    /**
+     * Utfører health check av Metasys API og forsøker recovery ved behov
+     */
+    private void performApiHealthCheck() {
+        if (!apiAvailable || consecutiveFailures.get() > 0) {
+            log.info("Performing API health check. ConsecutiveFailures: {}, API available: {}",
+                    consecutiveFailures.get(), apiAvailable);
+
+            try {
+                // Forsøk token refresh som health check
+                if (userToken != null) {
+                    refreshTokenSilently();
+                    markApiHealthy();
+                } else {
+                    // Forsøk full login
+                    login();
+                    markApiHealthy();
+                }
+                log.info("API health check successful - API recovered");
+            } catch (Exception e) {
+                log.warn("API health check failed: {}", e.getMessage());
+                markApiUnhealthy();
+            }
+        }
+    }
+
+    /**
+     * Markerer API som healthy og nullstiller failure counters
+     */
+    private void markApiHealthy() {
+        if (!apiAvailable) {
+            log.info("Metasys API recovered after {} consecutive failures", consecutiveFailures.get());
+            notificationService.clearService("Metasys");
+        }
+        apiAvailable = true;
+        lastSuccessfulApiCall = Instant.now();
+        consecutiveFailures.set(0);
+        setHealthy();
+    }
+
+    /**
+     * Markerer API som unhealthy og øker failure counter
+     */
+    private void markApiUnhealthy() {
+        apiAvailable = false;
+        lastFailedApiCall = Instant.now();
+        int failures = consecutiveFailures.incrementAndGet();
+        log.warn("Metasys API marked as unhealthy. Consecutive failures: {}", failures);
+        setUnhealthy();
+    }
+
+    /**
+     * Getter metoder for health monitoring
+     */
+    public boolean isApiAvailable() {
+        return apiAvailable;
+    }
+
+    public int getConsecutiveFailures() {
+        return consecutiveFailures.get();
+    }
+
+    public Instant getLastSuccessfulApiCall() {
+        return lastSuccessfulApiCall;
+    }
+
+    public Instant getLastFailedApiCall() {
+        return lastFailedApiCall;
     }
 
     public static void main(String[] args) throws URISyntaxException, LogonFailedException {

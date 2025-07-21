@@ -198,7 +198,6 @@
     </dependency>
 
     <!-- Test -->
-    <!-- Test -->
     <dependency>
       <groupId>no.cantara.stingray</groupId>
       <artifactId>stingray-application-test</artifactId>
