@@ -82,9 +82,15 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
         //MetasysClient
         BasClient sdClient = createSdClient(config);
         if (sdClient instanceof MetasysClient) {
-            get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-whenLastObservationImported", ((MetasysClient) sdClient)::getWhenLastTrendSampleReceived);
-            get(StingrayHealthService.class).registerHealthProbe(sdClient.getName() + "-isLoggedIn", sdClient::isLoggedIn);
-
+            MetasysClient metasysClient = (MetasysClient) sdClient;
+            String sdClientName = sdClient.getName();
+            get(StingrayHealthService.class).registerHealthProbe(sdClientName + "-whenLastObservationImported", metasysClient::getWhenLastTrendSampleReceived);
+            get(StingrayHealthService.class).registerHealthProbe(sdClientName + "-isHealthy", sdClient::isHealthy);
+            get(StingrayHealthService.class).registerHealthProbe(sdClientName + "-isLoggedIn", sdClient::isLoggedIn);
+            get(StingrayHealthService.class).registerHealthProbe(sdClientName + "-apiAvailable", metasysClient::isApiAvailable);
+            get(StingrayHealthService.class).registerHealthProbe(sdClientName + "-consecutiveFailures", metasysClient::getConsecutiveFailures);
+            get(StingrayHealthService.class).registerHealthProbe(sdClientName + "-lastSuccessfulApiCall", metasysClient::getLastSuccessfulApiCall);
+            get(StingrayHealthService.class).registerHealthProbe(sdClientName + "-lastFailedApiCall", metasysClient::getLastFailedApiCall);
         }
 
         MetasysStreamClient streamClient = null;
