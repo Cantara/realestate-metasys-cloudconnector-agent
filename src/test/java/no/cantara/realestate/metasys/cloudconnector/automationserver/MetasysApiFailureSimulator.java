@@ -28,6 +28,16 @@ public class MetasysApiFailureSimulator implements AutoCloseable {
         setupMockEndpoints();
     }
 
+    /**
+     * Konstruktør som automatisk finner en ledig port
+     */
+    public MetasysApiFailureSimulator() {
+        // La MockServer finne en ledig port automatisk
+        this.mockServer = ClientAndServer.startClientAndServer();
+        this.port = mockServer.getLocalPort();
+        setupMockEndpoints();
+    }
+
     public void start() {
         // MockServer startes automatisk i konstruktøren
         log.info("MetasysApiFailureSimulator started on port {}", port);
@@ -43,6 +53,13 @@ public class MetasysApiFailureSimulator implements AutoCloseable {
     @Override
     public void close() {
         stop();
+    }
+
+    /**
+     * Returnerer porten som MockServer bruker
+     */
+    public int getPort() {
+        return port;
     }
 
     public void simulateApiDown(Duration downtime) {
