@@ -18,7 +18,10 @@ import java.net.http.HttpResponse;
 import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -112,6 +115,51 @@ class MetasysClientTest {
         verify(httpClientMock).send(requestCaptor.capture(), any(HttpResponse.BodyHandler.class));
         HttpRequest capturedRequest = requestCaptor.getValue();
         assertEquals("GET", capturedRequest.method(), "Expected HTTP method to be GET");
+    }
+
+    @Test
+    void refreshTokenSilently_ServerError502_AttemptsLogin() throws Exception {
+        // Arrange - Mock a 502 Bad Gateway error on refresh, then successful login
+        when(httpClientMock.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(httpResponseMock);
+        when(httpResponseMock.statusCode()).thenReturn(502);
+
+        // Mock a successful login response on the second call
+        HttpResponse<String> loginResponseMock = mock(HttpResponse.class);
+        when(loginResponseMock.statusCode()).thenReturn(200);
+        when(loginResponseMock.body()).thenReturn("{\"accessToken\":\"login_token\",\"expires\":\"2023-12-31T23:59:59Z\"}");
+
+        // Configure the http client to return different responses for different URIs
+        when(httpClientMock.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenAnswer(invocation -> {
+                    HttpRequest request = invocation.getArgument(0);
+                    String uri = request.uri().toString();
+                    if (uri.contains("refreshToken")) {
+                        return httpResponseMock; // 502 response
+                    } else if (uri.contains("login")) {
+                        return loginResponseMock; // 200 response
+                    }
+                    return httpResponseMock;
+                });
+
+        ArgumentCaptor<HttpRequest> requestCaptor = ArgumentCaptor.forClass(HttpRequest.class);
+
+        // Act
+        metasysClient.refreshTokenSilently();
+
+        // Assert
+        verify(httpClientMock, times(2)).send(requestCaptor.capture(), any(HttpResponse.BodyHandler.class));
+        
+        // Verify the first call was to refreshToken
+        HttpRequest firstRequest = requestCaptor.getAllValues().get(0);
+        assertTrue(firstRequest.uri().toString().contains("refreshToken"), 
+                "First request should be to refreshToken endpoint");
+        
+        // Verify the second call was to login (fallback)
+        HttpRequest secondRequest = requestCaptor.getAllValues().get(1);
+        assertTrue(secondRequest.uri().toString().contains("login"), 
+                "Second request should be to login endpoint as fallback");
+        assertEquals("POST", secondRequest.method(), "Login request should be POST");
     }
 
     /*

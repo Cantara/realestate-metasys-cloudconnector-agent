@@ -262,6 +262,10 @@ public class MetasysClient implements BasClient {
                 // Token refresh failed, try login again
                 log.info("Metasys token refresh failed, performing full login");
                 login();
+            } else if (response.statusCode() >= 500 && response.statusCode() < 600) {
+                // Server error during token refresh, try full login as fallback
+                log.info("Metasys token refresh failed with server error ({}), attempting full login as fallback", response.statusCode());
+                login();
             } else {
                 String errorMessage = "Metsys token refresh failed with status code: " + response.statusCode();
                 log.warn(errorMessage);
