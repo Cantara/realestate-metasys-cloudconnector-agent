@@ -100,6 +100,9 @@ class MetasysTrendsIngestionServiceTest {
         assertTrue(failedSensorsCaptor.getValue().contains(sensorId));
 
         verify(trendsLastUpdatedService).persistLastUpdated(Collections.emptyList());
+        ArgumentCaptor<List<MetasysSensorId>> captor = ArgumentCaptor.forClass(List.class);
+        verify(trendsLastUpdatedService).persistLastFailed(captor.capture());
+        assertTrue(captor.getValue().contains(sensorId));
 
         assertEquals(0, ingestionService.getNumberOfMessagesImported());
         assertEquals(1, ingestionService.getNumberOfMessagesFailed());

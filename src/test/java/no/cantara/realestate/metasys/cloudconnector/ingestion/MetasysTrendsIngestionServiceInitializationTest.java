@@ -113,21 +113,18 @@ class MetasysTrendsIngestionServiceInitializationTest {
     }
 
     @Test
-    void initialize_withNullClient_returnsFalse() {
-        // Arrange
-        when(pluginConfig.asString("sd.api.url", null)).thenReturn("https://metasys.example.com");
+    void initializeNullMetasysApiClient() {
 
         // Create service with null client
-        MetasysTrendsIngestionService serviceWithNullClient = new MetasysTrendsIngestionService(
-                config, observationListener, notificationListener, null,
-                trendsLastUpdatedService, auditTrail, metricsClient
-        );
-
-        // Act
-        boolean result = serviceWithNullClient.initialize(pluginConfig);
-
-        // Assert
-        assertFalse(result);
+        try {
+            MetasysTrendsIngestionService serviceWithNullClient = new MetasysTrendsIngestionService(
+                    config, observationListener, notificationListener, null,
+                    trendsLastUpdatedService, auditTrail, metricsClient
+            );
+            fail("Should have thrown MetasysCloudConnectorException");
+        } catch (MetasysCloudConnectorException e) {
+            assertTrue(e.getMessage().contains("metasysApiClient: null"));
+        }
     }
 
     @Test
