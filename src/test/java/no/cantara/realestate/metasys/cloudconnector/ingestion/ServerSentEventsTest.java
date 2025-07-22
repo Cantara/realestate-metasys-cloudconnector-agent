@@ -26,9 +26,6 @@ public class ServerSentEventsTest {
 
     private static MockServerSentEventsRunner sseMockServer;
     private static int port;
-    private static URI sdApiUri;
-    private static UserToken stubUserToken;
-    private static Instant tokenExpires;
     private static StreamPocClient streamPocClient;
 
     @BeforeAll
@@ -36,10 +33,10 @@ public class ServerSentEventsTest {
         port = findFreePort();
         sseMockServer = new MockServerSentEventsRunner();
         MetasysStreamClient metasysStreamClient = mock(MetasysStreamClient.class);
-        sdApiUri = URI.create(String.format("http://localhost:%d/", port));
+        URI sdApiUri = URI.create(String.format("http://localhost:%d/", port));
         when(metasysStreamClient.getApiUri()).thenReturn(sdApiUri);
-        tokenExpires = Instant.now().plusSeconds(600);
-        stubUserToken = new UserToken("accessToken12345", tokenExpires, "refreshToken67890");
+        Instant tokenExpires = Instant.now().plusSeconds(600);
+        UserToken stubUserToken = new UserToken("accessToken12345", tokenExpires, "refreshToken67890");
         when(metasysStreamClient.getUserToken()).thenReturn(stubUserToken);
         streamPocClient = new StreamPocClient(metasysStreamClient);
     }
