@@ -86,6 +86,11 @@ See the active mocks [Mockserver Dashboard](http://localhost:1080/mockserver/das
 
 Run  [MockServerSetup.java](src/test/java/no/cantara/realestate/metasys/cloudconnector/MockServerSetup.java)
 
+## Test coverage
+
+Run 'mvn clean verify' to generate test coverage report.
+See [Test coverage report](target/site/jacoco/index.html)
+
 
 ### Updates
 * 0.8.3 - StreamPocClient keeps stream flowing for more than 1 hour, with separate userid
