@@ -400,6 +400,17 @@ public class MetasysClient implements BasClient {
             }
         } catch (Exception e) {
             if (e instanceof MetasysApiException) {
+                // Catch after retryOnServerError.
+                if (e.getCause() != null && e.getCause() instanceof MetasysApiException) {
+                    MetasysApiException rootCause = (MetasysApiException) e.getCause();
+                    log.warn("Metasys API call failed with status code: " + rootCause.getStatusCode() +
+                            " during " + operationName + ". Reason: " + rootCause.getMessage());
+                    if (rootCause.getStatusCode() >= 500) {
+                        markApiUnhealthy();
+                        setUnhealthy();
+                        notificationService.sendAlarm(METASYS_API, METASYS_API_UNAVAILABLE);
+                    }
+                }
                 throw (MetasysApiException) e;
             } else if (e instanceof TrendNotFoundException) {
                 throw e;
