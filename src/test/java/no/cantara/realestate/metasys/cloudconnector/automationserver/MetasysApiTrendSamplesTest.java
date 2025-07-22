@@ -1,5 +1,6 @@
 package no.cantara.realestate.metasys.cloudconnector.automationserver;
 
+import no.cantara.realestate.automationserver.TrendNotFoundException;
 import no.cantara.realestate.cloudconnector.notifications.NotificationService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -79,9 +80,12 @@ public class MetasysApiTrendSamplesTest {
         assertEquals(0,client.getNumberOfTrendSamplesReceived(), "Number of trend samples received");
         String metasysObjectId = "metasysObjectMissingTrendSamples";
         Instant sinceDateTime = Instant.now().minusSeconds(60 * 60); // 1 hour ago
-        Set<MetasysTrendSample> trendSamples = client.findTrendSamplesByDate(metasysObjectId, 100, 0, sinceDateTime);
-        assertNotNull(trendSamples, "Trend samples should not be null");
-        assertEquals(0, trendSamples.size(), "Expected 2 trend samples");
+        try {
+            Set<MetasysTrendSample> trendSamples = client.findTrendSamplesByDate(metasysObjectId, 100, 0, sinceDateTime);
+            fail("Expected TrendIdNotFoundException to be thrown");
+        } catch (TrendNotFoundException e)  {
+            assertEquals(metasysObjectId, e.getTrendId());
+        }
         assertEquals(0, client.getNumberOfTrendSamplesReceived(), "Number of trend samples received after fetch");
     }
 
@@ -92,9 +96,12 @@ public class MetasysApiTrendSamplesTest {
         assertEquals(0,client.getNumberOfTrendSamplesReceived(), "Number of trend samples received");
         String metasysObjectId = null;
         Instant sinceDateTime = Instant.now().minusSeconds(60 * 60); // 1 hour ago
-        Set<MetasysTrendSample> trendSamples = client.findTrendSamplesByDate(metasysObjectId, 100, 0, sinceDateTime);
-        assertNotNull(trendSamples, "Trend samples should not be null");
-        assertEquals(0, trendSamples.size(), "Expected 2 trend samples");
+        try {
+            Set<MetasysTrendSample> trendSamples = client.findTrendSamplesByDate(metasysObjectId, 100, 0, sinceDateTime);
+            fail("Expected TrendIdNotFoundException to be thrown");
+        } catch (TrendNotFoundException e)  {
+            assertEquals(metasysObjectId, e.getTrendId());
+        }
         assertEquals(0, client.getNumberOfTrendSamplesReceived(), "Number of trend samples received after fetch");
     }
 

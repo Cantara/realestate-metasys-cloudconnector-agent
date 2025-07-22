@@ -14,6 +14,7 @@ import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Scope;
 import no.cantara.realestate.automationserver.BasClient;
+import no.cantara.realestate.automationserver.TrendNotFoundException;
 import no.cantara.realestate.cloudconnector.RealestateCloudconnectorException;
 import no.cantara.realestate.cloudconnector.StatusType;
 import no.cantara.realestate.cloudconnector.notifications.NotificationService;
@@ -400,6 +401,8 @@ public class MetasysClient implements BasClient {
         } catch (Exception e) {
             if (e instanceof MetasysApiException) {
                 throw (MetasysApiException) e;
+            } else if (e instanceof TrendNotFoundException) {
+                throw e;
             } else {
                 throw new MetasysApiException("Error in " + operationName + ": " + e.getMessage(), e);
             }
@@ -548,7 +551,8 @@ public class MetasysClient implements BasClient {
 
 
     @Override
-    public Set<MetasysTrendSample> findTrendSamplesByDate(String objectId, int take, int skip, Instant onAndAfterDateTime) throws URISyntaxException, InvalidTokenException {
+    public Set<MetasysTrendSample> findTrendSamplesByDate(String objectId, int take, int skip, Instant onAndAfterDateTime)
+            throws URISyntaxException, InvalidTokenException, TrendNotFoundException {
         return executeWithTokenHandling(() -> {
             if (onAndAfterDateTime == null) {
                 throw new IllegalArgumentException("onAndAfterDateTime cannot be null");
@@ -605,7 +609,7 @@ public class MetasysClient implements BasClient {
 
                 switch (httpCode) {
                     case 200:
-                        String bodyLog = body != null && body.length() > 120 ? body.substring(0,120): body;
+                        String bodyLog = body != null && body.length() > 120 ? body.substring(0, 120) : body;
                         log.trace("Received body: {}", bodyLog);
                         MetasysTrendSampleResult trendSampleResult = TrendSamplesMapper.mapFromJson(body);
                         log.trace("Found: {} trends from trendId: {}", trendSampleResult.getTotal(), objectId);
@@ -638,7 +642,8 @@ public class MetasysClient implements BasClient {
                         reason = "Not Found";
                         log.debug("Failed to fetch trendsamples for objectId: {}. Status: {}. Reason: {}", objectId, httpCode, reason);
                         span.addEvent("Failed to fetch trendsamples", attributes);
-                        break;
+                        throw new TrendNotFoundException("Failed to fetch trendsamples for objectId " + objectId + ". Status: " + httpCode
+                                + ". Reason: " + reason + ". Body: " + body, objectId);
                     case 500:
                         reason = "Metasys API: Internal Server Error";
                         log.warn("Metasys Error while trying to fetch trendsamples for objectId: {}. Status: {}. Reason: {}", objectId, httpCode, reason);
@@ -651,6 +656,8 @@ public class MetasysClient implements BasClient {
                         throw new MetasysCloudConnectorException("Failed to fetch trendsamples for objectId " + objectId + ". Status: " + httpCode
                                 + ". Reason: " + reason + ". Body: " + body);
                 }
+            } catch (TrendNotFoundException tnf) {
+                throw tnf;
             } catch (MetasysApiException mae) {
                 throw mae;
             } catch (MetasysCloudConnectorException e) {

@@ -2,6 +2,7 @@ package no.cantara.realestate.metasys.cloudconnector.ingestion;
 
 import no.cantara.config.ApplicationProperties;
 import no.cantara.realestate.automationserver.BasClient;
+import no.cantara.realestate.automationserver.TrendNotFoundException;
 import no.cantara.realestate.cloudconnector.audit.AuditTrail;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorException;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
@@ -16,13 +17,14 @@ import no.cantara.realestate.plugins.notifications.NotificationListener;
 import no.cantara.realestate.security.LogonFailedException;
 import no.cantara.realestate.sensors.SensorId;
 import no.cantara.realestate.sensors.metasys.MetasysSensorId;
-import org.apache.commons.logging.Log;
 import org.slf4j.Logger;
 
 import java.net.URISyntaxException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 
 import static no.cantara.realestate.metasys.cloudconnector.utils.MetasysConstants.auditLog;
 import static no.cantara.realestate.utils.StringUtils.hasValue;
@@ -100,16 +102,7 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
 
         List<MetasysSensorId> updatedSensors = new ArrayList<>();
         List<MetasysSensorId> failedSensors = new ArrayList<>();
-        //TODO: Remove this commented code when the MetasysApiClient is ready to use.
-        /*
-        for (SensorId sensorId : sensorIds) {
-            if (sensorId instanceof MetasysSensorId) {
-                updatedSensors.add((MetasysSensorId) sensorId);
-                trendsLastUpdatedService.setLastUpdatedAt(sensorId, Instant.now());
-            }
-        }
 
-         */
 
         for (SensorId sensorId : sensorIds) {
             String metasysObjectId = ((MetasysSensorId) sensorId).getMetasysObjectId();
@@ -146,6 +139,13 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
                         trendsLastUpdatedService.setLastUpdatedAt(sensorId, trendValue.getObservedAt());
                     }
                     updatedSensors.add((MetasysSensorId) sensorId);
+                } catch (TrendNotFoundException e) {
+                    addMessagesFailedCount();
+                    trendsLastUpdatedService.setLastFailedAt(sensorId, Instant.now());
+                    failedSensors.add((MetasysSensorId) sensorId);
+                    auditLog.trace("Ingest__TrendNotFound__{}__{}__{}__{}", metasysObjectId, sensorId.getClass(), sensorId.getId(), e.getMessage());
+                    log.debug("Trend not found for TrendId {} sensorId {}.", metasysObjectId, sensorId, e);
+                    auditTrail.logFailed(sensorId.getId(), "TrendNotFound");
                 } catch (LogonFailedException e) {
                     addMessagesFailedCount();
                     trendsLastUpdatedService.setLastFailedAt(sensorId, Instant.now());
@@ -180,104 +180,7 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
 
     }
 
-    String tmp = """
-                void ingestTrendsMapped() {
-                    int successfulImport = 0;
-                    int failedImport = 0;
-                    for (MappedSensorId mappedSensorId : importableTrendIds) {
-                        //TODO take and skip need logic
-                        int take = 200;
-                        int skip = 0;
-                        if (mappedSensorId.getSensorId() != null && mappedSensorId.getSensorId() instanceof no.cantara.realestate.mappingtable.metasys.MetasysSensorId) {
-            
-                            no.cantara.realestate.mappingtable.metasys.MetasysSensorId metasysSensorId = (no.cantara.realestate.mappingtable.metasys.MetasysSensorId) mappedSensorId.getSensorId();
-                            String trendId = metasysSensorId.getMetasysObjectId();
-                            if (trendId == null) {
-                                log.warn("TrendId is null for sensorId: {}", metasysSensorId);
-                            } else {
-                                Instant importFrom = lastSuccessfulImportAt.get(trendId);
-                                if (importFrom == null) {
-                                    importFrom = fromDateTime;
-                                }
-            
-                                log.trace("Try import of trendId: {} from: {}", trendId, importFrom);
-                                try {
-                                    Set<TrendSample> trendSamples;
-                                    try {
-                                        //Ensure thread safety, and re-login if needed
-                                        trendSamples = (Set<TrendSample>) basClient.findTrendSamplesByDate(trendId, take, skip, importFrom);
-                                    } catch (InvalidTokenException e) {
-                                        throw new RealestateCloudconnectorException("This Code should not be reached. InvalidTokenException", e);
-                                        /*
-                                        log.warn("Invalid token. Try to re-logon to Metasys.");
-                                        if (userToken != null) {
-                                            trendSamples = (Set<TrendSample>) basClient.findTrendSamplesByDate(trendId, take, skip, importFrom);
-                                        } else {
-                                            log.warn("Failed to re-logon to Metasys. No userToken.");
-                                            throw new MetasysCloudConnectorException("Missing userToken. Failed to re-logon to Metasys. TrendId: " + trendId, e, StatusType.RETRY_NOT_POSSIBLE);
-                                        }
-            
-                                         */
-                                    }
-                                    if (trendSamples != null) {
-                                        log.trace("Found {} samples for trendId: {}", trendSamples.size(), trendId);
-                                        if (trendSamples.size() > 0) {
-                                            lastSuccessfulImportAt.put(trendId, Instant.now());
-                                            String sensorId = null;
-                                            if (mappedSensorId.getRec() != null) {
-                                                sensorId = mappedSensorId.getRec().getRecId();
-                                            }
-                                            auditTrail.logObservedTrend(sensorId, "Observed: " + trendSamples.size());
-                                        }
-            
-                                        successfulImport++;
-                                        for (TrendSample trendSample : trendSamples) {
-                                            ObservationMessage observationMessage = new MetasysObservationMessage((MetasysTrendSample) trendSample, mappedSensorId);
-                                            distributionClient.publish(observationMessage);
-                                        }
-                                        metricsClient.populate(trendSamples, mappedSensorId);
-                                        reportSuccessfulImport(trendId);
-                                    } else {
-                                        log.trace("Missing TrendSamples for trendId: {}",trendId);
-                                    }
-                                } catch (URISyntaxException e) {
-                                    MetasysCloudConnectorException se = new MetasysCloudConnectorException("Import of trend: {} is not possible now. Reason: {}", e, StatusType.RETRY_NOT_POSSIBLE);
-                                    log.warn("Import of trend: {} is not possible now. URI to SD server is misconfigured. Reason: {} ", trendId, e.getMessage());
-                                    reportFailedImport(trendId);
-                                    throw se;
-                                } catch (InvalidTokenException e) {
-                                    MetasysCloudConnectorException ite = new MetasysCloudConnectorException("Failed to fetch observations " +
-                                            "due to invalid token. Re-logon did not help.", e, StatusType.RETRY_NOT_POSSIBLE);
-                                    log.warn("Import of trend: {} is not possible now. Reason: {} ", trendId, e.getMessage());
-                                    reportFailedImport(trendId);
-                                    throw ite;
-                                } catch (LogonFailedException e) {
-                                    MetasysCloudConnectorException se = new MetasysCloudConnectorException("Failed to logon to SD server.", e, StatusType.RETRY_NOT_POSSIBLE);
-                                    log.warn("Import of trend: {} is not possible now. Reason: {} ", trendId, e.getMessage());
-                                    reportFailedImport(trendId);
-                                    throw se;
-                                } catch (MetasysCloudConnectorException e) {
-                                    log.trace("Failed to import trendId {} for tfm2rec: {}. Reason: {}", trendId, mappedSensorId, e.getMessage());
-                                    log.trace("cause:", e);
-                                    reportFailedImport(trendId);
-                                    failedImport++;
-                                } catch (Exception e) {
-                                    MetasysCloudConnectorException se = new MetasysCloudConnectorException("Failed to import trendId " + trendId, e, StatusType.RETRY_MAY_FIX_ISSUE);
-                                    log.trace("Failed to import trendId {} for tfm2rec: {}. Reason: {}", trendId, mappedSensorId, se.getMessage());
-                                    log.trace("cause:", e);
-                                    reportFailedImport(trendId);
-                                    failedImport++;
-                                }
-                            }
-                        } else {
-                            log.warn("SensorId is not a MetasysSensorId. Skipping import of sensorId: {}", mappedSensorId.getSensorId());
-                            continue;
-                        }
-                    }
-                    log.trace("Tried to import {}. Successful {}. Failed {}", importableTrendIds.size(), successfulImport, failedImport);
-                }
-            
-            """;
+
 
     protected Instant getDefaultLastObservedAt() {
         return Instant.now().minus(2, ChronoUnit.HOURS);
@@ -296,36 +199,7 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
             throw new MetasysCloudConnectorException("Failed to initialize MetasysTrendsIngestionService. Desigo." + BAS_URL_KEY + " is null or empty. Please set this property.");
         }
         boolean initializationOk = false;
-        /*
-        if (metasysApiClient != null && !metasysApiClient.isHealthy()) {
-            log.warn("MetasysApiClient is unhealthy. {}. Can not initialize MetasysTrendsIngestionService", metasysApiClient);
 
-            if (metasysApiClient instanceof MetasysClient) {
-                log.info("metasysApiClient is null or unhealty. Creating a new one. {}", metasysApiClient);
-                String username = config.asString("sd.api.username", "admin");
-                String password = config.asString("sd.api.password", "admin");
-                try {
-                    ((MetasysClient) metasysApiClient).logon(username, password, notificationListener);
-                } catch (LogonFailedException e) {
-
-                    log.error("Failed to logon to Desigo CC API {} using username {}", apiUrl, username, e);
-                    throw new MetasysCloudConnectorException("Could not open connection for " + getName() + " Logon failed to " + apiUrl + ", using username: " + username, e);
-                }
-                initializationOk = true;
-
-            } else if (metasysApiClient instanceof SdClientSimulator) {
-                ((SdClientSimulator) metasysApiClient).logon();
-                initializationOk = true;
-            }
-        } else if (metasysApiClient == null) {
-            log.warn("metasysApiClient is null. {}", metasysApiClient);
-            initializationOk = false;
-        } else if (metasysApiClient.isHealthy()) {
-            log.trace("metasysApiClient is healthy. {}", metasysApiClient);
-            initializationOk = true;
-        }
-        isInitialized = initializationOk;
-    */
         if (metasysApiClient != null && metasysApiClient.isHealthy()) {
             initializationOk = true;
         }
