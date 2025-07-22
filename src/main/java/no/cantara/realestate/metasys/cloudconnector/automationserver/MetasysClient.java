@@ -381,7 +381,7 @@ public class MetasysClient implements BasClient {
             } catch (MetasysApiException e) {
                 if (e.getStatusCode() == 401 || e.getStatusCode() == 403) {
                     // Prøv å fornye token og gjenta forespørselen en gang
-                    log.debug("Received 401/403 during " + operationName + ", refreshing token and retrying");
+                    log.debug("Received 401 or 403 during " + operationName + ", refreshing token and retrying");
 
                     authLock.lock();
                     try {
@@ -632,6 +632,8 @@ public class MetasysClient implements BasClient {
                         reason = "Unauthorized";
                         log.debug("Unauthorized trying to fetch trend samples for objectId: {}. Status: {}. Reason: {}", objectId, httpCode, reason);
                         span.addEvent("Unauthorized", attributes);
+                        throw new MetasysApiException("Failed to fetch trendsamples for objectId: " + objectId
+                                + ". Status: " + httpCode + ". Reason: " + reason, 401);
                     case 403:
                         reason = "Forbidden";
                         log.debug("AccessToken not valid. Not able to get trendsamples for objectId: {}. Status: {}. Reason: {}", objectId, httpCode, reason);
@@ -648,8 +650,8 @@ public class MetasysClient implements BasClient {
                         reason = "Metasys API: Internal Server Error";
                         log.warn("Metasys Error while trying to fetch trendsamples for objectId: {}. Status: {}. Reason: {}", objectId, httpCode, reason);
                         span.addEvent("Metasys Error trying to fetch trendsamples", attributes);
-                        throw new MetasysCloudConnectorException("Metasys Error trying to fetch trendsamples for objectId " + objectId + ". Status: " + httpCode
-                                + ". Reason: " + reason + ". Body: " + body);
+                        throw new MetasysApiException("Metasys Error trying to fetch trendsamples for objectId " + objectId + ". Status: " + httpCode
+                                + ". Reason: " + reason + ". Body: " + body, 500);
                     default:
                         log.debug("Failed to fetch trendsamples for objectId: {}. Status: {}. Reason: {}, Body: {}", objectId, httpCode, reason, body);
                         span.addEvent("Failed to fetch trendsamples", attributes);

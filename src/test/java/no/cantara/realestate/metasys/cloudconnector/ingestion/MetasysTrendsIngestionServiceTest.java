@@ -257,6 +257,7 @@ class MetasysTrendsIngestionServiceTest {
         assertTrue(exception.getMessage().contains("One or more of the parameters are null"));
     }
 
+
     @Test
     void ingestTrends_withNoSensors_completesSuccessfully() {
         // Act
