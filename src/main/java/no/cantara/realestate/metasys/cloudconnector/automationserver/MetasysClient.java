@@ -57,7 +57,6 @@ import static io.opentelemetry.api.common.AttributeKey.longKey;
 import static io.opentelemetry.api.common.AttributeKey.stringKey;
 import static no.cantara.realestate.mappingtable.Main.getConfigValue;
 import static no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnectorApplication.INSTRUMENTATION_SCOPE_NAME_VALUE;
-import static no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysApiClientRest.METASYS_SUBSCRIBE_HEADER;
 import static no.cantara.realestate.utils.StringUtils.hasValue;
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -68,6 +67,7 @@ import static org.slf4j.LoggerFactory.getLogger;
 public class MetasysClient implements BasClient {
     private static final Logger log = getLogger(MetasysClient.class);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    public static final String METASYS_SUBSCRIBE_HEADER = "METASYS-SUBSCRIBE";
     private static final String BASE_URL = "https://metasys-server-url/api"; // Bytt ut med din Metasys server URL
     private static final Duration TOKEN_REFRESH_MARGIN = Duration.ofMinutes(5);
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);

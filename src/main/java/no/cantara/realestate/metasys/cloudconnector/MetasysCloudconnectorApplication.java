@@ -309,7 +309,7 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
             try {
                 URI apiUri = new URI(apiUrl);
                 log.info("Connect to Metasys API: {} with username: {}", apiUri, username);
-                sdClient = MetasysClient.getInstance(username, password, apiUri, notificationService); //new MetasysApiClientRest(apiUri, notificationService);
+                sdClient = MetasysClient.getInstance(username, password, apiUri, notificationService);
                 log.info("Running with a live REST SD.");
             } catch (URISyntaxException e) {
                 throw new MetasysCloudConnectorException("Failed to connect SD Client to URL" + apiUrl, e);

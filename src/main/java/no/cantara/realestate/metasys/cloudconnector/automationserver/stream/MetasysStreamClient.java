@@ -53,7 +53,7 @@ import static io.opentelemetry.api.common.AttributeKey.longKey;
 import static io.opentelemetry.api.common.AttributeKey.stringKey;
 import static no.cantara.realestate.mappingtable.Main.getConfigValue;
 import static no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnectorApplication.INSTRUMENTATION_SCOPE_NAME_VALUE;
-import static no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysApiClientRest.METASYS_SUBSCRIBE_HEADER;
+import static no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient.METASYS_SUBSCRIBE_HEADER;
 import static no.cantara.realestate.utils.StringUtils.hasValue;
 import static org.slf4j.LoggerFactory.getLogger;
 

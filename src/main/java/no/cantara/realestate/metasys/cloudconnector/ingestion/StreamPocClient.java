@@ -191,7 +191,7 @@ public class StreamPocClient implements StreamListener {
                     return true;
                 }
             };
-            basClient = MetasysClient.getInstance(username, password, apiUri, notificationService); //new MetasysApiClientRest(apiUri, notificationService);
+            basClient = MetasysClient.getInstance(username, password, apiUri, notificationService);
             log.info("Running with a live Stream.");
         } catch (URISyntaxException e) {
             throw new MetasysCloudConnectorException("Failed to connect Stream Client to URL" + apiUrl, e);

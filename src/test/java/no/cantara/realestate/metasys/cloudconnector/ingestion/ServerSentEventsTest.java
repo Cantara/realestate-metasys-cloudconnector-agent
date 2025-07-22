@@ -25,7 +25,6 @@ public class ServerSentEventsTest {
     private static final Logger log = getLogger(ServerSentEventsTest.class);
 
     private static MockServerSentEventsRunner sseMockServer;
-    private static MetasysStreamClient metasysStreamClient;
     private static int port;
     private static URI sdApiUri;
     private static UserToken stubUserToken;
@@ -36,7 +35,7 @@ public class ServerSentEventsTest {
     static void beforeAll() throws IOException {
         port = findFreePort();
         sseMockServer = new MockServerSentEventsRunner();
-        metasysStreamClient = mock(MetasysStreamClient.class);
+        MetasysStreamClient metasysStreamClient = mock(MetasysStreamClient.class);
         sdApiUri = URI.create(String.format("http://localhost:%d/", port));
         when(metasysStreamClient.getApiUri()).thenReturn(sdApiUri);
         tokenExpires = Instant.now().plusSeconds(600);

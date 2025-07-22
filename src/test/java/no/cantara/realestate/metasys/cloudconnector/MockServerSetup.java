@@ -6,7 +6,7 @@ import org.mockserver.model.MediaType;
 
 import java.time.Instant;
 
-import static no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysApiClientRest.METASYS_SUBSCRIBE_HEADER;
+import static no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient.METASYS_SUBSCRIBE_HEADER;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockserver.model.HttpRequest.request;
