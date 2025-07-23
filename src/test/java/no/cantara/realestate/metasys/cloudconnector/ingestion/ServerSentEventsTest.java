@@ -54,7 +54,7 @@ public class ServerSentEventsTest {
         sseMockServer.start(port, MockServerSentEventsRunner.Scenario.HELLO);
         streamPocClient.createStream();
         //Wait for response from the stream.
-        Thread.sleep(200);
+        Thread.sleep(400);
         assertEquals(MockServerSentEventsRunner.SUBSCRIPTION_ID, streamPocClient.getSubscriptionId());
         assertFalse(streamPocClient.isStreamThreadInterrupted());
 

@@ -235,6 +235,7 @@ public class MetasysClient implements BasClient {
                     ". Failure parsing the response.";
             LogonFailedException logonFailedException = new LogonFailedException(msg, e);
             log.warn(msg);
+            markApiUnhealthy();
             setUnhealthy();
             TemporaryHealthResource.addRegisteredError(msg + " Reason: " + logonFailedException.getMessage());
             throw logonFailedException;
@@ -243,6 +244,7 @@ public class MetasysClient implements BasClient {
             String msg = "Failed to login on Metasys at uri: " + loginUri + ", with username: " + username;
             LogonFailedException logonFailedException = new LogonFailedException(msg, e);
             log.warn(msg);
+            markApiUnhealthy();
             setUnhealthy();
             TemporaryHealthResource.addRegisteredError(msg + " Reason: " + logonFailedException.getMessage());
             throw logonFailedException;

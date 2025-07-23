@@ -14,19 +14,23 @@ import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Scope;
 import no.cantara.realestate.automationserver.BasClient;
+import no.cantara.realestate.automationserver.PresentValueNotFoundException;
 import no.cantara.realestate.cloudconnector.RealestateCloudconnectorException;
 import no.cantara.realestate.cloudconnector.StatusType;
 import no.cantara.realestate.cloudconnector.notifications.NotificationService;
 import no.cantara.realestate.cloudconnector.notifications.SlackNotificationService;
 import no.cantara.realestate.json.RealEstateObjectMapper;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorException;
-import no.cantara.realestate.metasys.cloudconnector.automationserver.*;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysApiException;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysTrendSample;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysUserToken;
 import no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealthResource;
 import no.cantara.realestate.observations.PresentValue;
 import no.cantara.realestate.security.InvalidTokenException;
 import no.cantara.realestate.security.LogonFailedException;
 import no.cantara.realestate.security.UserToken;
 import no.cantara.realestate.sensors.SensorId;
+import org.apache.commons.lang.NotImplementedException;
 import org.apache.hc.core5.http.NameValuePair;
 import org.apache.hc.core5.http.message.BasicNameValuePair;
 import org.apache.hc.core5.net.URIBuilder;
@@ -42,10 +46,9 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 
@@ -53,6 +56,7 @@ import static io.opentelemetry.api.common.AttributeKey.longKey;
 import static io.opentelemetry.api.common.AttributeKey.stringKey;
 import static no.cantara.realestate.mappingtable.Main.getConfigValue;
 import static no.cantara.realestate.metasys.cloudconnector.MetasysCloudconnectorApplication.INSTRUMENTATION_SCOPE_NAME_VALUE;
+import static no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient.METASYS_API_UNAVAILABLE;
 import static no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient.METASYS_SUBSCRIBE_HEADER;
 import static no.cantara.realestate.utils.StringUtils.hasValue;
 import static org.slf4j.LoggerFactory.getLogger;
@@ -91,6 +95,11 @@ public class MetasysStreamClient implements BasClient {
     private String accessToken;
     private Instant tokenExpiryTime;
     private final ReentrantLock authLock = new ReentrantLock();
+
+    private volatile boolean apiAvailable = true;
+    private volatile Instant lastSuccessfulApiCall;
+    private volatile Instant lastFailedApiCall;
+    private final AtomicInteger consecutiveFailures = new AtomicInteger(0);
 
     public enum ConnectionCloseReason {
         NONE,
@@ -199,6 +208,7 @@ public class MetasysStreamClient implements BasClient {
                     tokenExpiryTime = userToken.getExpires();
                     notificationService.clearService("Metasys");
                     log.debug("Metasys login successful, token expires: " + tokenExpiryTime);
+                    markApiHealthy();
                     setHealthy();
                     break;
                 default:
@@ -208,6 +218,7 @@ public class MetasysStreamClient implements BasClient {
                             ". ResponseCode: " + statusCode;
                     LogonFailedException logonFailedException = new LogonFailedException(msg);
                     log.warn("Failed to logon to Metasys. Reason {}", logonFailedException.getMessage());
+                    markApiUnhealthy();
                     setUnhealthy();
                     notificationService.sendWarning(METASYS_API,LOGON_FAILED);
                     TemporaryHealthResource.addRegisteredError("Failed to logon to Metasys. Reason: " + logonFailedException.getMessage());
@@ -219,6 +230,7 @@ public class MetasysStreamClient implements BasClient {
                     ". Failure parsing the response.";
             LogonFailedException logonFailedException = new LogonFailedException(msg, e);
             log.warn(msg);
+            markApiUnhealthy();
             setUnhealthy();
             TemporaryHealthResource.addRegisteredError(msg + " Reason: " + logonFailedException.getMessage());
             throw logonFailedException;
@@ -227,6 +239,7 @@ public class MetasysStreamClient implements BasClient {
             String msg = "Failed to login on Metasys at uri: " + loginUri + ", with username: " + username;
             LogonFailedException logonFailedException = new LogonFailedException(msg, e);
             log.warn(msg);
+            markApiUnhealthy();
             setUnhealthy();
             TemporaryHealthResource.addRegisteredError(msg + " Reason: " + logonFailedException.getMessage());
             throw logonFailedException;
@@ -257,28 +270,48 @@ public class MetasysStreamClient implements BasClient {
                     .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            int statusCode = response.statusCode();
 
-            if (response.statusCode() == 200) {
-                String body = response.body();
-                log.trace("RefreshToken Received body: {}", body);
-                MetasysUserToken userToken = RealEstateObjectMapper.getInstance().getObjectMapper().readValue(body, MetasysUserToken.class);
-                log.trace("RefreshToken userToken: {}", userToken);
-                this.userToken = userToken;
-                accessToken = userToken.getAccessToken(); //jsonResponse.get("accessToken").asText();
-                shortenedAccessToken = truncateUserToken(userToken);
-                tokenExpiryTime = userToken.getExpires(); // Instant.now().plusSeconds(expiresIn);
+            switch (statusCode) {
+                case 200:
+                    String body = response.body();
+                    log.trace("RefreshToken Received body: {}", body);
+                    MetasysUserToken userToken = RealEstateObjectMapper.getInstance().getObjectMapper().readValue(body, MetasysUserToken.class);
+                    this.userToken = userToken;
+                    accessToken = userToken.getAccessToken();
+                    tokenExpiryTime = userToken.getExpires();
+                    log.debug("Metasys token refreshed, new expiry: " + tokenExpiryTime);
+                    markApiHealthy();
+                    break;
 
-                log.debug("Metasys token refreshed, new expiry: " + tokenExpiryTime);
-                setHealthy();
-            } else if (response.statusCode() == 401 || response.statusCode() == 403) {
-                // Token refresh failed, try login again
-                log.info("Metasys token refresh failed, performing full login");
-                login();
-            } else {
-                String errorMessage = "Metsys token refresh failed with status code: " + response.statusCode();
-                log.warn(errorMessage);
-                setUnhealthy();
-                throw new MetasysApiException(errorMessage, response.statusCode());
+                case 401:
+                case 403:
+                    log.info("Metasys token refresh failed with {}, performing full login", statusCode);
+                    login();
+                    break;
+
+                case 502:
+                case 503:
+                case 504:
+                    // Server/gateway errors - API might be temporarily unavailable
+                    String serverErrorMsg = "Metasys API server error: " + statusCode + ". API may be temporarily unavailable.";
+                    log.warn(serverErrorMsg);
+                    markApiUnhealthy();
+                    setUnhealthy();
+                    this.userToken = null;
+                    notificationService.sendAlarm(METASYS_API, METASYS_API_UNAVAILABLE);
+                    throw new MetasysApiException(serverErrorMsg, statusCode);
+
+                default:
+                    String errorMessage = "Metasys token refresh failed with status code: " + statusCode;
+                    log.warn(errorMessage);
+                    if (statusCode >= 500) {
+                        markApiUnhealthy();
+                        setUnhealthy();
+                        this.userToken = null; // Reset user token on server errors
+                        notificationService.sendAlarm(METASYS_API, METASYS_API_UNAVAILABLE);
+                    }
+                    throw new MetasysApiException(errorMessage, statusCode);
             }
         } catch (JsonProcessingException e) {
             notificationService.sendWarning(METASYS_API, "Metasys token refresh. Parsing of AccessToken information failed.");
@@ -374,6 +407,8 @@ public class MetasysStreamClient implements BasClient {
         } catch (Exception e) {
             if (e instanceof MetasysApiException) {
                 throw (MetasysApiException) e;
+            } else if (e instanceof PresentValueNotFoundException) {
+                throw e;
             } else {
                 throw new MetasysApiException("Error in " + operationName + ": " + e.getMessage(), e);
             }
@@ -417,6 +452,7 @@ public class MetasysStreamClient implements BasClient {
     /**
      * Henter trend-verdier fra Metasys API.
      */
+    /*
     public String getTrendedValues(String objectId, String startTime, String endTime) throws MetasysApiException {
         return executeWithTokenHandling(() -> {
             try {
@@ -449,9 +485,31 @@ public class MetasysStreamClient implements BasClient {
         }, "getTrendedValues");
     }
 
+     */
+
+
+
+    /**
+     * Utfører asynkrone API-kall med samme token-fornyelseslogikk.
+     */
+    /*
+    public CompletableFuture<String> getTrendedValuesAsync(String objectId, String startTime, String endTime) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return getTrendedValues(objectId, startTime, endTime);
+            } catch (MetasysApiException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+    */
+
+
+
     /**
      * Utfører subscription til present value changes.
      */
+    /*
     public String subscribeToPresentValueChanged(String objectId) throws MetasysApiException {
         return executeWithTokenHandling(() -> {
             try {
@@ -488,22 +546,12 @@ public class MetasysStreamClient implements BasClient {
         }, "subscribePresentValueChanged");
     }
 
-    /**
-     * Utfører asynkrone API-kall med samme token-fornyelseslogikk.
      */
-    public CompletableFuture<String> getTrendedValuesAsync(String objectId, String startTime, String endTime) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                return getTrendedValues(objectId, startTime, endTime);
-            } catch (MetasysApiException e) {
-                throw new RuntimeException(e);
-            }
-        });
-    }
 
     /**
      * Utfører asynkrone subscription-kall med samme token-fornyelseslogikk.
      */
+    /*
     public CompletableFuture<String> subscribeToPresentValueChangedAsync(String objectId) {
         return CompletableFuture.supplyAsync(() -> {
             try {
@@ -514,6 +562,8 @@ public class MetasysStreamClient implements BasClient {
         });
     }
 
+     */
+
     @Override
     public UserToken refreshToken() throws LogonFailedException {
         log.warn("refreshToken() must not be used in MetasysClient");
@@ -523,146 +573,16 @@ public class MetasysStreamClient implements BasClient {
 
     @Override
     public Set<MetasysTrendSample> findTrendSamplesByDate(String objectId, int take, int skip, Instant onAndAfterDateTime) throws URISyntaxException, InvalidTokenException {
-        return executeWithTokenHandling(() -> {
-            if (onAndAfterDateTime == null) {
-                throw new IllegalArgumentException("onAndAfterDateTime cannot be null");
-            }
-
-            Span span = tracer.spanBuilder("findTrendSamplesByDate").setSpanKind(SpanKind.CLIENT).startSpan();
-            Attributes attributes = Attributes.of(stringKey("objectId"), objectId);
-            boolean permitted = rateLimiter.acquirePermission();
-            if (!permitted) {
-                log.debug("Rate limit exceeded for findTrendSamplesByDate. objectId: {}, onAndAfterDateTime: {}",
-                        objectId, onAndAfterDateTime);
-                throw new RealestateCloudconnectorException("Rate limit exceeded. objectId: " + objectId, StatusType.RETRY_MAY_FIX_ISSUE);
-            }
-
-            List<MetasysTrendSample> trendSamples = new ArrayList<>();
-            try (Scope ignored = span.makeCurrent()) {
-
-                boolean permission = rateLimiter.acquirePermission();  //getPermission(Duration.ofSeconds(10));
-                if (!permission) {
-                    span.addEvent("RateLimitExceded-trendSamples", attributes);
-                    span.end();
-                    throw new RealestateCloudconnectorException("RateLimit exceeded", StatusType.RETRY_MAY_FIX_ISSUE);
-                }
-
-                String startTime = onAndAfterDateTime.toString();
-                int page = 1;
-                int pageSize = 1000;
-                String endTime = Instant.now().plusSeconds(60).toString();
-
-                // GET Query Parameters
-                List<NameValuePair> nvps = new ArrayList<>();
-                nvps.add(new BasicNameValuePair("startTime", startTime));
-                nvps.add(new BasicNameValuePair("endTime", endTime));
-                nvps.add(new BasicNameValuePair("page", "1"));
-                nvps.add(new BasicNameValuePair("pageSize", "1000"));
-                nvps.add(new BasicNameValuePair("skip", "0"));
-                URI queryUri = new URIBuilder(apiUri + "objects/" + objectId + "/trendedAttributes/presentValue/samples")
-                        .addParameters(nvps)
-                        .build();
-                final HttpRequest request = HttpRequest.newBuilder()
-                        .uri(queryUri)
-                        .header("Authorization", "Bearer " + accessToken)
-                        .header("Content-Type", "application/json")
-                        .GET()
-                        .timeout(REQUEST_TIMEOUT)
-                        .build();
-                log.trace("findTrendSamplesByDate. trendId: {}. From date: {}. To date: {}. Page: {}. PageSize: {}. Take: {}. Skip: {}",
-                        objectId, onAndAfterDateTime, endTime, page, pageSize, take, skip);
-                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-                int httpCode = response.statusCode();
-                String body = response.body();
-                String reason = null;
-                attributes = Attributes.of(stringKey("objectId"), objectId, longKey("http.status_code"), Long.valueOf(httpCode));
-
-                switch (httpCode) {
-                    case 200:
-                        String bodyLog = body != null && body.length() > 120 ? body.substring(0,120): body;
-                        log.trace("Received body: {}", bodyLog);
-                        MetasysTrendSampleResult trendSampleResult = TrendSamplesMapper.mapFromJson(body);
-                        log.trace("Found: {} trends from trendId: {}", trendSampleResult.getTotal(), objectId);
-                        trendSamples = trendSampleResult.getItems();
-                        if (trendSamples != null) {
-                            for (MetasysTrendSample trendSample : trendSamples) {
-                                trendSample.setTrendId(objectId);
-                                log.trace("received trendSample: {}", trendSample);
-                                addNumberOfTrendSamplesReceived();
-                            }
-                        }
-                        Long size = 0L;
-                        if (trendSamples != null) {
-                            size = (long) trendSamples.size();
-                        }
-                        attributes = Attributes.of(stringKey("objectId"), objectId, longKey("trendSamples.size"), size);
-                        span.addEvent("Fetched trendsamples", attributes);
-                        break;
-                    case 401:
-                        reason = "Unauthorized";
-                        log.debug("Unauthorized trying to fetch trend samples for objectId: {}. Status: {}. Reason: {}", objectId, httpCode, reason);
-                        span.addEvent("Unauthorized", attributes);
-                    case 403:
-                        reason = "Forbidden";
-                        log.debug("AccessToken not valid. Not able to get trendsamples for objectId: {}. Status: {}. Reason: {}", objectId, httpCode, reason);
-                        span.addEvent("AccessToken not valid.", attributes);
-                        throw new MetasysApiException("AccessToken not valid. Not able to get trendsamples for objectId: " + objectId
-                                + ". Status: " + httpCode + ". Reason: " + reason, 403);
-                    case 404:
-                        reason = "Not Found";
-                        log.debug("Failed to fetch trendsamples for objectId: {}. Status: {}. Reason: {}", objectId, httpCode, reason);
-                        span.addEvent("Failed to fetch trendsamples", attributes);
-                        break;
-                    case 500:
-                        reason = "Metasys API: Internal Server Error";
-                        log.warn("Metasys Error while trying to fetch trendsamples for objectId: {}. Status: {}. Reason: {}", objectId, httpCode, reason);
-                        span.addEvent("Metasys Error trying to fetch trendsamples", attributes);
-                        throw new MetasysCloudConnectorException("Metasys Error trying to fetch trendsamples for objectId " + objectId + ". Status: " + httpCode
-                                + ". Reason: " + reason + ". Body: " + body);
-                    default:
-                        log.debug("Failed to fetch trendsamples for objectId: {}. Status: {}. Reason: {}, Body: {}", objectId, httpCode, reason, body);
-                        span.addEvent("Failed to fetch trendsamples", attributes);
-                        throw new MetasysCloudConnectorException("Failed to fetch trendsamples for objectId " + objectId + ". Status: " + httpCode
-                                + ". Reason: " + reason + ". Body: " + body);
-                }
-            } catch (MetasysApiException mae) {
-                throw mae;
-            } catch (MetasysCloudConnectorException e) {
-                throw e;
-            } catch (Exception e) {
-                MetasysCloudConnectorException mce = new MetasysCloudConnectorException("Failed to fetch trendsamples for objectId " + objectId
-                        + ", after date " + onAndAfterDateTime + ". Reason: " + e.getMessage(), e);
-                attributes = Attributes.of(stringKey("objectId"), objectId);
-                span.recordException(mce, attributes);
-                log.debug("Failed to fetch trendsamples for objectId: {}. Reason: {}", objectId, e.getMessage());
-                span.recordException(mce);
-                throw mce;
-            } catch (Throwable e) {
-                MetasysCloudConnectorException mce = new MetasysCloudConnectorException("Failed to fetch trendsamples for objectId " + objectId
-                        + ", after date " + onAndAfterDateTime + ". Reason: " + e.getMessage(), e);
-                attributes = Attributes.of(stringKey("objectId"), objectId);
-                span.recordException(mce, attributes);
-                log.debug("Fetch trendsamples threw an exception. objectId: {}. Reason: {}", objectId, e.getMessage());
-                span.recordException(mce);
-                throw mce;
-            } finally {
-                span.end();
-            }
-
-            isHealthy = true;
-            updateWhenLastTrendSampleReceived();
-            return new HashSet<>(trendSamples);
-        }, "findTrendSamplesByDate");
+        throw new NotImplementedException("Please use findTrendSamplesByDate in MetasysClient instead. This method is not implemented in MetasysStreamClient.");
     }
-
 
     @Override
     public PresentValue findPresentValue(SensorId sensorId) throws URISyntaxException, LogonFailedException {
-        return null;
+        throw new NotImplementedException("Please use findPresentValue in MetasysClient instead. This method is not implemented in MetasysStreamClient.");
     }
 
     @Override
-    public Integer subscribePresentValueChange(String subscriptionId, String objectId) throws LogonFailedException {
+    public Integer subscribePresentValueChange(String subscriptionId, String objectId) throws LogonFailedException, PresentValueNotFoundException {
         if (!hasValue(objectId)) {
             throw new IllegalArgumentException("ObjectId must be provided");
         }
@@ -708,10 +628,26 @@ public class MetasysStreamClient implements BasClient {
                         log.trace("Subscribing ok for objectId: {}", objectId);
                         span.addEvent("Subscribed PresentValueChange.", attributes);
                         break;
+                    case 401:
+                    case 403:
+                        log.trace("Subscribing not authorized for objectId: {}", objectId);
+                        span.addEvent("Subscribed Not Authorized.", attributes);
+                        throw new MetasysApiException("Unauthorized access to subscribePresentValueChange", response.statusCode());
+                    case 404:
+                        log.trace("Subscribing not found for objectId: {}", objectId);
+                        span.addEvent("Subscribed Not Found.", attributes);
+                        throw new PresentValueNotFoundException("PresentValueSubscription is not available.", objectId);
+                    case 500:
+                    case 502:
+                        log.warn("MetasysAPI threw Server error in subscribePresentValueChange", response.statusCode());
+                        span.addEvent("MetaysAPI Server Error.", attributes);
+                        throw new MetasysApiException("MetasysAPI Server error in subscribePresentValueChange", response.statusCode());
                     default:
                         span.addEvent("Failed Subscription PresentValueChange.", attributes);
                         log.trace("Could not subscribe to subscription {} for objectId {} using URL: {}. Status: {}. Body text: {}", subscriptionId, objectId, subscribeUri, statusCode, body);
                 }
+            } catch (PresentValueNotFoundException e) {
+                throw e;
             } catch (Exception e) {
                 MetasysCloudConnectorException mce = new MetasysCloudConnectorException("Failed to subscribe to present value change for objectId " + objectId
                         + ". Reason: " + e.getMessage(), e);
@@ -767,6 +703,42 @@ public class MetasysStreamClient implements BasClient {
         log.warn("Metasys is Unhealthy");
         this.isHealthy = false;
         TemporaryHealthResource.setUnhealthy();
+    }
+
+    /**
+     * Markerer API som healthy og nullstiller failure counters
+     */
+    private void markApiHealthy() {
+        if (!apiAvailable) {
+            log.info("Metasys API recovered after {} consecutive failures", consecutiveFailures.get());
+            notificationService.clearService("Metasys");
+        }
+        apiAvailable = true;
+        lastSuccessfulApiCall = Instant.now();
+        consecutiveFailures.set(0);
+        setHealthy();
+    }
+
+    /**
+     * Markerer API som unhealthy og øker failure counter
+     */
+    private void markApiUnhealthy() {
+        apiAvailable = false;
+        lastFailedApiCall = Instant.now();
+        int failures = consecutiveFailures.incrementAndGet();
+        log.warn("Metasys API marked as unhealthy. Consecutive failures: {}", failures);
+        setUnhealthy();
+    }
+
+    /**
+     * Getter metoder for health monitoring
+     */
+    public boolean isApiAvailable() {
+        return apiAvailable;
+    }
+
+    public int getConsecutiveFailures() {
+        return consecutiveFailures.get();
     }
 
 
