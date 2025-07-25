@@ -47,17 +47,17 @@
         <dependency>
             <groupId>no.cantara.realestate</groupId>
             <artifactId>typelib-java</artifactId>
-            <version>0.8.1-SNAPSHOT</version>
+            <version>0.8.2</version>
         </dependency>
         <dependency>
             <groupId>no.cantara.realestate</groupId>
             <artifactId>realestate-cloudconnector-agent</artifactId>
-            <version>0.14.7</version>
+            <version>0.14.9-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>no.cantara.realestate</groupId>
             <artifactId>azure-client-java</artifactId>
-            <version>0.6.7</version>
+            <version>0.7.0</version>
             <exclusions>
                 <exclusion>
                     <groupId>no.cantara.realestate</groupId>
