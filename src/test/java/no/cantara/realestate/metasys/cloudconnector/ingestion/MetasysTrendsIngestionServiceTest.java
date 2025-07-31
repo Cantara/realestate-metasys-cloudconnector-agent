@@ -185,7 +185,7 @@ class MetasysTrendsIngestionServiceTest {
         ingestionService.ingestTrends();
 
         // Assert
-        verify(trendsLastUpdatedService).readLastUpdated();
+        verify(trendsLastUpdatedService, times(2)).getLastUpdatedAt(any(MetasysSensorId.class));
         verify(metasysApiClient).findTrendSamplesByDate("metasysObject1234", -1, -1, lastObservedAt1);
         verify(metasysApiClient).findTrendSamplesByDate("trend456", -1, -1, lastObservedAt2);
 
