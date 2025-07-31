@@ -89,16 +89,16 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
     @Override
     public void ingestTrends() {
         //Read last updated from file or database TODO should be done automatically when starting the service.
-        try {
-            trendsLastUpdatedService.readLastUpdated();
-        } catch (NullPointerException npe) {
-            isHealthy = false;
-            MetasysCloudConnectorException de = new MetasysCloudConnectorException("Failed to read last updated. TrendsLastUpdatedService is null. That service must be injected on creation of MetasysTrendsIngestionService.", npe);
-            log.warn(de.getMessage());
-            throw de;
-        }
-        log.info("Running ingestTrends for {} sensors", sensorIds.size());
+//        try {
+//            trendsLastUpdatedService.readLastUpdated();
+//        } catch (NullPointerException npe) {
+//            isHealthy = false;
+//            MetasysCloudConnectorException de = new MetasysCloudConnectorException("Failed to read last updated. TrendsLastUpdatedService is null. That service must be injected on creation of MetasysTrendsIngestionService.", npe);
+//            log.warn(de.getMessage());
+//            throw de;
+//        }
 
+        log.info("Running ingestTrends for {} sensors", sensorIds.size());
 
         List<MetasysSensorId> updatedSensors = new ArrayList<>();
         List<MetasysSensorId> failedSensors = new ArrayList<>();
@@ -196,14 +196,14 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
         log.trace("MetasysTrendsIngestionService.initialize");
         apiUrl = pluginConfig.asString(BAS_URL_KEY, null);
         if (!hasValue(apiUrl)) {
-            throw new MetasysCloudConnectorException("Failed to initialize MetasysTrendsIngestionService. Desigo." + BAS_URL_KEY + " is null or empty. Please set this property.");
+            throw new MetasysCloudConnectorException("Failed to initialize MetasysTrendsIngestionService. Metasys." + BAS_URL_KEY + " is null or empty. Please set this property.");
         }
         boolean initializationOk = false;
 
         if (metasysApiClient != null && metasysApiClient.isHealthy()) {
             initializationOk = true;
+            this.isInitialized = true;
         }
-
         return initializationOk;
     }
 

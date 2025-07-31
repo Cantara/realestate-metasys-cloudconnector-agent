@@ -11,3 +11,9 @@ slack_alerting_enabled=true
 slack_token=<token to be set in properties>
 slack_alarm_channel=<to be set in properties>
 slack_warning_channel=< to be set in properties>
+
+# Trends Last Updated
+ingestion.trendsLastUpdated.enabled=false
+ingestion.trendsLastUpdated.directory=status
+ingestion.trendsLastUpdated.csvFile=trends_last_updated.csv
+ingestion.trendsLastFailed.csvFile=trends_last_failed.csv

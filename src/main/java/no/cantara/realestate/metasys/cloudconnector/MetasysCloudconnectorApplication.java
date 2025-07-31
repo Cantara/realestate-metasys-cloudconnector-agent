@@ -8,7 +8,6 @@ import no.cantara.realestate.cloudconnector.notifications.NotificationService;
 import no.cantara.realestate.cloudconnector.routing.ObservationsRepository;
 import no.cantara.realestate.cloudconnector.sensorid.SensorIdRepository;
 import no.cantara.realestate.distribution.ObservationDistributionClient;
-import no.cantara.realestate.mappingtable.repository.MappedIdRepository;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClientSimulator;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysStreamClient;
@@ -19,6 +18,7 @@ import no.cantara.realestate.metasys.cloudconnector.ingestion.StreamPocClient;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetricsDistributionServiceStub;
 import no.cantara.realestate.metasys.cloudconnector.sensors.MetasysCsvSensorImporter;
+import no.cantara.realestate.metasys.cloudconnector.trends.CsvTrendsLastUpdatedService;
 import no.cantara.realestate.metasys.cloudconnector.trends.InMemoryTrendsLastUpdatedService;
 import no.cantara.realestate.metasys.cloudconnector.trends.TrendsLastUpdatedService;
 import no.cantara.realestate.metasys.cloudconnector.utils.LogbackConfigLoader;
@@ -64,7 +64,6 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
 
     @Override
     protected void doInit() {
-        final MappedIdRepository mappedIdRepository = null;
         final ObservationDistributionClient finalObservationDistributionClient = null;
         String measurementsName = config.get("measurements.name", "metasys_cloudconnector_cantara");
         final MetasysMetricsDistributionClient metricsDistributionClient = new MetricsDistributionServiceStub(measurementsName);
@@ -104,7 +103,21 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
         }
 
         //SensorIdRepository
-        TrendsLastUpdatedService trendsLastUpdatedService = init(TrendsLastUpdatedService.class, () -> new InMemoryTrendsLastUpdatedService());
+        boolean readLastUpdated = config.asBoolean("ingestion.trendsLastUpdated.enabled", false);
+        TrendsLastUpdatedService trendsLastUpdatedService = null;
+        if (readLastUpdated) {
+            log.info("Reading last updated trends from CSV file");
+            String lastUpdatedDirectory = config.get("ingestion.trendsLastUpdated.directory","status");
+            String lastUpdatedFile = config.get("ingestion.trendsLastUpdated.csvFile", "trends_last_updated.csv");
+            String lastFailedFile = config.get("ingestion.trendsLastFailed.csvFile", "trends_last_failed.csv");
+            trendsLastUpdatedService = init(TrendsLastUpdatedService.class, () -> new CsvTrendsLastUpdatedService(lastUpdatedDirectory, lastUpdatedFile, lastFailedFile));
+            trendsLastUpdatedService.readLastUpdated();
+            log.info("Read last updated trends: {}", trendsLastUpdatedService.isHealthy());
+        } else {
+            log.info("Using in-memory TrendsLastUpdatedService");
+            trendsLastUpdatedService = init(TrendsLastUpdatedService.class, () -> new InMemoryTrendsLastUpdatedService());
+        }
+//        TrendsLastUpdatedService trendsLastUpdatedService = init(TrendsLastUpdatedService.class, () -> new InMemoryTrendsLastUpdatedService());
         TrendsIngestionService trendsIngestionService = new MetasysTrendsIngestionService(config, observationListener, notificationListener, sdClient, trendsLastUpdatedService, auditTrail, metricsDistributionClient);
         SensorIdRepository sensorIdRepository = get(SensorIdRepository.class);
         String importDirectory = config.get("importdata.directory");

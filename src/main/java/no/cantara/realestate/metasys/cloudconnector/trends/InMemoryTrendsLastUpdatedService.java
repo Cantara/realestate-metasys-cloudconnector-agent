@@ -12,6 +12,7 @@ import java.util.Map;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
+@Deprecated // Use no.cantara.realestate.cloudconnector.trends.InMemoryTrendsLastUpdatedService instead
 public class InMemoryTrendsLastUpdatedService implements TrendsLastUpdatedService {
     private static final Logger log = getLogger(InMemoryTrendsLastUpdatedService.class);
     Map<MetasysSensorId, Instant> lastUpdated;

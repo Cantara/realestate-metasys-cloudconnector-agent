@@ -5,6 +5,7 @@ import no.cantara.realestate.sensors.SensorId;
 import java.time.Instant;
 import java.util.List;
 
+@Deprecated // Use no.cantara.realestate.cloudconnector.trends.TrendsLastUpdatedService instead
 public interface TrendsLastUpdatedService {
     void readLastUpdated();
     Instant getLastUpdatedAt(SensorId sensorId);
