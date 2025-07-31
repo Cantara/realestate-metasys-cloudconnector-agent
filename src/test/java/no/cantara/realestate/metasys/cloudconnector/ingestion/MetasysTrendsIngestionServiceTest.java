@@ -125,7 +125,7 @@ class MetasysTrendsIngestionServiceTest {
         ingestionService.ingestTrends();
 
         // Assert
-        verify(trendsLastUpdatedService).readLastUpdated();
+        verify(trendsLastUpdatedService, times(1)).getLastUpdatedAt(eq(sensorId));
         verify(metasysApiClient).findTrendSamplesByDate("metasysObject1234", -1, -1, lastObservedAt);
 
         // Verify observation listener called once
@@ -264,7 +264,7 @@ class MetasysTrendsIngestionServiceTest {
         ingestionService.ingestTrends();
 
         // Assert
-        verify(trendsLastUpdatedService).readLastUpdated();
+        verify(trendsLastUpdatedService, never()).getLastUpdatedAt(any());
         verify(trendsLastUpdatedService).persistLastUpdated(Collections.emptyList());
         verify(trendsLastUpdatedService).persistLastFailed(Collections.emptyList());
     }
@@ -286,7 +286,7 @@ class MetasysTrendsIngestionServiceTest {
         ingestionService.ingestTrends();
 
         // Assert
-        verify(trendsLastUpdatedService).readLastUpdated();
+        verify(trendsLastUpdatedService, times(1)).getLastUpdatedAt(eq(sensorId));
         verify(metasysApiClient).findTrendSamplesByDate("metasysObject1234", -1, -1, lastObservedAt);
 
         // Verify observation listener called for each sample
@@ -488,22 +488,6 @@ class MetasysTrendsIngestionServiceTest {
 
         assertEquals(0, ingestionService.getNumberOfMessagesImported());
         assertEquals(0, ingestionService.getNumberOfMessagesFailed());
-    }
-
-    @Test
-    void ingestTrends_withTrendsLastUpdatedServiceThrowingNPE_throwsException() {
-        // Arrange
-        doThrow(new NullPointerException("Service is null"))
-                .when(trendsLastUpdatedService).readLastUpdated();
-
-        // Act & Assert
-        MetasysCloudConnectorException exception = assertThrows(
-                MetasysCloudConnectorException.class,
-                () -> ingestionService.ingestTrends()
-        );
-
-        assertTrue(exception.getMessage().contains("Failed to read last updated"));
-        assertFalse(ingestionService.isHealthy());
     }
 
     @Test
