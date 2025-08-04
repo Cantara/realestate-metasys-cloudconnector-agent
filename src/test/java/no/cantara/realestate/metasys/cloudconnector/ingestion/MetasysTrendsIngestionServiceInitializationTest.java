@@ -64,11 +64,11 @@ class MetasysTrendsIngestionServiceInitializationTest {
         when(metasysApiClient.isHealthy()).thenReturn(true);
 
         // Act
-        boolean result = ingestionService.initialize(pluginConfig);
+        boolean isInitialized = ingestionService.initialize(pluginConfig);
 
         // Assert
-        assertTrue(result);
-        assertFalse(ingestionService.isInitialized()); // Note: isInitialized is not set in current implementation
+        assertTrue(isInitialized);
+        assertTrue(ingestionService.isInitialized()); // Note: isInitialized is not set in current implementation
     }
 
     @Test
