@@ -135,13 +135,14 @@ class MetasysTrendsIngestionServiceInitializationTest {
 
         // Initialize first
         when(pluginConfig.asString("sd.api.url", null)).thenReturn("https://metasys.example.com");
-        when(metasysApiClient.isHealthy()).thenReturn(true);
-        ingestionService.initialize(pluginConfig);
+        when(metasysApiClient.isHealthy()).thenReturn(false);
+        boolean isInitialized = ingestionService.initialize(pluginConfig);
+        assertEquals(isInitialized, false);
 
         // Act
         assertThrows(RuntimeException.class, () ->
                 ingestionService.openConnection(newObservationListener, newNotificationListener)
-        ); // Should throw because isInitialized is false in current implementation
+        ); // Should throw because ingestionService.initialize() returns false
     }
 
     @Test
