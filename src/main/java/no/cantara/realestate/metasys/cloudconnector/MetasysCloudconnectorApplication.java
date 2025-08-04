@@ -18,6 +18,7 @@ import no.cantara.realestate.metasys.cloudconnector.ingestion.StreamPocClient;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetricsDistributionServiceStub;
 import no.cantara.realestate.metasys.cloudconnector.sensors.MetasysCsvSensorImporter;
+import no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealthResource;
 import no.cantara.realestate.metasys.cloudconnector.trends.CsvTrendsLastUpdatedService;
 import no.cantara.realestate.metasys.cloudconnector.trends.InMemoryTrendsLastUpdatedService;
 import no.cantara.realestate.metasys.cloudconnector.trends.TrendsLastUpdatedService;
@@ -220,6 +221,12 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
                  */
             } catch (InterruptedException e) {
                 log.error("Error in main thread", e);
+            } catch (MetasysCloudConnectorException e) {
+                log.error("Failed to open stream. Reason: {}", e.getMessage());
+                TemporaryHealthResource.addRegisteredError("Failed to open stream. Reason: " + e.getMessage());
+            } catch (LogonFailedException e) {
+                log.error("Failed to logon Stream Client. Reason: {}", e.getMessage());
+                TemporaryHealthResource.addRegisteredError("Failed to logon to stream. Reason: " + e.getMessage());
             }
 //            finally {
 //                log.info("Closing StreamPocClient");
@@ -271,6 +278,11 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
             */
 
         }
+    }
+
+
+    protected String getFaviconPath() {
+        return "/static/metasys/favicon.ico";
     }
 
     protected StreamPocClient wireMetasysStreamImporter(MetasysStreamClient streamClient, SensorIdRepository sensorIdRepository, RecRepository recRepository, ObservationListener observationListener, MetasysMetricsDistributionClient metricsClient, AuditTrail auditTrail) {
