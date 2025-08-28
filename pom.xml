@@ -33,7 +33,7 @@
         <logback.version>1.2.6</logback.version>
         <slf4j.version>2.0.7</slf4j.version>
         <logback.version>1.4.7</logback.version>
-        <stingray.version>1.21.9</stingray.version>
+        <stingray.version>1.21.10</stingray.version>
         <mappingtable.version>0.4.24</mappingtable.version>
         <mockserver.version>5.15.0</mockserver.version>
         <junit.version>5.13.4</junit.version>
