@@ -50,7 +50,6 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
     private boolean enableScheduledImport;
     private NotificationService notificationService;
 
-    // Legg til disse feltene:
     private SensorIdRepository sensorIdRepository;
     private RecRepository recRepository;
     private TrendsIngestionService trendsIngestionService;
