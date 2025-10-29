@@ -43,6 +43,8 @@ logback_override.xml
 /dependencies.txt
 /backup/
 /status/
+/prod/
+/doc-templates/
 
 # Troubleshoot and bugfix
 /troubleshoot/

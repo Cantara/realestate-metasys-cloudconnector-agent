@@ -224,14 +224,18 @@ public class StreamPocClient implements StreamListener {
             String sensorId = metasysSensorId.getTwinId();
             auditTrail.logSubscribed(sensorId, "Subscribe to Stream for MetasysObjectId: " + metasysObjectId);
 
-            try {
-                Integer httpStatus = metasysStreamClient.subscribePresentValueChange(subscriptionId, metasysObjectId);
-                log.debug("Subscription to metasysObjectId: {} subscriptionId: {}, returned httpStatus: {}", metasysObjectId, subscriptionId, httpStatus);
-            } catch (LogonFailedException e) {
-                log.warn("Failed to logon to SD system. Could not subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
-                closingStreamReason = new AtomicReference(LOGON_FAILED);
-                throw e;
-            }
+            subscribeToStreamForMetasysObjectId(subscriptionId, metasysObjectId);
+        }
+    }
+
+    public void subscribeToStreamForMetasysObjectId(String subscriptionId, String metasysObjectId) {
+        try {
+            Integer httpStatus = metasysStreamClient.subscribePresentValueChange(subscriptionId, metasysObjectId);
+            log.debug("Subscription to metasysObjectId: {} subscriptionId: {}, returned httpStatus: {}", metasysObjectId, subscriptionId, httpStatus);
+        } catch (LogonFailedException e) {
+            log.warn("Failed to logon to SD system. Could not subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
+            closingStreamReason = new AtomicReference(LOGON_FAILED);
+            throw e;
         }
     }
 

@@ -18,6 +18,7 @@ import no.cantara.realestate.metasys.cloudconnector.ingestion.StreamPocClient;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetricsDistributionServiceStub;
 import no.cantara.realestate.metasys.cloudconnector.sensors.MetasysCsvSensorImporter;
+import no.cantara.realestate.metasys.cloudconnector.sensors.SensorFileWatcher;
 import no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealthResource;
 import no.cantara.realestate.metasys.cloudconnector.trends.CsvTrendsLastUpdatedService;
 import no.cantara.realestate.metasys.cloudconnector.trends.InMemoryTrendsLastUpdatedService;
@@ -36,6 +37,7 @@ import org.slf4j.Logger;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -48,9 +50,20 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
     private boolean enableScheduledImport;
     private NotificationService notificationService;
 
+    // Legg til disse feltene:
+    private SensorIdRepository sensorIdRepository;
+    private RecRepository recRepository;
+    private TrendsIngestionService trendsIngestionService;
+    private MetasysMetricsDistributionClient metricsDistributionClient;
+
     public static final String INSTRUMENTATION_SCOPE_NAME_KEY = "opentelemetry.instrumentationScopeName";
     public static final String INSTRUMENTATION_SCOPE_NAME_VALUE = "no.cantara.realestate";
     private StreamPocClient streamPocClient;
+    private SensorFileWatcher sensorFileWatcher;
+    private final Object sensorSubscriptionLock = new Object();
+    private String importDirectory;
+    private String subscriptionId;
+
 
 
     public MetasysCloudconnectorApplication(ApplicationProperties config) {
@@ -79,6 +92,9 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
         NotificationListener notificationListener = get(NotificationListener.class);
         notificationService = get(no.cantara.realestate.cloudconnector.notifications.NotificationService.class);
 
+        sensorIdRepository = get(SensorIdRepository.class);
+        recRepository = get(RecRepository.class);
+
         //MetasysClient
         BasClient sdClient = createSdClient(config);
         if (sdClient instanceof MetasysClient) {
@@ -99,8 +115,6 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
             streamClient = createStreamClient(config);
             get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isHealthy", streamClient::isHealthy);
             get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isLoggedIn", streamClient::isLoggedIn);
-//            get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isStreamOpen", streamClient::isStreamOpen);
-//            get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-whenLastObservationReceived", streamClient::getWhenLastMessageImported);
         }
 
         //SensorIdRepository
@@ -118,45 +132,20 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
             log.info("Using in-memory TrendsLastUpdatedService");
             trendsLastUpdatedService = init(TrendsLastUpdatedService.class, () -> new InMemoryTrendsLastUpdatedService());
         }
-//        TrendsLastUpdatedService trendsLastUpdatedService = init(TrendsLastUpdatedService.class, () -> new InMemoryTrendsLastUpdatedService());
-        TrendsIngestionService trendsIngestionService = new MetasysTrendsIngestionService(config, observationListener, notificationListener, sdClient, trendsLastUpdatedService, auditTrail, metricsDistributionClient);
-        SensorIdRepository sensorIdRepository = get(SensorIdRepository.class);
-        String importDirectory = config.get("importdata.directory");
-        List<MetasysSensorId> metasysSensorIds = MetasysCsvSensorImporter.importSensorIdsFromDirectory(importDirectory, "Metasys");
-        for (MetasysSensorId metasysSensorId : metasysSensorIds) {
-            auditTrail.logCreated(metasysSensorId.getId(), "Added to SensorIdRepository");
-            sensorIdRepository.add(metasysSensorId);
-        }
-//        sensorIdRepository.addAll(metasysSensorIds);
-        List<SensorId> sensorIds = sensorIdRepository.all();
-        for (SensorId sensorId : sensorIds) {
-            auditTrail.logSubscribed(sensorId.getId(), "Subscribed to TrendsIngestionService");
-            trendsIngestionService.addSubscription(sensorId);
-        }
-//        trendsIngestionService.addSubscriptions(sensorIds);
-        log.info("Starting MetasysTrendsIngestionService with {} sensorIds", trendsIngestionService.getSubscriptionsCount());
 
-        //RecRepository
-        RecRepository recRepository = get(RecRepository.class);
-        List<RecTags> recTagsList = MetasysCsvSensorImporter.importRecTagsFromDirectory(importDirectory, "Metasys");
-        for (RecTags recTags : recTagsList) {
-            String twinId = recTags.getTwinId();
-            SensorId sensorId = sensorIds.stream().filter(sensorId1 -> sensorId1.getId().equals(twinId)).findFirst().orElse(null);
-            if (sensorId != null) {
-                recRepository.addRecTags(sensorId, recTags);
-                log.info("Added RecTags: {}", recTags);
-            }
-        }
+        trendsIngestionService = new MetasysTrendsIngestionService(config, observationListener, notificationListener, sdClient, trendsLastUpdatedService, auditTrail, metricsDistributionClient);
+
+        // Initial import of sensors and RecTags
+        importDirectory = config.get("importdata.directory");
+        performInitialSensorImport(trendsIngestionService, metricsDistributionClient);
 
         //Start ingestion and routing
         super.initIngestionService(trendsIngestionService);
         super.initRouter();
 
-
         //Open Stream, start subscribing to events
         if (enableStream && streamClient != null) {
-            streamPocClient = new StreamPocClient(streamClient, sensorIdRepository, recRepository, observationListener, metricsDistributionClient, auditTrail);
-
+            streamPocClient = new StreamPocClient(streamClient, get(SensorIdRepository.class), get(RecRepository.class), observationListener, metricsDistributionClient, auditTrail);
 
             //Verify that token refresh is working
             String accessToken = streamPocClient.getUserToken().getAccessToken();
@@ -173,7 +162,7 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
                 if (event == null) {
                     throw new MetasysCloudConnectorException("StreamPocClient returned null events. Closing stream.");
                 }
-                String subscriptionId = streamPocClient.getSubscriptionId();
+                subscriptionId = streamPocClient.getSubscriptionId();
                 log.info("Stream created. SubscriptionId: {}", subscriptionId);
                 if (subscriptionId == null && event.getEvent().equals("hello")) {
                     subscriptionId = event.getData();
@@ -183,42 +172,13 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
                     subscriptionId = subscriptionId.replace("\"", "");
                 }
 
-               List<MetasysSensorId> repositorySensorIds = sensorIdRepository.all().stream()
+                List<MetasysSensorId> repositorySensorIds = get(SensorIdRepository.class).all().stream()
                         .filter(sensorId -> sensorId instanceof MetasysSensorId)
                         .map(sensorId -> (MetasysSensorId) sensorId)
                         .toList();
 
                 streamPocClient.subscribeToStream(subscriptionId, repositorySensorIds);
-                /*
 
-                do {
-                    //Check if the stream is still alive
-                    boolean isAlive = streamPocClient.streamListenerThread.isAlive();
-                    if (!isAlive) {
-                        log.info("Stream is not alive. Closing Stream Reason: " + streamPocClient.closingStreamReason.get());
-                        break;
-                    }
-                    //Check if access token is still valid
-                    String newAccessToken = streamPocClient.getUserToken().getAccessToken();
-                    String newShortAccessToken = shortenedAccessToken(newAccessToken);
-                    if (!newShortAccessToken.equals(shortAccessToken)) {
-                        log.info("AT: {} -> {}, expires: {}", shortAccessToken, newShortAccessToken, streamPocClient.getUserToken().getExpires());
-                        accessToken = newShortAccessToken;
-                        shortAccessToken = newShortAccessToken;
-                    } else {
-                        log.trace("Access token not changed. Expires: {}", streamPocClient.getUserToken().getExpires());
-                    }
-
-                    // For backward compatibility, also check the queue
-                    while (!streamPocClient.eventQueue.isEmpty()) {
-                        log.trace("Event from queue: {}", streamPocClient.eventQueue.poll());
-                    }
-                    Thread.sleep(10000);
-
-                } while (true);
-                log.info("Stream closed. StreamPocClient will be closed.");
-
-                 */
             } catch (InterruptedException e) {
                 log.error("Error in main thread", e);
             } catch (MetasysCloudConnectorException e) {
@@ -228,56 +188,231 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
                 log.error("Failed to logon Stream Client. Reason: {}", e.getMessage());
                 TemporaryHealthResource.addRegisteredError("Failed to logon to stream. Reason: " + e.getMessage());
             }
-//            finally {
-//                log.info("Closing StreamPocClient");
-//                streamPocClient.close();
-//            }
+        }
 
+        // Start file watcher for dynamic updates
+        startSensorFileWatcher(trendsIngestionService, metricsDistributionClient);
+    }
 
+    /**
+     * Performs initial import of sensors and RecTags from CSV files
+     */
+    private void performInitialSensorImport(TrendsIngestionService trendsIngestionService,
+                                            MetasysMetricsDistributionClient metricsDistributionClient) {
+        log.info("Performing initial sensor import from directory: {}", importDirectory);
 
-            /*
-            MetasysStreamImporter streamImporter = init(MetasysStreamImporter.class, () -> wireMetasysStreamImporter(streamClient, sensorIdRepository, finalObservationDistributionClient, metricsDistributionClient, auditTrail));
-            get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isHealthy", streamClient::isHealthy);
-            get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isLoggedIn", streamClient::isLoggedIn);
-            get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isStreamOpen", streamClient::isStreamOpen);
-            get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-whenLastObservationReceived", streamClient::getWhenLastMessageImported);
-            get(StingrayHealthService.class).registerHealthProbe(streamImporter.getName() + "-isHealthy", streamImporter::isHealthy);
-            get(StingrayHealthService.class).registerHealthProbe(streamImporter.getName() + "-subscriptionId", streamImporter::getSubscriptionId);
+        SensorIdRepository sensorIdRepository = get(SensorIdRepository.class);
+        RecRepository recRepository = get(RecRepository.class);
+
+        // Import sensor IDs
+        List<MetasysSensorId> metasysSensorIds = MetasysCsvSensorImporter.importSensorIdsFromDirectory(importDirectory, "Metasys");
+        log.info("Imported {} sensor IDs from CSV files", metasysSensorIds.size());
+
+        for (MetasysSensorId metasysSensorId : metasysSensorIds) {
+            auditTrail.logCreated(metasysSensorId.getId(), "Added to SensorIdRepository");
+            sensorIdRepository.add(metasysSensorId);
+        }
+
+        // Subscribe to trends
+        List<SensorId> sensorIds = sensorIdRepository.all();
+        for (SensorId sensorId : sensorIds) {
+            auditTrail.logSubscribed(sensorId.getId(), "Subscribed to TrendsIngestionService");
+            trendsIngestionService.addSubscription(sensorId);
+        }
+        log.info("Subscribed to trends for {} sensors", trendsIngestionService.getSubscriptionsCount());
+
+        // Import RecTags
+        List<RecTags> recTagsList = MetasysCsvSensorImporter.importRecTagsFromDirectory(importDirectory, "Metasys");
+        log.info("Imported {} RecTags from CSV files", recTagsList.size());
+
+        for (RecTags recTags : recTagsList) {
+            String twinId = recTags.getTwinId();
+            SensorId sensorId = sensorIds.stream()
+                    .filter(sensorId1 -> sensorId1.getId().equals(twinId))
+                    .findFirst()
+                    .orElse(null);
+            if (sensorId != null) {
+                recRepository.addRecTags(sensorId, recTags);
+                log.debug("Added RecTags for sensor: {}", twinId);
+            }
+        }
+    }
+
+    /**
+     * Starts the file watcher to monitor changes in sensor CSV files
+     */
+    private void startSensorFileWatcher(TrendsIngestionService trendsIngestionService,
+                                        MetasysMetricsDistributionClient metricsDistributionClient) {
+        try {
+            long debounceSeconds = config.asLong("sensorFileWatcher.debounceSeconds", 30L);
+
+            sensorFileWatcher = new SensorFileWatcher(
+                    importDirectory,
+                    debounceSeconds,
+                    () -> onSensorFilesChanged(trendsIngestionService, metricsDistributionClient),
+                    notificationService
+            );
+
+            sensorFileWatcher.start();
+
+            // Register health checks
+            get(StingrayHealthService.class).registerHealthProbe("sensorFileWatcher-isHealthy", sensorFileWatcher::isHealthy);
+            get(StingrayHealthService.class).registerHealthProbe("sensorFileWatcher-isRunning", sensorFileWatcher::isRunning);
+            get(StingrayHealthService.class).registerHealthProbe("sensorFileWatcher-lastCheckTime", sensorFileWatcher::getLastCheckTime);
+            get(StingrayHealthService.class).registerHealthProbe("sensorFileWatcher-lastUpdateTime", sensorFileWatcher::getLastUpdateTime);
+
+            log.info("SensorFileWatcher started successfully");
+        } catch (Exception e) {
+            log.error("Failed to start SensorFileWatcher", e);
+            notificationService.sendAlarm(null, "Failed to start SensorFileWatcher: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Called when sensor files are changed. Re-imports and subscribes to new sensors.
+     */
+    private void onSensorFilesChanged(TrendsIngestionService trendsIngestionService,
+                                      MetasysMetricsDistributionClient metricsDistributionClient) {
+        log.info("Processing sensor file changes...");
+
+        synchronized (sensorSubscriptionLock) {
+            List<MetasysSensorId> newSensors = new ArrayList<>();
+            // Get current sensor IDs for comparison
+            List<String> existingSensorIds = new ArrayList<>();
+            for (Object obj : sensorIdRepository.all()) {
+                if (obj instanceof SensorId sensorId) {
+                    existingSensorIds.add(sensorId.getId());
+                }
+            }
+            log.debug("Current sensor count: {}", existingSensorIds.size());
 
             try {
-                streamImporter.openStream();
-            } catch (Exception e) {
-                String cause = e.getMessage();
-                streamImporter.setUnhealthy(cause);
-                log.warn("Failed to open stream. Reason: {}", e.getMessage());
-            }
-            */
-            //Register health checks
-            /*
-            #363 FIXME disable health checks for Stream until stable testing is in place.
-            get(StingrayHealthService.class).registerHealthCheck(streamClient.getName() + ".isLoggedIn", new HealthCheck() {
-                @Override
-                protected Result check() throws Exception {
-                    if (streamClient.isHealthy() && streamClient.isLoggedIn()) {
-                        return Result.healthy();
-                    } else {
-                        return Result.unhealthy(streamClient.getName() + " is not logged in. ");
-                    }
-                }
-            });
-            get(StingrayHealthService.class).registerHealthCheck(streamImporter.getName() + ".isHealthy", new HealthCheck() {
-                @Override
-                protected Result check() throws Exception {
-                    if (streamImporter.isHealthy()) {
-                        return Result.healthy();
-                    } else {
-                        return Result.unhealthy(streamImporter.getName() +" is unhealthy. ");
-                    }
-                }
-            });
-            */
+                // Re-import sensor IDs from CSV files
+                List<MetasysSensorId> importedSensorIds = MetasysCsvSensorImporter.importSensorIdsFromDirectory(importDirectory, "Metasys");
+                log.info("Re-imported {} sensor IDs from CSV files", importedSensorIds.size());
 
+                // Find new sensors
+                newSensors = importedSensorIds.stream()
+                        .filter(sensorId -> !existingSensorIds.contains(sensorId.getId()))
+                        .toList();
+
+                if (newSensors.isEmpty()) {
+                    log.info("No new sensors found");
+                } else {
+                    log.info("Found {} new sensors", newSensors.size());
+
+
+                    for (MetasysSensorId newSensor : newSensors) {
+                        try {
+                            auditTrail.logCreated(newSensor.getId(), "Added to SensorIdRepository (file watcher)");
+                            // Add new sensors to SensorIdRepository
+                            sensorIdRepository.add(newSensor);
+                            log.info("Added new sensor: {}", newSensor.getId());
+                            // Subscribe to trends for new sensor
+                            trendsIngestionService.addSubscription(newSensor);
+                            // Subscribe to stream for new sensors (if stream is enabled)
+                            if (enableStream && streamPocClient != null && subscriptionId != null) {
+                                subscribeToStream(newSensors);
+                            }
+
+                        } catch (Exception e) {
+                            log.warn("Failed to add sensor to sensorIdRepository, or add trend or subscribe to stream: {}", newSensor.getId(), e);
+                            notificationService.sendAlarm(null, "Failed to add subscriptions for new sensor " + newSensor.getId() + ": " + e.getMessage());
+                        }
+                    }
+
+                    // Send metrics
+                    metricsDistributionClient.sendValue("sensors.added", newSensors.size());
+                }
+
+            } catch (Exception e) {
+                log.error("Error importing sensor IDs during file change processing", e);
+                notificationService.sendAlarm(null, "Error importing sensor IDs: " + e.getMessage());
+                // Don't throw - we want to continue with RecTags
+            }
+
+            try {
+                // Update the RecTags for every new sensor
+                List<RecTags> recTagsList = MetasysCsvSensorImporter.importRecTagsFromDirectory(importDirectory, "Metasys");
+                log.info("Re-imported {} RecTags from CSV files", recTagsList.size());
+
+                for (MetasysSensorId newSensor : newSensors) {
+                    RecTags sensorRecTag = recTagsList.stream()
+                            .filter(recTags -> recTags.getTwinId().equals(newSensor.getId()))
+                            .findFirst()
+                            .orElse(null);
+                    if (sensorRecTag != null) {
+                        recRepository.addRecTags(newSensor, sensorRecTag);
+                        log.trace("Added new RecTags for sensor: {}", newSensor.getId());
+                    }
+                }
+
+            } catch (Exception e) {
+                log.error("Error importing RecTags during file change processing", e);
+                notificationService.sendAlarm(null, "Error importing RecTags: " + e.getMessage());
+            }
         }
+
+        log.info("Sensor file change processing completed");
+    }
+
+//    /**
+//     * Subscribes to trends for new sensors
+//     */
+//    private void subscribeToTrends(List<MetasysSensorId> newSensors, TrendsIngestionService trendsIngestionService) {
+//        for (MetasysSensorId sensorId : newSensors) {
+//            try {
+//                auditTrail.logSubscribed(sensorId.getId(), "Subscribed to TrendsIngestionService (file watcher)");
+//                trendsIngestionService.addSubscription(sensorId);
+//                log.info("Subscribed to trends for sensor: {}", sensorId.getId());
+//            } catch (Exception e) {
+//                log.error("Failed to subscribe to trends for sensor: {}", sensorId.getId(), e);
+//                notificationService.sendAlarm(null, "Failed to subscribe to trends for sensor " + sensorId.getId() + ": " + e.getMessage());
+//                // Continue with next sensor
+//            }
+//        }
+//    }
+
+    /**
+     * Subscribes to stream for new sensors
+     */
+    private void subscribeToStream(List<MetasysSensorId> newSensors) {
+        for (MetasysSensorId sensorId : newSensors) {
+            try {
+                String metasysObjectId = sensorId.getMetasysObjectId();
+                if (metasysObjectId != null && !metasysObjectId.isEmpty()) {
+                    streamPocClient.subscribeToStreamForMetasysObjectId(subscriptionId, metasysObjectId);
+                    auditTrail.logSubscribed(sensorId.getId(), "Subscribed to Stream (file watcher)");
+                    log.info("Subscribed to stream for sensor: {} (objectId: {})", sensorId.getId(), metasysObjectId);
+                } else {
+                    log.warn("Sensor {} has no metasysObjectId, skipping stream subscription", sensorId.getId());
+                }
+            } catch (Exception e) {
+                log.error("Failed to subscribe to stream for sensor: {}", sensorId.getId(), e);
+                notificationService.sendAlarm(null, "Failed to subscribe to stream for sensor " + sensorId.getId() + ": " + e.getMessage());
+                // Continue with next sensor
+            }
+        }
+    }
+
+    /**
+     * Shuts down the application gracefully
+     */
+    public void shutdown() {
+        log.info("Shutting down MetasysCloudconnectorApplication...");
+
+        if (sensorFileWatcher != null) {
+            sensorFileWatcher.stop();
+        }
+
+        if (streamPocClient != null) {
+            streamPocClient.close();
+        }
+
+        // Call parent shutdown if it exists
+        // super.shutdown();
+
+        log.info("MetasysCloudconnectorApplication shutdown complete");
     }
 
 
@@ -432,11 +567,26 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
             log.info("   Recs: {}/rec/status", baseUrl);
             log.info("   Audit: {}/audit", baseUrl);
             log.info("   Distribution: {}/distribution", baseUrl);
+            log.info("   SensorFileWatcher: Active with {} seconds debounce",
+                    config.asLong("sensorFileWatcher.debounceSeconds", 30L));
+
+            // Add shutdown hook for graceful shutdown
+            final MetasysCloudconnectorApplication finalApplication = application;
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                log.info("Shutdown hook triggered");
+                if (finalApplication != null) {
+                    finalApplication.shutdown();
+                }
+            }, "Shutdown-Hook"));
+
             application.checkIfStreamIsAlive();
         } catch (Exception e) {
             log.error("Failed to start MetasysCloudconnectorApplication", e);
+            if (application != null) {
+                application.shutdown();
+            }
+            System.exit(1);
         }
-
     }
 
 }
