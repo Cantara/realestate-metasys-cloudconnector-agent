@@ -38,7 +38,7 @@
         <mockserver.version>5.15.0</mockserver.version>
         <junit.version>6.0.0</junit.version>
         <junit.platform.version>6.0.0</junit.platform.version>
-        <slack-api-client.version>1.45.4</slack-api-client.version>
+        <slack-api-client.version>1.46.0</slack-api-client.version>
 
     </properties>
 
