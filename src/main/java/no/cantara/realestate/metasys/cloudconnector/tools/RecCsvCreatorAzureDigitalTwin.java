@@ -3,6 +3,7 @@ package no.cantara.realestate.metasys.cloudconnector.tools;
 import com.azure.digitaltwins.core.BasicDigitalTwin;
 import no.cantara.config.ApplicationProperties;
 import no.cantara.realestate.azure.digitaltwin.AzureDigitalTwinClient;
+import no.cantara.realestate.csv.RealEstateCsvException;
 import no.cantara.realestate.mappingtable.csv.CsvWriter;
 import no.cantara.realestate.metasys.cloudconnector.sensors.MeasurementUnit;
 import no.cantara.realestate.metasys.cloudconnector.sensors.SensorType;
@@ -10,6 +11,9 @@ import org.slf4j.Logger;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -20,29 +24,49 @@ import static org.slf4j.LoggerFactory.getLogger;
 public class RecCsvCreatorAzureDigitalTwin {
     private static final Logger log = getLogger(RecCsvCreatorAzureDigitalTwin.class);
 
+//    private static String missingRoomMappingsFileName = "MetasysRecMissingRoomMappings.csv";
+    private static String recImportedFileName = "MetasysRecImported.csv";
+
     public static void main(String[] args) {
         ApplicationProperties config = ApplicationProperties.builder().defaults().buildAndSetStaticSingleton();
         AzureDigitalTwinClient client = new AzureDigitalTwinClient(config);
         List<BasicDigitalTwin> twins = client.queryForTwins("SELECT * FROM digitaltwins T WHERE contains(T.customProperties.source.System, 'Metasys')");
-//        for (BasicDigitalTwin twin : twins) {
-//            System.out.println("twin = " + twin);
-//        }
         String configDirectory = config.get("importdata.directory");
-        String filename = "MetasysRecImported.csv";
-        log.info("Writing {} Metasys sensor mappings to {}/{}", twins.size(),configDirectory,filename);
-        writeMappingToFile(configDirectory, filename, false, twins);
-        log.info("Wrote {} Metasys sensor mappings to {}", twins.size(), filename);
+        String tempDir = configDirectory + File.separator + "tmp";
+        File sensorRecImportedFile = null;
+//        File missingRoomMappingsFile = null;
+        try {
+            sensorRecImportedFile = new File(tempDir, recImportedFileName);
+//            missingRoomMappingsFile = new File(tempDir, missingRoomMappingsFileName);
+            log.info("Writing {} Metasys sensor mappings to {}", twins.size(),sensorRecImportedFile.getAbsolutePath());
+            writeMappingToFile(sensorRecImportedFile, false, twins);
+            log.info("Wrote {} Metasys sensor mappings to {}", twins.size(), sensorRecImportedFile.getAbsolutePath());
+            log.info("Completed wrinting to files to {}", tempDir);
+            log.info("Copy files from temp directory \"{}\" to config directory\"{}\"", tempDir, configDirectory);
+        } catch (RealEstateCsvException e) {
+            log.warn("RecCsvCreatorAzureDigitalTwin failed due to CSV error: {}", e.getMessage(), e);
+            throw e;
+        }
+        //Copy files from tempDir to configDirectory
+        try {
+            Files.copy(sensorRecImportedFile.toPath(), Paths.get(configDirectory, recImportedFileName), StandardCopyOption.REPLACE_EXISTING);
+//            Files.copy(missingRoomMappingsFile.toPath(), Paths.get(configDirectory, missingRoomMappingsFileName), StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        log.info("Done.");
     }
 
-    public static long writeMappingToFile(String configDirectory, String filename, boolean append, List<BasicDigitalTwin> twins) {
-        File importDirectory = new File(configDirectory);
+    public static long writeMappingToFile(File recImportedFile, boolean append, List<BasicDigitalTwin> twins) {
         int count = 0;
         Pattern buildingPattern = Pattern.compile("\\+(.*?)=");
         Pattern roomPattern = Pattern.compile("\\.(.*?)\\-");
 
+        String fullPath = null;
+
         try {
-            File filPath = new File(importDirectory, filename);
-            CsvWriter csvWriter = new CsvWriter(filPath, append, "RecId","Tfm","MetasysObjectReference","MetasysObjectId","Name","Description","RealEstate","Building","Section","Floor","ServesRoom","PlacementRoom","SensorType","MeasurementUnit","Interval");
+            fullPath = recImportedFile.getAbsolutePath();
+            CsvWriter csvWriter = new CsvWriter(recImportedFile, append, "RecId","Tfm","MetasysObjectReference","MetasysObjectId","Name","Description","RealEstate","Building","Section","Floor","ServesRoom","PlacementRoom","SensorType","MeasurementUnit","Interval");
             for (BasicDigitalTwin twin : twins) {
                 Map<String, Object> parameters = twin.getContents();
                 String name = (String) parameters.get("name");
@@ -80,7 +104,7 @@ public class RecCsvCreatorAzureDigitalTwin {
             }
             csvWriter.close();
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new RealEstateCsvException("Error writing mapping to file: " + fullPath + e);
         }
 
         return count;
@@ -161,7 +185,15 @@ public class RecCsvCreatorAzureDigitalTwin {
                     sensorType = "Tilstedevarelse";
                     break;
                 default:
-                    sensorType = "Ukjent";
+                    if (sensorModel.endsWith("Temperature_Sensor")) {
+                        sensorType = "temp";
+                    } else if (sensorModel.endsWith("Flow_Sensor")) {
+                        sensorType = "Flow";
+                    } else if(sensorModel.endsWith("Pressure_Sensor")) {
+                        sensorType = "Pressure";
+                    } else {
+                        sensorType = "Ukjent";
+                    }
             }
         }
 

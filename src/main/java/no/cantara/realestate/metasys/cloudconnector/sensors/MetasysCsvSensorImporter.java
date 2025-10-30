@@ -1,25 +1,26 @@
 package no.cantara.realestate.metasys.cloudconnector.sensors;
 
+import no.cantara.realestate.csv.CsvCollection;
+import no.cantara.realestate.csv.CsvReader;
+import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorException;
+import no.cantara.realestate.rec.RecTags;
+import no.cantara.realestate.sensors.metasys.MetasysSensorId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import no.cantara.config.ApplicationProperties;
-import no.cantara.realestate.csv.CsvCollection;
-import no.cantara.realestate.csv.CsvReader;
-import no.cantara.realestate.rec.RecTags;
-import no.cantara.realestate.sensors.metasys.MetasysSensorId;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class MetasysCsvSensorImporter {
     private static final Logger log = LoggerFactory.getLogger(MetasysCsvSensorImporter.class);
 
     public static List<MetasysSensorId> importSensorIdsFromFile(Path filepath) {
         List<MetasysSensorId> sensorIds = new ArrayList();
-        CsvReader csvReader = new CsvReader();
-        CsvCollection collection = CsvReader.parse(filepath.toString());
+        try {
+        CsvCollection collection = CsvReader.parse(filepath.toString(),true);
         log.debug("ColumnNames: {}", collection.getColumnNames());
 
         for(Map<String, String> record : collection.getRecords()) {
@@ -31,6 +32,10 @@ public class MetasysCsvSensorImporter {
             String metasysObjectReference = record.get("MetasysObjectReference");
             MetasysSensorId sensorId = new MetasysSensorId(twinId, metasysObjectId, metasysObjectReference);
             sensorIds.add(sensorId);
+        }
+        } catch (Exception e) {
+            MetasysCloudConnectorException csvParseException = new MetasysCloudConnectorException("Failed to import SensorIds from file: " + filepath, e);
+            log.warn("SensorIdsImportFailed - {}", csvParseException.getMessage(), csvParseException);
         }
         return sensorIds;
     }
@@ -60,7 +65,8 @@ public class MetasysCsvSensorImporter {
     private static List<RecTags> importRecTagsFromFile(Path file) {
         //RecId,Tfm,MetasysObjectReference,MetasysObjectId,Name,Description,RealEstate,Building,Section,Floor,ServesRoom,PlacementRoom,SensorType,MeasurementUnit,Interval
         List<RecTags> recTagsList = new ArrayList<>();
-        CsvCollection collection = CsvReader.parse(file.toString());
+        try {
+        CsvCollection collection = CsvReader.parse(file.toString(), true);
         log.debug("ColumnNames: {}", collection.getColumnNames());
         for (Map<String, String> record : collection.getRecords()) {
             String recId = record.get("RecId");
@@ -93,6 +99,10 @@ public class MetasysCsvSensorImporter {
             String measurementUnit = record.get("MeasurementUnit");
             recTags.setMeasurementUnit(measurementUnit);
             recTagsList.add(recTags);
+        }
+        } catch (Exception e) {
+            MetasysCloudConnectorException csvParseException = new MetasysCloudConnectorException("Failed to import RecTags from file: " + file, e);
+            log.warn("RecTagsImportFailed - {}", csvParseException.getMessage(), csvParseException);
         }
      return  recTagsList;
     }
