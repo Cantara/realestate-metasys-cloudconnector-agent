@@ -1,0 +1,1002 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Zaphire.SiteService",
+    "version": "V1"
+  },
+  "paths": {
+    "/site/{site}/Tag/Values": {
+      "get": {
+        "tags": [
+          "Tags"
+        ],
+        "summary": "Get the live value from multiple tags.",
+        "description": "More tags can be requested by repeating the 'name' query parameter.",
+        "operationId": "getSiteBySiteTagValues",
+        "parameters": [
+          {
+            "name": "site",
+            "in": "path",
+            "description": "Site to request data from.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "Name of tag to get value from.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "example/tag1"
+            },
+            "examples": {
+              "example1": {
+                "summary": "Tag name.",
+                "value": "example/tag1"
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SiteService.Controllers.Tags.TagValuesResponseItem"
+                  },
+                  "example": [
+                    {
+                      "Name": "example/tag1",
+                      "Units": "DegreesCelsius",
+                      "UnitsDisplay": "°C",
+                      "Value": 23.412
+                    },
+                    {
+                      "Name": "example/tag2",
+                      "Value": "some-string"
+                    },
+                    {
+                      "Name": "example/tag3",
+                      "Value": null
+                    },
+                    {
+                      "Name": "example/tag4",
+                      "ErrorMessage": "Not found.",
+                      "Value": null
+                    }
+                  ]
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Array of tag values.",
+                    "value": [
+                      {
+                        "Name": "example/tag1",
+                        "Units": "DegreesCelsius",
+                        "UnitsDisplay": "°C",
+                        "Value": 23.412
+                      },
+                      {
+                        "Name": "example/tag2",
+                        "Value": "some-string"
+                      },
+                      {
+                        "Name": "example/tag3",
+                        "Value": null
+                      },
+                      {
+                        "Name": "example/tag4",
+                        "ErrorMessage": "Not found.",
+                        "Value": null
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Argument error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteService.Controllers.Data.ErrorMessageResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Name was not provided.",
+                    "value": {
+                      "ErrorMessage": "Missing Name- argument."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Tags"
+        ],
+        "summary": "Get the live value from multiple tags.",
+        "description": "Same as GET- endpoint except tag names are provided in the request body instead.",
+        "operationId": "postSiteBySiteTagValues",
+        "parameters": [
+          {
+            "name": "site",
+            "in": "path",
+            "description": "Site to request data from.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Name of tags to get values from.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "example": [
+                  "example/tag",
+                  "example/tag2",
+                  "example/tag3"
+                ]
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Array of tag names.",
+                  "value": [
+                    "example/tag",
+                    "example/tag2",
+                    "example/tag3"
+                  ]
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SiteService.Controllers.Tags.TagValuesResponseItem"
+                  },
+                  "example": [
+                    {
+                      "Name": "example/tag1",
+                      "Units": "DegreesCelsius",
+                      "UnitsDisplay": "°C",
+                      "Value": 23.412
+                    },
+                    {
+                      "Name": "example/tag2",
+                      "Value": "some-string"
+                    },
+                    {
+                      "Name": "example/tag3",
+                      "Value": null
+                    },
+                    {
+                      "Name": "example/tag4",
+                      "ErrorMessage": "Not found.",
+                      "Value": null
+                    }
+                  ]
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Array of tag values.",
+                    "value": [
+                      {
+                        "Name": "example/tag1",
+                        "Units": "DegreesCelsius",
+                        "UnitsDisplay": "°C",
+                        "Value": 23.412
+                      },
+                      {
+                        "Name": "example/tag2",
+                        "Value": "some-string"
+                      },
+                      {
+                        "Name": "example/tag3",
+                        "Value": null
+                      },
+                      {
+                        "Name": "example/tag4",
+                        "ErrorMessage": "Not found.",
+                        "Value": null
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Argument error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteService.Controllers.Data.ErrorMessageResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Body was not provided or invalid JSON.",
+                    "value": {
+                      "ErrorMessage": "Missing request body."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/site/{site}/Tag/Write": {
+      "put": {
+        "tags": [
+          "Tags"
+        ],
+        "summary": "Write a value to a single tag.",
+        "operationId": "putSiteBySiteTagWrite",
+        "parameters": [
+          {
+            "name": "site",
+            "in": "path",
+            "description": "Site the tag is hosted on.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "Name of tag to write value to.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "example/tag1"
+            },
+            "examples": {
+              "example1": {
+                "summary": "Tag name",
+                "value": "example/tag1"
+              }
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Value to write.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SiteService.Controllers.Tags.TagWriteRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Write value 20.5 to the tag",
+                  "value": {
+                    "Value": 20.5
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteService.Controllers.Tags.TagValuesResponseItem"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Last value of the tag",
+                    "value": {
+                      "Name": "example/tag1",
+                      "Units": "DegreesCelsius",
+                      "UnitsDisplay": "°C",
+                      "Value": 23.412
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Argument error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteService.Controllers.Data.ErrorMessageResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Name was not provided",
+                    "value": {
+                      "ErrorMessage": "Missing Name- argument."
+                    }
+                  },
+                  "example2": {
+                    "summary": "Body was not provided",
+                    "value": {
+                      "ErrorMessage": "Missing request body."
+                    }
+                  },
+                  "example3": {
+                    "summary": "The specified tag is not writeable",
+                    "value": {
+                      "ErrorMessage": "Tag 'example/tag1' is read-only."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Invalid tag.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteService.Controllers.Data.ErrorMessageResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "The provided tag was not found",
+                    "value": {
+                      "ErrorMessage": "No tag with name 'example/tag1' was found."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/site/{site}/Tags/Csv/ExportValues": {
+      "post": {
+        "tags": [
+          "Tags"
+        ],
+        "summary": "Get data for multiple tags fromatted as CSV.",
+        "description": "Endpoint for getting tag data form tags with the given names, formatted as a CSV string.",
+        "operationId": "postSiteBySiteTagsCsvExportValues",
+        "parameters": [
+          {
+            "name": "site",
+            "in": "path",
+            "description": "Site to request data from.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "separator",
+            "in": "query",
+            "description": "Character which will be separating the values in the CSV.",
+            "schema": {
+              "maxLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Tag names for tags from which we will collect data.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "example": "Name,Component title,Device name,Property title,Resource URI,Error,Type,Value 1/tag1,Component Title,device 1,property,this/is/resource,True,Internal,69 °C"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "String of tag data formated as CSV.",
+                    "value": "Name,Component title,Device name,Property title,Resource URI,Error,Type,Value 1/tag1,Component Title,device 1,property,this/is/resource,True,Internal,69 °C"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Argument error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteService.Controllers.Data.ErrorMessageResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "The body of the request is either missing or empty.",
+                    "value": {
+                      "ErrorMessage": "Missing request body."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested content was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteService.Controllers.Data.ErrorMessageResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Tags not found.",
+                    "value": {
+                      "ErrorMessage": "No tags with the given names were found."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/site/{site}/Tags/History/Aggregates": {
+      "get": {
+        "tags": [
+          "Tag History"
+        ],
+        "summary": "Endpoint for getting aggregated historic records for a value in a specified timespan.",
+        "description": "Records in the aggregation interval are combined into aggregates where the timestamp of the aggregate specifies the start of the interval.",
+        "operationId": "getSiteBySiteTagsHistoryAggregates",
+        "parameters": [
+          {
+            "name": "site",
+            "in": "path",
+            "description": "Site to request data from.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "Name of value to get aggregates for.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Start of timespan from which to get aggregates.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "2022-05-30T00:00:00.0000000+00:00"
+            },
+            "examples": {
+              "example1": {
+                "summary": "May 30. 2022",
+                "value": "2022-05-30T00:00:00.0000000+00:00"
+              }
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "End of timespan from which to get aggregates.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "2022-05-31T00:00:00.0000000+00:00"
+            },
+            "examples": {
+              "example1": {
+                "summary": "May 31. 2022",
+                "value": "2022-05-31T00:00:00.0000000+00:00"
+              }
+            }
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "description": "Aggregation interval.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "Hour"
+            },
+            "examples": {
+              "example1": {
+                "summary": "Aggregate values by hour.",
+                "value": "Hour"
+              },
+              "example2": {
+                "summary": "Aggregate values by day.",
+                "value": "Day"
+              },
+              "example3": {
+                "summary": "Aggregate values by ISO week.",
+                "value": "IsoWeek"
+              },
+              "example4": {
+                "summary": "Aggregate values by month.",
+                "value": "Month"
+              },
+              "example5": {
+                "summary": "Aggregate values by year.",
+                "value": "Year"
+              },
+              "example6": {
+                "summary": "Custom aggregate interval in minutes.",
+                "value": 15
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SiteService.Controllers.Tags.TagHistoryAggregate"
+                  },
+                  "example": [
+                    {
+                      "Name": "example/tag",
+                      "Timestamp": "2022-05-05T00:00:00.0000000+00:00",
+                      "Count": 22,
+                      "Avg": 1335.2,
+                      "Max": 1508,
+                      "Min": 1191.2,
+                      "Sum": 28039.2
+                    },
+                    {
+                      "Name": "example/tag",
+                      "Timestamp": "2022-05-04T00:00:00.0000000+00:00",
+                      "Count": 22,
+                      "Avg": 1004,
+                      "Max": 1176.8,
+                      "Min": 860,
+                      "Sum": 21084
+                    }
+                  ]
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Array of aggregates.",
+                    "value": [
+                      {
+                        "Name": "example/tag",
+                        "Timestamp": "2022-05-05T00:00:00.0000000+00:00",
+                        "Count": 22,
+                        "Avg": 1335.2,
+                        "Max": 1508,
+                        "Min": 1191.2,
+                        "Sum": 28039.2
+                      },
+                      {
+                        "Name": "example/tag",
+                        "Timestamp": "2022-05-04T00:00:00.0000000+00:00",
+                        "Count": 22,
+                        "Avg": 1004,
+                        "Max": 1176.8,
+                        "Min": 860,
+                        "Sum": 21084
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Argument error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteService.Controllers.Data.ErrorMessageResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Name was not provided.",
+                    "value": {
+                      "ErrorMessage": "Missing Name- argument."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Insufficient rights to access the specified tag.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteService.Controllers.Data.ErrorMessageResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "User is unauthorized.",
+                    "value": {
+                      "ErrorMessage": "User doesn't have access \"Example\" for path \"example/tag\"."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The specified value doesn't exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteService.Controllers.Data.ErrorMessageResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Tag not found.",
+                    "value": {
+                      "ErrorMessage": "No tag found with name \"example/tag\"."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Value doesn't have logging enabled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteService.Controllers.Data.ErrorMessageResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Logging isn't enabled.",
+                    "value": {
+                      "ErrorMessage": "Tag \"example/tag\" doesn't have logging enabled."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/site/{site}/Tags/History/Records": {
+      "get": {
+        "tags": [
+          "Tag History"
+        ],
+        "summary": "Endpoint for getting the raw historic records for a value in a specified timespan.",
+        "description": "Raw records are unprocessed by Zaphire and therefore may have any interval, from one per hour down to one per minute.",
+        "operationId": "getSiteBySiteTagsHistoryRecords",
+        "parameters": [
+          {
+            "name": "site",
+            "in": "path",
+            "description": "Site to request data from.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "Name of value to get records for.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Start of timespan from which to get records.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "2022-05-30T00:00:00.0000000+00:00"
+            },
+            "examples": {
+              "example1": {
+                "summary": "May 30. 2022",
+                "value": "2022-05-30T00:00:00.0000000+00:00"
+              }
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "End of timespan from which to get records.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "2022-05-31T00:00:00.0000000+00:00"
+            },
+            "examples": {
+              "example1": {
+                "summary": "May 31. 2022",
+                "value": "2022-05-31T00:00:00.0000000+00:00"
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SiteService.Controllers.Tags.TagHistoryRecord"
+                  },
+                  "example": [
+                    {
+                      "Name": "example/tag",
+                      "Timestamp": "2022-05-04T01:00:00.0000000+00:00",
+                      "Value": 874.4
+                    },
+                    {
+                      "Name": "example/tag",
+                      "Timestamp": "2022-05-04T00:00:00.0000000+00:00",
+                      "Value": 860
+                    }
+                  ]
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Array of records.",
+                    "value": [
+                      {
+                        "Name": "example/tag",
+                        "Timestamp": "2022-05-04T01:00:00.0000000+00:00",
+                        "Value": 874.4
+                      },
+                      {
+                        "Name": "example/tag",
+                        "Timestamp": "2022-05-04T00:00:00.0000000+00:00",
+                        "Value": 860
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Argument error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteService.Controllers.Data.ErrorMessageResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Name was not provided.",
+                    "value": {
+                      "ErrorMessage": "Missing Name- argument."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Insufficient rights to access the specified tag.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteService.Controllers.Data.ErrorMessageResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "User is unauthorized.",
+                    "value": {
+                      "ErrorMessage": "User doesn't have access \"Example\" for path \"example/tag\"."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The specified tag doesn't exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteService.Controllers.Data.ErrorMessageResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Tag not found.",
+                    "value": {
+                      "ErrorMessage": "No tag found with name \"example/tag\"."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Value doesn't have logging enabled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteService.Controllers.Data.ErrorMessageResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Logging isn't enabled.",
+                    "value": {
+                      "ErrorMessage": "Tag \"example/tag\" doesn't have logging enabled."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "SiteService.Controllers.Tags.TagValuesResponseItem": {
+        "type": "object",
+        "properties": {
+          "Name": {
+            "type": "string",
+            "description": "Name of the tag value this item represents."
+          },
+          "ErrorMessage": {
+            "type": "string",
+            "description": "Message if an error occured when looking up the requested tag."
+          },
+          "Units": {
+            "type": "string",
+            "description": "Name of the units for this tag for localization purposes."
+          },
+          "UnitsDisplay": {
+            "type": "string",
+            "description": "Display text for the units of this tag."
+          },
+          "Value": {
+            "type": "object",
+            "description": "Value of this tag."
+          }
+        },
+        "example": {
+          "Name": "example/tag1",
+          "Units": "DegreesCelsius",
+          "UnitsDisplay": "°C",
+          "Value": 23.412
+        }
+      },
+      "SiteService.Controllers.Data.ErrorMessageResponse": {
+        "type": "object",
+        "properties": {
+          "ErrorMessage": {
+            "type": "string",
+            "description": "Human readable error message."
+          }
+        },
+        "example": {
+          "ErrorMessage": "Tag \"example/tag\" doesn't have logging enabled."
+        }
+      },
+      "SiteService.Controllers.Tags.TagWriteRequest": {
+        "type": "object",
+        "properties": {
+          "Value": {
+            "type": "object",
+            "description": "Value to write."
+          }
+        },
+        "example": {
+          "Value": 20.5
+        }
+      },
+      "SiteService.Controllers.Tags.TagHistoryAggregate": {
+        "type": "object",
+        "properties": {
+          "Name": {
+            "type": "string",
+            "description": "Name of the tag this record represents."
+          },
+          "Timestamp": {
+            "type": "string",
+            "description": "Timestamp at the beginning of this aggregate.",
+            "format": "date-time"
+          },
+          "Count": {
+            "type": "integer",
+            "description": "Number of values aggregated for this record.",
+            "format": "int64"
+          },
+          "Avg": {
+            "type": "number",
+            "description": "Average of the values aggregated for this record.",
+            "format": "double"
+          },
+          "Max": {
+            "type": "number",
+            "description": "Maximum value of the aggregated values for this record.",
+            "format": "double"
+          },
+          "Min": {
+            "type": "number",
+            "description": "Minimum value of the aggregated values for this record.",
+            "format": "double"
+          },
+          "Sum": {
+            "type": "number",
+            "description": "Sum of the values aggregated for this record.",
+            "format": "double"
+          }
+        }
+      },
+      "SiteService.Controllers.Tags.TagHistoryRecord": {
+        "type": "object",
+        "properties": {
+          "Name": {
+            "type": "string",
+            "description": "Name of the tag this record represents."
+          },
+          "Timestamp": {
+            "type": "string",
+            "description": "Timestamp that the value of this record was recorded.",
+            "format": "date-time"
+          },
+          "Value": {
+            "type": "number",
+            "description": "Value for this record.",
+            "format": "double",
+            "nullable": true
+          }
+        }
+      }
+    }
+  }
+}
