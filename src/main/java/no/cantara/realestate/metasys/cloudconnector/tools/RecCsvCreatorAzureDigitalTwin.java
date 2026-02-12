@@ -81,7 +81,7 @@ public class RecCsvCreatorAzureDigitalTwin {
                 String sensorModel = twin.getMetadata().getModelId();
 
                 String sensorType = parseSensorType(sensorModel);
-                String adtMeasurementUnit = getValue("customProperties.metadata.unit", parameters);
+                String adtMeasurementUnit = getValue("customProperties.metadata.unit", parameters, null);
                 String measurementUnit = parseMeasurementUnit(sensorModel, adtMeasurementUnit);
                 Matcher buildingMatcher = buildingPattern.matcher(tfm);
                 if (buildingMatcher.find()) {
@@ -108,6 +108,14 @@ public class RecCsvCreatorAzureDigitalTwin {
         }
 
         return count;
+    }
+
+    public static String getValue(String key, Map<String, Object> map, Object defaultValue) {
+        try {
+            return getValue(key, map);
+        } catch (IllegalArgumentException e) {
+            return defaultValue != null ? defaultValue.toString() : null;
+        }
     }
 
     public static String getValue(String key, Map<String, Object> map) {
