@@ -508,6 +508,10 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
     }
 
     protected void checkIfStreamIsAlive() {
+        if (!enableStream || streamPocClient == null) {
+            log.trace("Stream is not enabled. Skipping stream health check.");
+            return;
+        }
         try {
             String accessToken = streamPocClient.getUserToken().getAccessToken();
             String shortAccessToken = shortenedAccessToken(accessToken);
