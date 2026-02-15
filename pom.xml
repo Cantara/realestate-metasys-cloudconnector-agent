@@ -36,8 +36,8 @@
         <stingray.version>1.21.14</stingray.version>
         <mappingtable.version>0.4.31</mappingtable.version>
         <mockserver.version>5.15.0</mockserver.version>
-        <junit.version>6.0.0</junit.version>
-        <junit.platform.version>6.0.0</junit.platform.version>
+        <junit.version>6.0.3</junit.version>
+        <junit.platform.version>6.0.3</junit.platform.version>
         <slack-api-client.version>1.47.0</slack-api-client.version>
 
     </properties>
