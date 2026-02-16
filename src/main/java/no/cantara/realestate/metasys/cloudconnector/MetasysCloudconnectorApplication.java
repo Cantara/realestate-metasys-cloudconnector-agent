@@ -74,7 +74,6 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
     Initialization of the application below.
      */
 
-
     @Override
     protected void doInit() {
         final ObservationDistributionClient finalObservationDistributionClient = null;
@@ -144,18 +143,19 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
 
         //Open Stream, start subscribing to events
         if (enableStream && streamClient != null) {
-            streamPocClient = new StreamPocClient(streamClient, get(SensorIdRepository.class), get(RecRepository.class), observationListener, metricsDistributionClient, auditTrail);
-
-            //Verify that token refresh is working
-            String accessToken = streamPocClient.getUserToken().getAccessToken();
-            String shortAccessToken = shortenedAccessToken(accessToken);
-            log.info("AccessToken: {}, expires at: {}", shortAccessToken, streamPocClient.getUserToken().getExpires());
             try {
+                streamPocClient = new StreamPocClient(streamClient, get(SensorIdRepository.class), get(RecRepository.class), observationListener, metricsDistributionClient, auditTrail);
+
+                //Verify that token refresh is working
+                String accessToken = streamPocClient.getUserToken().getAccessToken();
+                String shortAccessToken = shortenedAccessToken(accessToken);
+                log.info("AccessToken: {}, expires at: {}", shortAccessToken, streamPocClient.getUserToken().getExpires());
+
                 // Use the StreamListener based approach
                 streamPocClient.createStream(streamPocClient);
                 log.debug("Waiting for events... IsStreamOpen? {}", streamPocClient.isStreamOpen());
 
-                // For backward compatibility demonstration, also check the queue
+                // Wait for subscriptionId
                 log.info("Waiting for subscriptionId. This may take 10 seconds...");
                 ServerSentEvent event = streamPocClient.eventQueue.poll(10, TimeUnit.SECONDS);
                 if (event == null) {
@@ -176,23 +176,33 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
                         .map(sensorId -> (MetasysSensorId) sensorId)
                         .toList();
 
+                log.info("Starting stream subscriptions for {} sensors...", repositorySensorIds.size());
+                // This method now handles exceptions gracefully
                 streamPocClient.subscribeToStream(subscriptionId, repositorySensorIds);
+                log.info("Stream subscription process completed. Stream is active.");
 
             } catch (InterruptedException e) {
-                log.error("Error in main thread", e);
+                log.error("Interrupted while waiting for stream initialization", e);
+                TemporaryHealthResource.addRegisteredError("Stream initialization interrupted: " + e.getMessage());
+                notificationService.sendAlarm(null, "Stream initialization interrupted: " + e.getMessage());
             } catch (MetasysCloudConnectorException e) {
                 log.error("Failed to open stream. Reason: {}", e.getMessage());
                 TemporaryHealthResource.addRegisteredError("Failed to open stream. Reason: " + e.getMessage());
+                notificationService.sendAlarm(null, "Failed to open stream: " + e.getMessage());
             } catch (LogonFailedException e) {
                 log.error("Failed to logon Stream Client. Reason: {}", e.getMessage());
                 TemporaryHealthResource.addRegisteredError("Failed to logon to stream. Reason: " + e.getMessage());
+                notificationService.sendAlarm(null, "Failed to logon to stream: " + e.getMessage());
+            } catch (Exception e) {
+                log.error("Unexpected error during stream initialization", e);
+                TemporaryHealthResource.addRegisteredError("Stream initialization error: " + e.getMessage());
+                notificationService.sendAlarm(null, "Stream initialization error: " + e.getMessage());
             }
         }
 
         // Start file watcher for dynamic updates
         startSensorFileWatcher(trendsIngestionService, metricsDistributionClient);
     }
-
     /**
      * Performs initial import of sensors and RecTags from CSV files
      */
@@ -371,11 +381,13 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
 //            }
 //        }
 //    }
-
     /**
      * Subscribes to stream for new sensors
      */
     private void subscribeToStream(List<MetasysSensorId> newSensors) {
+        int successCount = 0;
+        int failCount = 0;
+
         for (MetasysSensorId sensorId : newSensors) {
             try {
                 String metasysObjectId = sensorId.getMetasysObjectId();
@@ -383,17 +395,22 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
                     streamPocClient.subscribeToStreamForMetasysObjectId(subscriptionId, metasysObjectId);
                     auditTrail.logSubscribed(sensorId.getId(), "Subscribed to Stream (file watcher)");
                     log.info("Subscribed to stream for sensor: {} (objectId: {})", sensorId.getId(), metasysObjectId);
+                    successCount++;
                 } else {
                     log.warn("Sensor {} has no metasysObjectId, skipping stream subscription", sensorId.getId());
+                    failCount++;
                 }
             } catch (Exception e) {
                 log.error("Failed to subscribe to stream for sensor: {}", sensorId.getId(), e);
                 notificationService.sendAlarm(null, "Failed to subscribe to stream for sensor " + sensorId.getId() + ": " + e.getMessage());
-                // Continue with next sensor
+                failCount++;
+                // Continue with next sensor instead of stopping
             }
         }
-    }
 
+        log.info("Stream subscription for new sensors completed: {} succeeded, {} failed out of {} sensors",
+                successCount, failCount, newSensors.size());
+    }
     /**
      * Shuts down the application gracefully
      */

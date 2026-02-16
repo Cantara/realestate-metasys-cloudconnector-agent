@@ -216,15 +216,37 @@ public class StreamPocClient implements StreamListener {
             }
         }
     }
-
     public void subscribeToStream(String subscriptionId, List<MetasysSensorId> sensorIds) {
+        int successCount = 0;
+        int failCount = 0;
+
         for (MetasysSensorId metasysSensorId : sensorIds) {
             String metasysObjectId = metasysSensorId.getMetasysObjectId();
             log.trace("Subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId);
             String sensorId = metasysSensorId.getTwinId();
-            auditTrail.logSubscribed(sensorId, "Subscribe to Stream for MetasysObjectId: " + metasysObjectId);
 
-            subscribeToStreamForMetasysObjectId(subscriptionId, metasysObjectId);
+            try {
+                auditTrail.logSubscribed(sensorId, "Subscribe to Stream for MetasysObjectId: " + metasysObjectId);
+                subscribeToStreamForMetasysObjectId(subscriptionId, metasysObjectId);
+                successCount++;
+            } catch (LogonFailedException e) {
+                log.warn("Failed to logon to SD system. Could not subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
+                failCount++;
+                throw e;
+            } catch (Exception e) {
+                log.warn("Failed to subscribe to stream for sensor: {} (metasysObjectId: {}). Reason: {}",
+                        sensorId, metasysObjectId, e.getMessage());
+                auditTrail.logFailed(sensorId, "Failed to subscribe to Stream: " + e.getMessage());
+                failCount++;
+                // Continue with next sensor
+            }
+        }
+
+        log.info("Stream subscription completed: {} succeeded, {} failed out of {} total sensors",
+                successCount, failCount, sensorIds.size());
+
+        if (failCount > 0) {
+            log.warn("{} sensors failed to subscribe to stream. Check logs for details.", failCount);
         }
     }
 
@@ -234,8 +256,12 @@ public class StreamPocClient implements StreamListener {
             log.debug("Subscription to metasysObjectId: {} subscriptionId: {}, returned httpStatus: {}", metasysObjectId, subscriptionId, httpStatus);
         } catch (LogonFailedException e) {
             log.warn("Failed to logon to SD system. Could not subscribe to metasysObjectId: {} subscriptionId: {}", metasysObjectId, subscriptionId, e);
-            closingStreamReason = new AtomicReference(LOGON_FAILED);
-            throw e;
+            throw e;  // Re-throw to be caught by caller
+        } catch (Exception e) {
+            // Wrap other exceptions with more context
+            throw new MetasysCloudConnectorException(
+                    "Failed to subscribe to metasysObjectId: " + metasysObjectId + " for subscriptionId: " + subscriptionId,
+                    e);
         }
     }
 
@@ -380,6 +406,13 @@ public class StreamPocClient implements StreamListener {
      * @param reader The buffered reader for the event stream
      * @throws IOException If an I/O error occurs
      */
+    /**
+     * Process the incoming SSE event stream according to the specification.
+     * Events are separated by blank lines and consist of fields starting with "id:", "event:", "data:", or "retry:".
+     *
+     * @param reader The buffered reader for the event stream
+     * @throws IOException If an I/O error occurs
+     */
     private void processEventStream(BufferedReader reader) throws IOException {
         String line;
         ServerSentEvent currentEvent = new ServerSentEvent();
@@ -387,6 +420,15 @@ public class StreamPocClient implements StreamListener {
         boolean hasData = false;
 
         while ((line = reader.readLine()) != null) {
+            // Check if thread is interrupted (due to shutdown)
+            if (Thread.currentThread().isInterrupted()) {
+                log.info("Stream thread interrupted (shutdown requested). Exiting gracefully.");
+                if (closingStreamReason.get() == null) {
+                    closingStreamReason.set("GRACEFUL_SHUTDOWN");
+                }
+                return;
+            }
+
             log.trace("Received SSE line: {}", line);
 
             // Empty line indicates the end of an event
@@ -424,8 +466,11 @@ public class StreamPocClient implements StreamListener {
                         }
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
-                        log.error("Failed to add event to queue", e);
-                        break;
+                        log.info("Stream thread interrupted while queuing event (shutdown). Exiting gracefully.");
+                        if (closingStreamReason.get() == null) {
+                            closingStreamReason.set("GRACEFUL_SHUTDOWN");
+                        }
+                        return;
                     }
                 }
 
@@ -484,7 +529,11 @@ public class StreamPocClient implements StreamListener {
                 eventQueue.put(currentEvent);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                log.error("Failed to add final event to queue", e);
+                log.info("Stream thread interrupted while queuing final event (shutdown). Exiting gracefully.");
+                if (closingStreamReason.get() == null) {
+                    closingStreamReason.set("GRACEFUL_SHUTDOWN");
+                }
+                return;
             }
             log.warn("Stream ended without empty line. Last event: {}", currentEvent);
             if (closingStreamReason.get() == null) {
