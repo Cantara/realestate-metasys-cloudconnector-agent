@@ -144,7 +144,7 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
                     trendsLastUpdatedService.setLastFailedAt(sensorId, Instant.now());
                     failedSensors.add((MetasysSensorId) sensorId);
                     auditLog.trace("Ingest__TrendNotFound__{}__{}__{}__{}", metasysObjectId, sensorId.getClass(), sensorId.getId(), e.getMessage());
-                    log.debug("Trend not found for TrendId {} sensorId {}.", metasysObjectId, sensorId, e);
+                    log.debug("Trend not found for TrendId {} sensorId {}.", metasysObjectId, sensorId);
                     auditTrail.logFailed(sensorId.getId(), "TrendNotFound");
                 } catch (LogonFailedException e) {
                     addMessagesFailedCount();
