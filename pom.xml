@@ -42,6 +42,17 @@
 
     </properties>
 
+    <dependencyManagement>
+        <dependencies>
+            <!-- Override transitive property-config version — 0.9.19 is not published -->
+            <dependency>
+                <groupId>no.cantara.config</groupId>
+                <artifactId>property-config</artifactId>
+                <version>0.9.22</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
         <dependency>
             <groupId>no.cantara.realestate</groupId>
