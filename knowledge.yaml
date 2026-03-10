@@ -1,0 +1,30 @@
+id: metasys-cloudconnector-app
+name: Real Estate Metasys Cloud Connector Agent
+version: 0.17.6-SNAPSHOT
+description: |
+  Cloud connector agent for Johnson Controls Metasys building automation
+  systems. Reads sensor observations (temperature, energy, occupancy) from
+  Metasys and distributes them to cloud targets such as MQTT brokers or Azure
+  Digital Twin.
+units:
+  - id: connector-agent
+    name: Connector Agent
+    type: service
+    description: Main agent orchestration — startup, configuration loading, and polling coordination.
+    path: src/main/java/no/cantara/realestate
+  - id: metasys-client
+    name: Metasys Client
+    type: component
+    description: Metasys REST API client for authenticating and fetching sensor trend samples.
+  - id: cloud-publisher
+    name: Cloud Publisher
+    type: component
+    description: MQTT and Azure Digital Twin publishers for distributing observations to cloud targets.
+  - id: observation-model
+    name: Observation Model
+    type: component
+    description: Sensor observation data model — reading type, value, unit, timestamp, and source.
+  - id: scheduler
+    name: Scheduler
+    type: component
+    description: Polling scheduler with configurable intervals and exponential backoff on failure.
