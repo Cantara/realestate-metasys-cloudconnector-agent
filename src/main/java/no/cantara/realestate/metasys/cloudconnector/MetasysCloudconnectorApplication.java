@@ -111,8 +111,12 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
         //MetasysStreamClient
         if (enableStream) {
             streamClient = createStreamClient(config);
-            get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isHealthy", streamClient::isHealthy);
-            get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isLoggedIn", streamClient::isLoggedIn);
+            if (streamClient != null) {
+                get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isHealthy", streamClient::isHealthy);
+                get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isLoggedIn", streamClient::isLoggedIn);
+            } else {
+                log.warn("Stream is enabled (sd.stream.enabled=true) but cannot be started: sd.api.prod is not true. No stream client simulator is available.");
+            }
         }
 
         //SensorIdRepository
@@ -499,7 +503,7 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
         return sdClient;
     }
 
-    private MetasysStreamClient createStreamClient(ApplicationProperties config) {
+    MetasysStreamClient createStreamClient(ApplicationProperties config) {
         MetasysStreamClient streamClient;
         String useSDProdValue = config.get("sd.api.prod");
 
@@ -519,7 +523,7 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
             }
         } else {
             streamClient = null;
-            log.warn("Stream is not enabled. The MetasysStreamClient simulator is not developed yet.");
+            log.warn("Running without a live Stream: sd.api.prod is not set to true. No MetasysStreamClient simulator is available.");
         }
         return streamClient;
     }
