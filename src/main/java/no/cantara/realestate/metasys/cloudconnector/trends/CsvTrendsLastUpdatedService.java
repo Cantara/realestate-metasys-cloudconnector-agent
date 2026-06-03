@@ -45,7 +45,14 @@ public class CsvTrendsLastUpdatedService implements TrendsLastUpdatedService {
         Path directoryPath = Paths.get(lastUpdatedDirectory);
 
         if (!Files.exists(directoryPath)) {
-            throw new IllegalArgumentException("Directory does not exist: " + lastUpdatedDirectory + ". Please create the directory before restarting.");
+            try {
+                Files.createDirectories(directoryPath);
+                log.info("Created directory for trend tracking: {}", directoryPath.toAbsolutePath());
+            } catch (Exception e) {
+                throw new IllegalArgumentException(
+                        "Directory does not exist and could not be created: " + directoryPath.toAbsolutePath() +
+                        ". Please create the directory manually before restarting.", e);
+            }
         }
         this.lastUpdatedFile = directoryPath.resolve(lastUpdatedFile).toFile();
         if (!this.lastUpdatedFile.exists()) {
