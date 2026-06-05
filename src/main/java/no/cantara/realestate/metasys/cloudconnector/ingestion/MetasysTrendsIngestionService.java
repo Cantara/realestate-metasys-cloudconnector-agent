@@ -34,7 +34,7 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
     private static final Logger log = getLogger(MetasysTrendsIngestionService.class);
 
     public static final String BAS_URL_KEY = "sd.api.url";
-    public final String METRIC_NAME_TRENDSAMPLES_RECEIVED;
+    public final String METRIC_NAME_TRENDSAMPLES_RECEIVED = "metasys_trendsamples_received";
 
     private ApplicationProperties config;
     private ObservationListener observationListener;
@@ -81,7 +81,7 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
         this.trendsLastUpdatedService = trendsLastUpdatedService;
         this.auditTrail = auditTrail;
         this.metricsClient = metricsClient;
-        this.METRIC_NAME_TRENDSAMPLES_RECEIVED = config.get("metrics.name.trendsamplesReceived", "metasys_trendsamples_received");
+//        this.METRIC_NAME_TRENDSAMPLES_RECEIVED = config.get("metrics.name.trendsamplesReceived", "metasys_trendsamples_received");
     }
 
     //FIXME Sjekk mot MetasysClient, og hva som kjører denne ingestTrends periodisk i CloudConnector-Common. ScheduledObservationMessageRouter
