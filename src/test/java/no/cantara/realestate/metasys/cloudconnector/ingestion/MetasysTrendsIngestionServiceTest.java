@@ -53,8 +53,8 @@ class MetasysTrendsIngestionServiceTest {
     @BeforeEach
     void setUp() {
         // Setup default config responses
-        when(config.get("metrics.name.trendsamplesReceived", "metasys_trendsamples_received"))
-                .thenReturn("test_trendsamples_received");
+//        when(config.get("metrics.name.trendsamplesReceived", "metasys_trendsamples_received"))
+//                .thenReturn("test_trendsamples_received");
 //        when(config.get("sd.api.username", "admin")).thenReturn("testuser");
 
         ingestionService = new MetasysTrendsIngestionService(
@@ -140,7 +140,7 @@ class MetasysTrendsIngestionServiceTest {
         verify(auditTrail).logObservedTrend(eq("sensor1"), eq("Observed: 1"));
 
         // Verify metrics
-        verify(metricsClient).sendValue("test_trendsamples_received", 1L);
+        verify(metricsClient).sendValue("metasys_trendsamples_received", 1L);
 
         // Verify last updated timestamp is set
         verify(trendsLastUpdatedService, times(1)).setLastUpdatedAt(eq(sensorId), any(Instant.class));
@@ -201,8 +201,8 @@ class MetasysTrendsIngestionServiceTest {
         verify(auditTrail).logObservedTrend(eq("sensor2"), eq("Observed: 2"));
 
         // Verify metrics sent twice
-        verify(metricsClient).sendValue("test_trendsamples_received", 3L);
-        verify(metricsClient).sendValue("test_trendsamples_received", 2L);
+        verify(metricsClient).sendValue("metasys_trendsamples_received", 3L);
+        verify(metricsClient).sendValue("metasys_trendsamples_received", 2L);
 
         // Verify last updated timestamp is set for each sample (3 + 2 = 5 times)
         verify(trendsLastUpdatedService, times(3)).setLastUpdatedAt(eq(sensor1), any(Instant.class));
@@ -300,7 +300,7 @@ class MetasysTrendsIngestionServiceTest {
         verify(auditTrail).logObservedTrend(eq("sensor1"), eq("Observed: 3"));
 
         // Verify metrics
-        verify(metricsClient).sendValue("test_trendsamples_received", 3L);
+        verify(metricsClient).sendValue("metasys_trendsamples_received", 3L);
 
         // Verify last updated timestamp is set for each sample
         verify(trendsLastUpdatedService, times(3)).setLastUpdatedAt(eq(sensorId), any(Instant.class));
