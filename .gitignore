@@ -48,3 +48,6 @@ logback_override.xml
 
 # Troubleshoot and bugfix
 /troubleshoot/
+
+# Claude Code configuration
+.claude/

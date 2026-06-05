@@ -64,7 +64,6 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
     private String subscriptionId;
 
 
-
     public MetasysCloudconnectorApplication(ApplicationProperties config) {
         super(config, "no.cantara.realestate", "metasys-cloudconnector-agent");
     }
