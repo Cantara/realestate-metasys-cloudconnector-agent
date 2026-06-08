@@ -6,7 +6,7 @@
     <groupId>no.cantara.realestate</groupId>
     <artifactId>metasys-cloudconnector-app</artifactId>
 
-    <version>0.17.7-SNAPSHOT</version>
+    <version>0.18.0-SNAPSHOT</version>
     <name>metasys-cloudconnector-agent</name>
     <url>https://github.com/Cantara/realestate-metasys-cloudconnector-agent</url>
 
@@ -67,7 +67,7 @@
         <dependency>
             <groupId>no.cantara.realestate</groupId>
             <artifactId>azure-client-java</artifactId>
-            <version>0.10.0</version>
+            <version>0.10.1</version>
             <exclusions>
                 <exclusion>
                     <groupId>no.cantara.realestate</groupId>
@@ -99,6 +99,11 @@
             <version>3.1.11</version>
         </dependency>
 
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-core</artifactId>
+            <version>2.4.0</version>
+        </dependency>
         <dependency>
             <groupId>io.github.resilience4j</groupId>
             <artifactId>resilience4j-ratelimiter</artifactId>
