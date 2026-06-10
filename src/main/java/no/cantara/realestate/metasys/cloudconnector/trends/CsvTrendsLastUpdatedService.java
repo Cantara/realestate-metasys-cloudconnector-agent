@@ -118,13 +118,25 @@ public class CsvTrendsLastUpdatedService implements TrendsLastUpdatedService {
 
     @Override
     public <T extends SensorId>  void setLastUpdatedAt(SensorId sensorId, Instant lastUpdatedAt) {
+        String sensorUpdateTracker = "TrackSensor-";
+        if (log.isTraceEnabled() && sensorId != null) {
+            sensorUpdateTracker += sensorId.getId();
+        }
         if (sensorId != null && sensorId.getId() != null && lastUpdatedAt != null) {
+            log.trace("{}-Setting last updated at for sensorId: {}, lastUpdatedAt: {}", sensorUpdateTracker,sensorId, lastUpdatedAt);
             String id = sensorId.getId();
             Instant currentLastUpdatedAt = lastUpdated.get(id);
             if (currentLastUpdatedAt == null || currentLastUpdatedAt.isBefore(lastUpdatedAt)) {
+                log.trace("{}-Updating last updated at for sensorId: {} from current value {} to new value {}",
+                        sensorUpdateTracker, sensorId, currentLastUpdatedAt, lastUpdatedAt);
                 lastUpdated.put(id, lastUpdatedAt);
+            } else {
+                log.trace("{}-Not updating last updated at for sensorId: {} because current value {} is newer than new value {}",
+                       sensorUpdateTracker, sensorId, currentLastUpdatedAt, lastUpdatedAt);
             }
             rememberMetasysObjectId(sensorId);
+        } else {
+            log.trace("{}-Attempted to set last updated at for null or invalid sensorId: {}, lastUpdatedAt: {}", sensorUpdateTracker, sensorId, lastUpdatedAt);
         }
     }
 
