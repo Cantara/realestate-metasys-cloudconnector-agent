@@ -22,8 +22,16 @@ import static org.slf4j.LoggerFactory.getLogger;
 @Deprecated //Use no.cantara.realestate.cloudconnector.trends.CsvTrendsLastUpdatedService instead
 public class CsvTrendsLastUpdatedService implements TrendsLastUpdatedService {
     private static final Logger log = getLogger(CsvTrendsLastUpdatedService.class);
-    Map<MetasysSensorId, Instant> lastUpdated;
-    Map<MetasysSensorId, Instant> lastFailed;
+
+    // Identity is the SensorId (the "Sensor-..." twinId). metasysObjectId is extra info, kept only
+    // as an output column for readability - it is intentionally NOT part of the key. Keying by the
+    // full MetasysSensorId would fold metasysObjectReference into equals/hashCode, and since the
+    // reference is never persisted it can never round-trip, so reloaded keys could never match the
+    // live subscription keys. See issue #535.
+    Map<String, Instant> lastUpdated;
+    Map<String, Instant> lastFailed;
+    // sensorId -> metasysObjectId, purely for the output column.
+    private final Map<String, String> metasysObjectIdById = new HashMap<>();
 
     // CSV file headers
     // lastUpdatedFile: sensorId, metasysObjectId, lastUpdatedAt
@@ -34,10 +42,6 @@ public class CsvTrendsLastUpdatedService implements TrendsLastUpdatedService {
     public CsvTrendsLastUpdatedService() {
         lastUpdated = new HashMap<>();
         lastFailed = new HashMap<>();
-    }
-
-    public CsvTrendsLastUpdatedService(Map<MetasysSensorId, Instant> lastUpdated) {
-        this.lastUpdated = lastUpdated;
     }
 
     public CsvTrendsLastUpdatedService(String lastUpdatedDirectory, String lastUpdatedFile, String lastFailedFile) {
@@ -81,10 +85,10 @@ public class CsvTrendsLastUpdatedService implements TrendsLastUpdatedService {
             String metasysObjectId = record.get("metasysObjectId");
             String lastUpdatedAtStr = record.get("lastUpdatedAt");
 
-            if (sensorId != null && metasysObjectId != null && lastUpdatedAtStr != null) {
-                MetasysSensorId id = new MetasysSensorId(sensorId, metasysObjectId, null);
+            if (sensorId != null && lastUpdatedAtStr != null) {
                 Instant lastUpdatedAt = Instant.parse(lastUpdatedAtStr);
-                lastUpdated.put(id, lastUpdatedAt);
+                lastUpdated.put(sensorId, lastUpdatedAt);
+                rememberMetasysObjectId(sensorId, metasysObjectId);
             }
         }
         log.info("Read {} last updated records from {}", lastUpdated.size(), lastUpdatedFile.getAbsolutePath());
@@ -95,55 +99,54 @@ public class CsvTrendsLastUpdatedService implements TrendsLastUpdatedService {
             String metasysObjectId = record.get("metasysObjectId");
             String lastFailedAtStr = record.get("lastFailedAt");
 
-            if (sensorId != null && metasysObjectId != null && lastFailedAtStr != null) {
-                MetasysSensorId id = new MetasysSensorId(sensorId, metasysObjectId, null);
+            if (sensorId != null && lastFailedAtStr != null) {
                 Instant lastFailedAt = Instant.parse(lastFailedAtStr);
-                lastFailed.put(id, lastFailedAt);
+                lastFailed.put(sensorId, lastFailedAt);
+                rememberMetasysObjectId(sensorId, metasysObjectId);
             }
         }
     }
 
     @Override
     public Instant getLastUpdatedAt(SensorId sensorId) {
-        Instant matchedLastUpdatedAt = lastUpdated.entrySet().stream()
-                .filter(entry -> entry.getKey().getId().equals(sensorId.getId()))
-                .map(Map.Entry::getValue)
-                .findFirst()
-                .orElse(null);
-        return matchedLastUpdatedAt;
+        if (sensorId == null || sensorId.getId() == null) {
+            return null;
+        }
+        return lastUpdated.get(sensorId.getId());
     }
 
 
     @Override
     public <T extends SensorId>  void setLastUpdatedAt(SensorId sensorId, Instant lastUpdatedAt) {
-        if ( sensorId instanceof  MetasysSensorId && sensorId != null && lastUpdatedAt != null) {
-            Instant currentLastUpdatedAt = lastUpdated.get(sensorId);
+        if (sensorId != null && sensorId.getId() != null && lastUpdatedAt != null) {
+            String id = sensorId.getId();
+            Instant currentLastUpdatedAt = lastUpdated.get(id);
             if (currentLastUpdatedAt == null || currentLastUpdatedAt.isBefore(lastUpdatedAt)) {
-                lastUpdated.put((MetasysSensorId) sensorId, lastUpdatedAt);
+                lastUpdated.put(id, lastUpdatedAt);
             }
+            rememberMetasysObjectId(sensorId);
         }
     }
 
     @Override
     public <T extends SensorId> void setLastFailedAt(SensorId sensorId, Instant lastFailedAt) {
-        if(sensorId instanceof MetasysSensorId && sensorId != null && lastFailedAt != null) {
-            lastFailed.put((MetasysSensorId) sensorId, lastFailedAt);
+        if (sensorId != null && sensorId.getId() != null && lastFailedAt != null) {
+            lastFailed.put(sensorId.getId(), lastFailedAt);
+            rememberMetasysObjectId(sensorId);
         }
     }
 
     @Override
     public <T extends SensorId> void persistLastFailed(List<T> sensorIds) {
-        log.info("Persisting last failed for {} sensors", sensorIds.size());
+        // Merge: persist everything we know, not just the sensors handled this cycle, so quiet
+        // sensors are not dropped from the file on rewrite. See issue #535.
+        rememberMetasysObjectIds(sensorIds);
+        log.info("Persisting last failed for {} sensors", lastFailed.size());
         try (BufferedWriter writer = Files.newBufferedWriter(lastFailedFile.toPath())) {
             writer.write("sensorId,metasysObjectId,lastFailedAt\n");
-            for (T sensorId : sensorIds) {
-                if (sensorId instanceof MetasysSensorId) {
-                    MetasysSensorId id = (MetasysSensorId) sensorId;
-                    Instant lastFailedAt = lastFailed.get(id);
-                    if (lastFailedAt != null) {
-                        writer.write(String.format("%s,%s,%s\n", id.getId(), id.getMetasysObjectId(), lastFailedAt));
-                    }
-                }
+            for (Map.Entry<String, Instant> entry : lastFailed.entrySet()) {
+                writer.write(String.format("%s,%s,%s\n", entry.getKey(),
+                        metasysObjectIdById.getOrDefault(entry.getKey(), ""), entry.getValue()));
             }
         } catch (Exception e) {
             log.error("Failed to persist last failed data to file: {}", lastFailedFile.getAbsolutePath(), e);
@@ -152,20 +155,39 @@ public class CsvTrendsLastUpdatedService implements TrendsLastUpdatedService {
 
     @Override
     public <T extends SensorId> void persistLastUpdated(List<T> sensorIds) {
-        log.info("Persisting last updated for {} sensors", sensorIds.size());
+        // Merge: persist everything we know, not just the sensors handled this cycle, so quiet
+        // sensors are not dropped from the file on rewrite. See issue #535.
+        rememberMetasysObjectIds(sensorIds);
+        log.info("Persisting last updated for {} sensors", lastUpdated.size());
         try (BufferedWriter writer = Files.newBufferedWriter(lastUpdatedFile.toPath())) {
             writer.write("sensorId,metasysObjectId,lastUpdatedAt\n");
-            for (T sensorId : sensorIds) {
-                if (sensorId instanceof MetasysSensorId) {
-                    MetasysSensorId id = (MetasysSensorId) sensorId;
-                    Instant lastUpdatedAt = lastUpdated.get(id);
-                    if (lastUpdatedAt != null) {
-                        writer.write(String.format("%s,%s,%s\n", id.getId(), id.getMetasysObjectId(), lastUpdatedAt));
-                    }
-                }
+            for (Map.Entry<String, Instant> entry : lastUpdated.entrySet()) {
+                writer.write(String.format("%s,%s,%s\n", entry.getKey(),
+                        metasysObjectIdById.getOrDefault(entry.getKey(), ""), entry.getValue()));
             }
         } catch (Exception e) {
             log.error("Failed to persist last updated data to file: {}", lastUpdatedFile.getAbsolutePath(), e);
+        }
+    }
+
+    private <T extends SensorId> void rememberMetasysObjectIds(List<T> sensorIds) {
+        if (sensorIds == null) {
+            return;
+        }
+        for (T sensorId : sensorIds) {
+            rememberMetasysObjectId(sensorId);
+        }
+    }
+
+    private void rememberMetasysObjectId(SensorId sensorId) {
+        if (sensorId instanceof MetasysSensorId && sensorId.getId() != null) {
+            rememberMetasysObjectId(sensorId.getId(), ((MetasysSensorId) sensorId).getMetasysObjectId());
+        }
+    }
+
+    private void rememberMetasysObjectId(String sensorId, String metasysObjectId) {
+        if (sensorId != null && metasysObjectId != null && !metasysObjectId.isEmpty()) {
+            metasysObjectIdById.put(sensorId, metasysObjectId);
         }
     }
 
