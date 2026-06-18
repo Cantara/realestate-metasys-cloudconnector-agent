@@ -131,7 +131,7 @@ public class CsvTrendsLastUpdatedService implements TrendsLastUpdatedService {
                         sensorUpdateTracker, sensorId, currentLastUpdatedAt, lastUpdatedAt);
                 lastUpdated.put(id, lastUpdatedAt);
             } else {
-                log.trace("{}-Not updating last updated at for sensorId: {} because current value {} is newer than new value {}",
+                log.trace("{}-Not updating last updated at for sensorId: {} because current value {} is equal to, or newer than new value {}",
                        sensorUpdateTracker, sensorId, currentLastUpdatedAt, lastUpdatedAt);
             }
             rememberMetasysObjectId(sensorId);
