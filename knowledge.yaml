@@ -1,3 +1,17 @@
+kcp_version: "0.21"
+updated: "2026-06-20"
+language: en
+license: "Apache-2.0"
+indexing: private
+temporal:
+  valid_from: "2026-03-10"
+signing:
+  scheme: ed25519
+  scope: this-manifest
+  public_key: "MCowBQYDK2VwAyEAuipgusnqU9vjf3p2yPVLD/DmERT6tBbLOqEETdxAhMU="
+  signature: "https://raw.githubusercontent.com/Cantara/realestate-metasys-cloudconnector-agent/main/knowledge.yaml.sig"
+not_for: []
+
 id: metasys-cloudconnector-app
 name: Real Estate Metasys Cloud Connector Agent
 version: 0.17.6-SNAPSHOT
@@ -12,19 +26,34 @@ units:
     type: service
     description: Main agent orchestration — startup, configuration loading, and polling coordination.
     path: src/main/java/no/cantara/realestate
+      content_hash:
+        algorithm: sha256
+        value: ""
   - id: metasys-client
     name: Metasys Client
     type: component
     description: Metasys REST API client for authenticating and fetching sensor trend samples.
+      content_hash:
+        algorithm: sha256
+        value: ""
   - id: cloud-publisher
     name: Cloud Publisher
     type: component
     description: MQTT and Azure Digital Twin publishers for distributing observations to cloud targets.
+      content_hash:
+        algorithm: sha256
+        value: ""
   - id: observation-model
     name: Observation Model
     type: component
     description: Sensor observation data model — reading type, value, unit, timestamp, and source.
+      content_hash:
+        algorithm: sha256
+        value: ""
   - id: scheduler
     name: Scheduler
     type: component
     description: Polling scheduler with configurable intervals and exponential backoff on failure.
+      content_hash:
+        algorithm: sha256
+        value: ""
