@@ -16,8 +16,8 @@ public class MockServerRunner {
         // Run mock setup
         MockServerSetup.loginMock();
         MockServerSetup.refreshTokenMock();
-//        MockServerSetup.clearAndSetSensorMockData("01ee7349-f468-554f-8221-d65663799d24");
-        MockServerSetup.clearAndSetSensorMockData("f887367c-5ad7-5340-ba04-messom");
+        MockServerSetup.clearAndSetSensorMockData("7c0b9098-e858-5d1a-abdc-2597583a2934");
+        MockServerSetup.clearAndSetSensorMockData("Sensor-640f4b48-4f87-4337-93e4-messom");
         MockServerSetup.mockPresentValueSubscription();
         MockServerSetup.streamMock();
 

@@ -72,13 +72,11 @@
             </exclusions>
         </dependency>
         -->
-        <!--
         <dependency>
             <groupId>no.cantara.realestate</groupId>
             <artifactId>azure-client-java</artifactId>
-            <version>0.14.2-SNAPSHOT</version>
+            <version>0.14.3-SNAPSHOT</version>
         </dependency>
-        -->
         <dependency>
             <groupId>no.cantara.realestate</groupId>
             <artifactId>realestate-cloudconnector-agent</artifactId>
