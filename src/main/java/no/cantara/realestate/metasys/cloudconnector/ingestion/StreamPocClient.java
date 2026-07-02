@@ -326,7 +326,7 @@ public class StreamPocClient implements StreamListener {
                 //IOException when there is a network error
                 String message = "SSE stream experienced network hickup. Need to reconnect with LastKnownEventId: " + lastKnownEventId;
                 MetasysCloudConnectorException exception = new MetasysCloudConnectorException(message, e);
-                log.debug(message, exception);
+                log.info(message, exception);
                 if (closingStreamReason.get() == null) {
                     closingStreamReason.set(NETWORK_INTERRUPTED + ": " + e.getMessage());
                 }
@@ -334,7 +334,7 @@ public class StreamPocClient implements StreamListener {
             } catch (InterruptedException e) {
                 String message = "SSE stream was closed from Metasys server. Need to reconnect with LastKnownEventId: " + lastKnownEventId;
                 MetasysCloudConnectorException exception = new MetasysCloudConnectorException(message, e);
-                log.debug(message, exception);
+                log.info(message, exception);
                 closingStreamReason.set(METASYS_SERVER_CLOSED_STREAM + ": " + e.getMessage());
                 throw exception;
             } catch (Exception e) {
@@ -439,7 +439,7 @@ public class StreamPocClient implements StreamListener {
                         currentEvent.setData(String.join("\n", dataLines));
                     }
 
-                    log.debug("Mapped to SSE event: {}", currentEvent);
+                    log.trace("Mapped to SSE event: {}", currentEvent);
 
                     // If we have a StreamListener, call onEvent
                     if (streamListener != null) {
