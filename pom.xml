@@ -57,41 +57,15 @@
         <!--
         <dependency>
             <groupId>no.cantara.realestate</groupId>
-            <artifactId>typelib-java</artifactId>
-            <version>0.9.0</version>
-        </dependency>
-        <dependency>
-            <groupId>no.cantara.realestate</groupId>
             <artifactId>azure-client-java</artifactId>
-            <version>0.14.0-SNAPSHOT</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>no.cantara.realestate</groupId>
-                    <artifactId>typelib-java</artifactId>
-                </exclusion>
-            </exclusions>
+            <version>0.14.3-SNAPSHOT</version>
         </dependency>
         -->
         <dependency>
             <groupId>no.cantara.realestate</groupId>
-            <artifactId>azure-client-java</artifactId>
-            <version>0.14.3-SNAPSHOT</version>
-        </dependency>
-        <dependency>
-            <groupId>no.cantara.realestate</groupId>
             <artifactId>realestate-cloudconnector-agent</artifactId>
-            <version>0.18.2</version>
-            <!--
-            <exclusions>
-                <exclusion>
-                    <groupId>no.cantara.realestate</groupId>
-                    <artifactId>azure-client-java</artifactId>
-                </exclusion>
-            </exclusions>
-            -->
+            <version>0.18.3</version>
         </dependency>
-
-
 
         <dependency>
             <groupId>no.cantara.stingray</groupId>

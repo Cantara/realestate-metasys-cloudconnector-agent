@@ -7,6 +7,7 @@ import no.cantara.realestate.cloudconnector.audit.AuditTrail;
 import no.cantara.realestate.cloudconnector.notifications.NotificationService;
 import no.cantara.realestate.cloudconnector.routing.ObservationsRepository;
 import no.cantara.realestate.cloudconnector.sensorid.SensorIdRepository;
+import no.cantara.realestate.cloudconnector.utils.LogbackConfigLoader;
 import no.cantara.realestate.distribution.ObservationDistributionClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClientSimulator;
@@ -23,7 +24,6 @@ import no.cantara.realestate.metasys.cloudconnector.status.TemporaryHealthResour
 import no.cantara.realestate.metasys.cloudconnector.trends.CsvTrendsLastUpdatedService;
 import no.cantara.realestate.metasys.cloudconnector.trends.InMemoryTrendsLastUpdatedService;
 import no.cantara.realestate.metasys.cloudconnector.trends.TrendsLastUpdatedService;
-import no.cantara.realestate.metasys.cloudconnector.utils.LogbackConfigLoader;
 import no.cantara.realestate.observations.ObservationListener;
 import no.cantara.realestate.plugins.ingestion.TrendsIngestionService;
 import no.cantara.realestate.plugins.notifications.NotificationListener;
