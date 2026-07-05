@@ -35,7 +35,7 @@
         <logback.version>1.4.7</logback.version>
         <stingray.version>1.21.16</stingray.version>
         <mappingtable.version>0.4.32</mappingtable.version>
-        <mockserver.version>5.15.0</mockserver.version>
+        <mockserver.version>7.4.0</mockserver.version>
         <junit.version>6.0.3</junit.version>
         <junit.platform.version>6.0.3</junit.platform.version>
         <slack-api-client.version>1.49.0</slack-api-client.version>
