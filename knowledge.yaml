@@ -1,4 +1,4 @@
-kcp_version: "0.21"
+kcp_version: "0.26"
 updated: "2026-06-20"
 language: en
 license: "Apache-2.0"
@@ -26,34 +26,27 @@ units:
     type: service
     description: Main agent orchestration — startup, configuration loading, and polling coordination.
     path: src/main/java/no/cantara/realestate
-      content_hash:
-        algorithm: sha256
-        value: ""
   - id: metasys-client
     name: Metasys Client
     type: component
     description: Metasys REST API client for authenticating and fetching sensor trend samples.
-      content_hash:
-        algorithm: sha256
-        value: ""
   - id: cloud-publisher
     name: Cloud Publisher
     type: component
     description: MQTT and Azure Digital Twin publishers for distributing observations to cloud targets.
-      content_hash:
-        algorithm: sha256
-        value: ""
   - id: observation-model
     name: Observation Model
     type: component
     description: Sensor observation data model — reading type, value, unit, timestamp, and source.
-      content_hash:
-        algorithm: sha256
-        value: ""
   - id: scheduler
     name: Scheduler
     type: component
     description: Polling scheduler with configurable intervals and exponential backoff on failure.
-      content_hash:
-        algorithm: sha256
-        value: ""
+
+# Serving Endpoint Binding (KCP SPEC v0.26 §3.12): authoritative manifest URL
+# and authorized MCP representative. Ignored by pre-0.26 verifiers.
+serving:
+  manifest:
+    - https://raw.githubusercontent.com/Cantara/realestate-metasys-cloudconnector-agent/main/knowledge.yaml
+  mcp:
+    - https://mcp.cantara.no/mcp
