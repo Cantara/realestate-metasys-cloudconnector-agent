@@ -2,7 +2,7 @@ package no.cantara.realestate.metasys.cloudconnector.automationserver;
 
 import no.cantara.realestate.observations.Value;
 
-import javax.json.bind.annotation.JsonbProperty;
+import jakarta.json.bind.annotation.JsonbProperty;
 
 
 public class MetasysValue extends Value {

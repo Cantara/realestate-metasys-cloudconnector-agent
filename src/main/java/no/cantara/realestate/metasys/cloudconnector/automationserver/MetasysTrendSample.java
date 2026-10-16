@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonSetter;
 import no.cantara.realestate.observations.TrendSample;
 import no.cantara.realestate.observations.Value;
 
-import javax.json.bind.annotation.JsonbProperty;
+import jakarta.json.bind.annotation.JsonbProperty;
 import java.time.Instant;
 import java.util.Objects;
 
