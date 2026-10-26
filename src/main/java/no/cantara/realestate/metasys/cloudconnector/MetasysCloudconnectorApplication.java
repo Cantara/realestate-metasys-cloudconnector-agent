@@ -10,6 +10,7 @@ import no.cantara.realestate.cloudconnector.sensorid.SensorIdRepository;
 import no.cantara.realestate.cloudconnector.utils.LogbackConfigLoader;
 import no.cantara.realestate.distribution.ObservationDistributionClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClient;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysClientCB;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.SdClientSimulator;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.MetasysStreamClient;
 import no.cantara.realestate.metasys.cloudconnector.automationserver.stream.StreamListener;
@@ -480,6 +481,7 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
     private BasClient createSdClient(ApplicationProperties config) {
         BasClient sdClient;
         String useSDProdValue = config.get("sd.api.prod");
+        String useMetasysClientCBValue = config.get("sd.api.useMetasysClientCB", "false");
 
         if (Boolean.valueOf(useSDProdValue)) {
             String apiUrl = config.get("sd.api.url");
@@ -488,7 +490,13 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
             try {
                 URI apiUri = new URI(apiUrl);
                 log.info("Connect to Metasys API: {} with username: {}", apiUri, username);
-                sdClient = MetasysClient.getInstance(username, password, apiUri, notificationService);
+                if (Boolean.valueOf(useMetasysClientCBValue)) {
+                    log.info("Using MetasysClientCB for SD Client");
+                    sdClient = MetasysClientCB.getInstance(username, password, apiUri, notificationService);
+                } else {
+                    log.info("Using MetasysClient for SD Client");
+                    sdClient = MetasysClient.getInstance(username, password, apiUri, notificationService);
+                }
                 log.info("Running with a live REST SD.");
             } catch (URISyntaxException e) {
                 throw new MetasysCloudConnectorException("Failed to connect SD Client to URL" + apiUrl, e);
