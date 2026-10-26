@@ -213,7 +213,7 @@ public class MetasysClientCB implements BasClient, AutoCloseable {
                 return false;
             }
             lastLoginAttemptAt = now;
-            MetasysUserToken token = postLogin();
+            MetasysUserToken token = doLogin();
             if (token == null) {
                 return false;
             }
@@ -241,7 +241,7 @@ public class MetasysClientCB implements BasClient, AutoCloseable {
     }
 
     // Returns the token, or null when the login failed. Never logs the password.
-    private MetasysUserToken postLogin() {
+    private MetasysUserToken doLogin() {
         URI loginUri = URI.create(apiUri + "login");
         ObjectNode body = RealEstateObjectMapper.getInstance().getObjectMapper().createObjectNode();
         body.put("username", username);
