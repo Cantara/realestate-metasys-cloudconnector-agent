@@ -105,6 +105,23 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
             get(StingrayHealthService.class).registerHealthProbe(sdClientName + "-consecutiveFailures", metasysClient::getConsecutiveFailures);
             get(StingrayHealthService.class).registerHealthProbe(sdClientName + "-lastSuccessfulApiCall", metasysClient::getLastSuccessfulApiCall);
             get(StingrayHealthService.class).registerHealthProbe(sdClientName + "-lastFailedApiCall", metasysClient::getLastFailedApiCall);
+            /*
+            FIXME HTTP 403 error from Metasys
+            get(StingrayHealthService.class).registerHealthCheck(sdClientName + "-healthCheck", new HealthCheck() {
+                @Override
+                protected Result check() throws Exception {
+                    if (metasysClient.403errorCount() > 0 && metasysClient.403errorPercentage() > 60) {
+                        return Result.unhealthy("MetasysClient has " + metasysClient.403errorCount() + " consecutive 403 errors.");
+                    } else if (!metasysClient.isHealthy()) {
+                        return Result.unhealthy("MetasysClient is not healthy.");
+                    } else {
+                        return Result.healthy();
+                    }
+                }
+            }
+
+             */
+
         }
 
         MetasysStreamClient streamClient = null;
