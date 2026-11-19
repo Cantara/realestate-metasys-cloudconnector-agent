@@ -2,7 +2,7 @@ package no.cantara.realestate.metasys.cloudconnector.automationserver;
 
 import no.cantara.realestate.security.UserToken;
 
-import javax.json.bind.annotation.JsonbProperty;
+import jakarta.json.bind.annotation.JsonbProperty;
 import java.time.Instant;
 
 public class MetasysUserToken extends UserToken {
