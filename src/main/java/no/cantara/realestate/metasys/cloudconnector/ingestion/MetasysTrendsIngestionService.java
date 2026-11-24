@@ -5,6 +5,7 @@ import no.cantara.realestate.automationserver.BasClient;
 import no.cantara.realestate.automationserver.TrendNotFoundException;
 import no.cantara.realestate.cloudconnector.audit.AuditTrail;
 import no.cantara.realestate.metasys.cloudconnector.MetasysCloudConnectorException;
+import no.cantara.realestate.metasys.cloudconnector.automationserver.MetasysApiException;
 import no.cantara.realestate.metasys.cloudconnector.metrics.MetasysMetricsDistributionClient;
 import no.cantara.realestate.metasys.cloudconnector.trends.TrendsLastUpdatedService;
 import no.cantara.realestate.observations.ObservationListener;
@@ -34,6 +35,7 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
     private static final Logger log = getLogger(MetasysTrendsIngestionService.class);
 
     public static final String BAS_URL_KEY = "sd.api.url";
+    static final String NOTIFICATION_PLUGIN_ID = "Metasys";
     public final String METRIC_NAME_TRENDSAMPLES_RECEIVED = "metasys_trendsamples_received";
 
     private ApplicationProperties config;
@@ -50,6 +52,8 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
     private boolean isInitialized = false;
     private String apiUrl;
     private boolean isHealthy;
+    // Written by the ingestion thread, read by the health check thread.
+    private volatile boolean forbiddenWarningActive = false;
     private Instant lastObservationReceievedAt = null;
 
 
@@ -118,7 +122,7 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
 
                     log.trace("Try import of sensorId: {}, trendId: {} from: {}", sensorId.getTwinId(), metasysObjectId, lastObservedAt);
                     Set<? extends TrendSample> trendSamples = metasysApiClient.findTrendSamplesByDate(metasysObjectId, -1, -1, lastObservedAt);
-                    isHealthy = true;
+                    setHealthy();
                     if (trendSamples != null && trendSamples.size() > 0) {
                         updateWhenLastObservationReceived();
                         auditTrail.logObservedTrend(sensorId.getId(), "Observed: " + trendSamples.size());
@@ -157,6 +161,20 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
                     trendsLastUpdatedService.setLastFailedAt((MetasysSensorId) sensorId, Instant.now());
                     failedSensors.add((MetasysSensorId) sensorId);
                     auditLog.trace("Ingest__Failed__TrendId__{}__sensorId__{}. Reason {}", metasysObjectId, sensorId, e.getMessage());
+                } catch (MetasysApiException mae) {
+                    addMessagesFailedCount();
+                    trendsLastUpdatedService.setLastFailedAt((MetasysSensorId) sensorId, Instant.now());
+                    failedSensors.add((MetasysSensorId) sensorId);
+                    log.debug("Failed to ingest trends for TrendId {} sensorId {}. Status: {}", metasysObjectId, sensorId, mae.getStatusCode(), mae);
+                    if (mae.getStatusCode() == 403) {
+                        // SlackNotificationService only suppresses repeats of an identical message, and this one names the
+                        // object. Warn once per incident; setHealthy() clears it on the next successful call.
+                        if (!forbiddenWarningActive) {
+                            notificationListener.sendWarning(NOTIFICATION_PLUGIN_ID, getName(), "Metasys API returned 403 for TrendId "
+                                    + metasysObjectId + ". Check your Metasys API credentials and permissions.");
+                            forbiddenWarningActive = true;
+                        }
+                    }
                 } catch (MetasysCloudConnectorException dce) {
                     addMessagesFailedCount();
                     trendsLastUpdatedService.setLastFailedAt((MetasysSensorId) sensorId, Instant.now());
@@ -174,6 +192,11 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
             }
         }
 
+        if (isAccessForbidden()) {
+            log.warn("Metasys API returned 403 for one or more TrendIds. Check your Metasys API credentials and permissions.");
+            notificationListener.sendAlarm(NOTIFICATION_PLUGIN_ID, getName(), "Metasys API returned 403 for one or more TrendIds, and trend ingestion round is finished.");
+            setUnhealthy();
+        }
 
         trendsLastUpdatedService.persistLastUpdated(updatedSensors);
         trendsLastUpdatedService.persistLastFailed(failedSensors);
@@ -261,6 +284,28 @@ public class MetasysTrendsIngestionService implements TrendsIngestionService {
     @Override
     public boolean isHealthy() {
         return isHealthy;
+    }
+
+    /**
+     * True from a 403 on trend samples until the next successful call. Drives the health check that
+     * reports DOWN, so the service is restarted and logs in again.
+     *
+     * @return whether the last Metasys answer that decided the state was 403
+     */
+    public boolean isAccessForbidden() {
+        return forbiddenWarningActive;
+    }
+
+    protected void setHealthy() {
+        isHealthy = true;
+        if (forbiddenWarningActive) {
+            notificationListener.clearService(NOTIFICATION_PLUGIN_ID, getName());
+            forbiddenWarningActive = false;
+        }
+    }
+
+    protected void setUnhealthy() {
+        isHealthy = false;
     }
 
     @Override

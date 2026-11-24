@@ -51,3 +51,4 @@ logback_override.xml
 
 # Claude Code configuration
 .claude/
+/logs/trend-login-feiler/

@@ -1,5 +1,6 @@
 package no.cantara.realestate.metasys.cloudconnector;
 
+import com.codahale.metrics.health.HealthCheck;
 import no.cantara.config.ApplicationProperties;
 import no.cantara.realestate.automationserver.BasClient;
 import no.cantara.realestate.cloudconnector.RealestateCloudconnectorApplication;
@@ -105,23 +106,6 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
             get(StingrayHealthService.class).registerHealthProbe(sdClientName + "-consecutiveFailures", metasysClient::getConsecutiveFailures);
             get(StingrayHealthService.class).registerHealthProbe(sdClientName + "-lastSuccessfulApiCall", metasysClient::getLastSuccessfulApiCall);
             get(StingrayHealthService.class).registerHealthProbe(sdClientName + "-lastFailedApiCall", metasysClient::getLastFailedApiCall);
-            /*
-            FIXME HTTP 403 error from Metasys
-            get(StingrayHealthService.class).registerHealthCheck(sdClientName + "-healthCheck", new HealthCheck() {
-                @Override
-                protected Result check() throws Exception {
-                    if (metasysClient.403errorCount() > 0 && metasysClient.403errorPercentage() > 60) {
-                        return Result.unhealthy("MetasysClient has " + metasysClient.403errorCount() + " consecutive 403 errors.");
-                    } else if (!metasysClient.isHealthy()) {
-                        return Result.unhealthy("MetasysClient is not healthy.");
-                    } else {
-                        return Result.healthy();
-                    }
-                }
-            }
-
-             */
-
         }
 
         MetasysStreamClient streamClient = null;
@@ -152,7 +136,19 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
             trendsLastUpdatedService = init(TrendsLastUpdatedService.class, () -> new InMemoryTrendsLastUpdatedService());
         }
 
-        trendsIngestionService = new MetasysTrendsIngestionService(config, observationListener, notificationListener, sdClient, trendsLastUpdatedService, auditTrail, metricsDistributionClient);
+        MetasysTrendsIngestionService metasysTrendsIngestionService = new MetasysTrendsIngestionService(config, observationListener, notificationListener, sdClient, trendsLastUpdatedService, auditTrail, metricsDistributionClient);
+        trendsIngestionService = metasysTrendsIngestionService;
+        get(StingrayHealthService.class).registerHealthCheck(metasysTrendsIngestionService.getName(), new HealthCheck() {
+            @Override
+            protected Result check() {
+                if (!metasysTrendsIngestionService.isHealthy() && metasysTrendsIngestionService.isAccessForbidden()) {
+                    return Result.unhealthy("Metasys API returned 403 on trend samples, and no call has succeeded since.");
+                } else if (!metasysTrendsIngestionService.isHealthy()) {
+                    return Result.unhealthy("metasysTrendsIngestionService is unhealthy.");
+                }
+                return Result.healthy();
+            }
+        });
 
         // Initial import of sensors and RecTags
         importDirectory = config.get("importdata.directory");
