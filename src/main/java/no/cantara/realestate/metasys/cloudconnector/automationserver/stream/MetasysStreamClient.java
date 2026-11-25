@@ -685,7 +685,7 @@ public class MetasysStreamClient implements BasClient {
 
     @Override
     public String getName() {
-        return "MetasysApiClient";
+        return "MetasysStreamClient";
     }
 
     @Override
