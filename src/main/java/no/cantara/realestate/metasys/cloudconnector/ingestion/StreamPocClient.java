@@ -574,6 +574,7 @@ public class StreamPocClient implements StreamListener {
                     if (realestateObservedValue != null) {
                         metricsClient.sendValue(METRIC_NAME_STREAMVALUE_RECEIVED, 1);
                         observationListener.observedValue(realestateObservedValue);
+                        metasysStreamClient.updateWhenLastTrendSampleReceived();
                     }
                 }
             }

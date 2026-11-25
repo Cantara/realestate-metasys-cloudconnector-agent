@@ -115,6 +115,7 @@ public class MetasysCloudconnectorApplication extends RealestateCloudconnectorAp
             if (streamClient != null) {
                 get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isHealthy", streamClient::isHealthy);
                 get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-isLoggedIn", streamClient::isLoggedIn);
+                get(StingrayHealthService.class).registerHealthProbe(streamClient.getName() + "-whenLastObservationImported", streamClient::getWhenLastTrendSampleReceived);
             } else {
                 log.warn("Stream is enabled (sd.stream.enabled=true) but cannot be started: sd.api.prod is not true. No stream client simulator is available.");
             }

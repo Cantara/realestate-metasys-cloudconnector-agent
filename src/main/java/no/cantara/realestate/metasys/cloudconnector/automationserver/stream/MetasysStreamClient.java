@@ -765,7 +765,7 @@ public class MetasysStreamClient implements BasClient {
         return apiUri;
     }
 
-    protected void updateWhenLastTrendSampleReceived() {
+    public void updateWhenLastTrendSampleReceived() {
         whenLastTrendSampleReceived = Instant.ofEpochMilli(System.currentTimeMillis());
     }
 
